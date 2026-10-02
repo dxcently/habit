@@ -53,6 +53,10 @@ twoUserScopes                       ok      "mako+dunst"
 scopesDoNotLeak                     ok      true
 homeSelectionWithoutHomeManager     throws  homeManager.enable = false but selects home dendrites: notifications
 homeManagerAbsent                   ok      true
+aggregationMisspeltHalf             throws  has unknown field(s): member, sytem; a body takes only description, system, home
+aggregationSystemKey                throws  has unknown field(s) in `system`: member; a half takes only members, providers, nixos, homeManager
+aggregationHomeKey                  throws  has unknown field(s) in `home`: nixso; a half takes only members, providers, nixos, homeManager
+unselectedBadBodyIsInert            ok      true
 overrideMatchesSelectedTarget       ok      "allhosts"
 overrideHostFilterAdmits            ok      "allhosts,confined,homely"
 overrideHostFilterExcludes          ok      "allhosts,homely"

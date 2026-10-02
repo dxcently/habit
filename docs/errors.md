@@ -26,6 +26,16 @@ module system on habit's schema are listed after them.
 | ------- | ----- | --- |
 | `host '<host>': <path> is the whole dendrite tree, which imports every dendrite's body, and <names> is selected, so its lane imports that same body — one module list, the same declarations twice, which nixpkgs throws on as `already declared'. Keep one: select through the catalogue and drop the aggregate, or take the aggregate and select nothing.` | `extraModules` or `extraModulesFor` returned the directory holding the catalogue entries while a capability is selected | do what the message says ([the whole-tree refusal](constructor.md#the-whole-tree-refusal)) |
 
+## Aggregation bodies
+
+Each begins `aggregation '<name>' (<path to its default.nix>)`. Checked for a
+selected aggregation only, when its body is read.
+
+| message continues | cause | fix |
+| ----------------- | ----- | --- |
+| `has unknown field(s): <fields>; a body takes only description, system, home` | a misspelt half (`sytem`) or another key at the top of the body | rename or remove it |
+| ``has unknown field(s) in `<half>`: <fields>; a half takes only members, providers, nixos, homeManager`` | a key in `system` or `home` the constructor does not read (`member`, `nixso`); `<half>` is `system` or `home` | rename or remove it |
+
 ## Override records
 
 Each begins `override record '<name>' (<path>)`.

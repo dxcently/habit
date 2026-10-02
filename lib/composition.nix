@@ -90,6 +90,43 @@ let
       }
     ) catalogue;
 
+  # ── The aggregation body ───────────────────────────────────────────────────
+  # Read only for a selected aggregation. A key the constructor does not read
+  # (a misspelt `sytem`, a `member`) would contribute nothing and say nothing,
+  # so it fails here, naming the aggregation and its file.
+  bodyFields = [
+    "description"
+    "system"
+    "home"
+  ];
+  halfFields = [
+    "members"
+    "providers"
+    "nixos"
+    "homeManager"
+  ];
+
+  readBody =
+    name: path:
+    let
+      body = import path;
+      where = "aggregation '${name}' (${
+        toString path + lib.optionalString (lib.pathIsDirectory path) "/default.nix"
+      })";
+      unknown = lib.subtractLists bodyFields (lib.attrNames body);
+      unknownIn = scope: lib.subtractLists halfFields (lib.attrNames (halfOf body scope));
+      badHalf = lib.findFirst (scope: unknownIn scope != [ ]) null [
+        "system"
+        "home"
+      ];
+    in
+    if unknown != [ ] then
+      throw "${where} has unknown field(s): ${lib.concatStringsSep ", " unknown}; a body takes only ${lib.concatStringsSep ", " bodyFields}"
+    else if badHalf != null then
+      throw "${where} has unknown field(s) in `${badHalf}`: ${lib.concatStringsSep ", " (unknownIn badHalf)}; a half takes only ${lib.concatStringsSep ", " halfFields}"
+    else
+      body;
+
   # The half of an aggregation body that answers in one scope: the scope names
   # are the body's own attribute names, `system` and `home`.
   halfOf = body: scope: body.${scope} or { };
@@ -506,7 +543,7 @@ rec {
         chosen gate.aggregation ++ lib.concatMap (u: chosen u.aggregation) (lib.attrValues gate.users)
       );
     in
-    eval (lib.genAttrs selected (name: import aggregations.${name}));
+    eval (lib.genAttrs selected (name: readBody name aggregations.${name}));
 
   # A host's resolved shape: what it selected, from where, for which lane.
   # Generated from the selection, never maintained by hand.

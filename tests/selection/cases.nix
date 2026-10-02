@@ -393,6 +393,22 @@ let
 
   bad = name: { ${name} = ./badrecords + "/${name}.nix"; };
 
+  # The constructor's catalogue with one deliberately broken aggregation body
+  # beside the fixture ones; `enabled` is the aggregation the host selects.
+  badBody =
+    {
+      name,
+      enabled ? name,
+    }:
+    (composition.evalSelection {
+      registry = registry // {
+        aggregations = registry.aggregations // {
+          ${name} = ./badaggregations + "/${name}";
+        };
+      };
+      modules = [ { aggregation.${enabled}.enable = true; } ];
+    }).aggregation.${enabled}.enable;
+
   # The constructor's registry plus one record that matches a selected target,
   # for the case that witnesses WHERE the hook's modules land: the record's
   # `nixos` half and the hook's module define the same list option, and a list
@@ -444,6 +460,16 @@ let
 in
 selectionCases
 // rec {
+  # An aggregation body is checked when it is read, and it is read only when
+  # selected: the same broken bodies, unselected, are never looked at.
+  aggregationMisspeltHalf = badBody { name = "misspeltHalf"; };
+  aggregationSystemKey = badBody { name = "systemKey"; };
+  aggregationHomeKey = badBody { name = "homeKey"; };
+  unselectedBadBodyIsInert = badBody {
+    name = "misspeltHalf";
+    enabled = "workstation";
+  };
+
   # A record with no `hosts` reaches every host that selected a target — and
   # nothing else: `confined` is beta-only, `homely` and `tripwire` target
   # capabilities this host did not select.
