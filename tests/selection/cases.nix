@@ -466,6 +466,7 @@ selectionCases
   aggregationSystemKey = badBody { name = "systemKey"; };
   aggregationHomeKey = badBody { name = "homeKey"; };
   aggregationListHalf = badBody { name = "listHalf"; };
+  aggregationFunctionBody = badBody { name = "functionBody"; };
   unselectedBadBodyIsInert = badBody {
     name = "misspeltHalf";
     enabled = "workstation";

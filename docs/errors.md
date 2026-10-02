@@ -33,6 +33,7 @@ selected aggregation only, when its body is read.
 
 | message continues | cause | fix |
 | ----------------- | ----- | --- |
+| `is a <type>, not an attrset; a body is an attrset taking only description, system, home` | the body is a function (written like a dendrite), a list or another non-attrset | make it an attrset |
 | `has unknown field(s): <fields>; a body takes only description, system, home` | a misspelt half (`sytem`) or another key at the top of the body | rename or remove it |
 | ``has unknown field(s) in `<half>`: <fields>; a half takes only members, providers, nixos, homeManager`` | a key in `system` or `home` the constructor does not read (`member`, `nixso`); `<half>` is `system` or `home` | rename or remove it |
 | ``has `<half>` as a <type>, not an attrset; a half is an attrset taking only members, providers, nixos, homeManager`` | `system` or `home` is a list, string or other non-attrset | make it an attrset |

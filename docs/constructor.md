@@ -80,8 +80,8 @@ The arguments that need more than a line:
   replaces a name a lane also replaces must step aside for a name `prev`
   already carries, or it overrides the lane's value. A matched override
   record's overlay is applied after the lanes' and before the caller's.
-- **`extraModules`** land after the lanes and before override modules and the
-  host's own `nixos`.
+- **`extraModules`** land after the lanes and before the matched records'
+  `nixos` modules and the host's own `nixos`.
 
 ### The whole-tree refusal
 

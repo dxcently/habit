@@ -124,7 +124,9 @@ let
         "home"
       ];
     in
-    if unknown != [ ] then
+    if !lib.isAttrs body then
+      throw "${where} is a ${builtins.typeOf body}, not an attrset; a body is an attrset taking only ${lib.concatStringsSep ", " bodyFields}"
+    else if unknown != [ ] then
       throw "${where} has unknown field(s): ${lib.concatStringsSep ", " unknown}; a body takes only ${lib.concatStringsSep ", " bodyFields}"
     else if notAttrs != null then
       throw "${where} has `${notAttrs}` as a ${builtins.typeOf body.${notAttrs}}, not an attrset; a half is an attrset taking only ${lib.concatStringsSep ", " halfFields}"

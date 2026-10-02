@@ -57,6 +57,7 @@ aggregationMisspeltHalf             throws  has unknown field(s): member, sytem;
 aggregationSystemKey                throws  has unknown field(s) in `system`: member; a half takes only members, providers, nixos, homeManager
 aggregationHomeKey                  throws  has unknown field(s) in `home`: nixso; a half takes only members, providers, nixos, homeManager
 aggregationListHalf                 throws  has `system` as a list, not an attrset; a half is an attrset taking only members, providers, nixos, homeManager
+aggregationFunctionBody             throws  is a lambda, not an attrset; a body is an attrset taking only description, system, home
 unselectedBadBodyIsInert            ok      true
 overrideMatchesSelectedTarget       ok      "allhosts"
 overrideHostFilterAdmits            ok      "allhosts,confined,homely"

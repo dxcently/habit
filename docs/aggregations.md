@@ -46,12 +46,17 @@ The body is data, read only when a host or one of its users selects the group.
 A `nixos` in the home half, or a `homeManager` in the system half, fails as an
 option that does not exist.
 
-A selected body is validated when it is read: a field outside this table at the
-top (a misspelt `sytem`), or a key outside `members`, `providers`, `nixos` and
-`homeManager` in a half (a `member`, a `nixso`), is an error naming the
-aggregation, its file and the key
-([Errors](errors.md#aggregation-bodies)). A body nobody selected is never read,
-so it is never validated either.
+A selected body is validated when it is read, and each failure names the
+aggregation and its file ([Errors](errors.md#aggregation-bodies)):
+
+- a body that is not an attrset (a function written like a dendrite, a list)
+  names its type;
+- a field outside this table at the top (a misspelt `sytem`) names the field;
+- a `system` or `home` that is not an attrset names the half and its type;
+- a key outside `members`, `providers`, `nixos` and `homeManager` in a half (a
+  `member`, a `nixso`) names the half and the key.
+
+A body nobody selected is never read, so it is never validated either.
 
 One body serves both scopes. The host selects it with
 `aggregation.desktop.enable = true` and gets the `system` half; a user selects
