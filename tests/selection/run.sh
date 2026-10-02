@@ -56,6 +56,7 @@ homeManagerAbsent                   ok      true
 aggregationMisspeltHalf             throws  has unknown field(s): member, sytem; a body takes only description, system, home
 aggregationSystemKey                throws  has unknown field(s) in `system`: member; a half takes only members, providers, nixos, homeManager
 aggregationHomeKey                  throws  has unknown field(s) in `home`: nixso; a half takes only members, providers, nixos, homeManager
+aggregationListHalf                 throws  has `system` as a list, not an attrset; a half is an attrset taking only members, providers, nixos, homeManager
 unselectedBadBodyIsInert            ok      true
 overrideMatchesSelectedTarget       ok      "allhosts"
 overrideHostFilterAdmits            ok      "allhosts,confined,homely"
@@ -99,8 +100,9 @@ mergeSourceWithoutName              throws  registry source at position 2 has no
 mergeSourcesShareAName              throws  registry sources share a name: alpha
 mergeSourceUnknownField             throws  registry source 'typo' has unknown field(s): aggregation; a source takes only name, catalogue, aggregations, overrides
 mergeFieldNotAnAttrset              throws  registry source 'nulled': `catalogue` must be an attrset, got null
-overlayOrder                        ok      "lane,lane,caller,nucleus,record"
-recordOverlayWins                   ok      "record"
+overlayOrder                        ok      "lane,lane,record,caller,nucleus"
+recordOverlayBeatsLane              ok      "record"
+callerOverlayBeatsRecord            ok      "caller"
 exampleMinimalInventory             ok      "box:ssh"
 exampleMinimalModules               ok      ["path","set{services}","set{imports}"]
 exampleMinimalConfig                ok      "box ssh=true"

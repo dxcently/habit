@@ -465,6 +465,7 @@ selectionCases
   aggregationMisspeltHalf = badBody { name = "misspeltHalf"; };
   aggregationSystemKey = badBody { name = "systemKey"; };
   aggregationHomeKey = badBody { name = "homeKey"; };
+  aggregationListHalf = badBody { name = "listHalf"; };
   unselectedBadBodyIsInert = badBody {
     name = "misspeltHalf";
     enabled = "workstation";
@@ -1010,8 +1011,8 @@ selectionCases
   # The caller's `overlays` land after every lane's, and the nucleus after
   # both, in the list a platform evaluator concatenates. The lane overlays are
   # thereby applied before the caller's, so a lane's `prev` carries none of the
-  # caller's packages. A matched override record's overlay lands after all of
-  # them.
+  # caller's packages. A matched override record's overlay lands between the
+  # lanes' and the caller's.
   overlayOrder = builtins.concatStringsSep "," (
     map (
       o:
@@ -1022,9 +1023,24 @@ selectionCases
     ) overlaysApplied
   );
 
-  # Applied in that order, the last overlay to set an attribute wins: the
-  # record's beats the lanes', the caller's and the nucleus's.
-  recordOverlayWins = (lib.foldl' (prev: o: prev // o prev prev) { } overlaysApplied).tag;
+  # Applied in that order, the last overlay to set `tag` wins. Restricted to the
+  # named tags, this is the winner between those overlays alone.
+  winnerAmong =
+    tags:
+    (lib.foldl' (prev: o: prev // o prev prev) { } (
+      lib.filter (o: lib.elem (o { } { }).tag tags) overlaysApplied
+    )).tag;
+
+  recordOverlayBeatsLane = winnerAmong [
+    "laneone"
+    "lanetwo"
+    "record"
+  ];
+
+  callerOverlayBeatsRecord = winnerAmong [
+    "record"
+    "caller"
+  ];
 
   # ── The examples (examples/) ───────────────────────────────────────────────
   # Each example's `default.nix` is called as a consumer's flake would call it:

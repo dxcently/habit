@@ -15,6 +15,12 @@ Append-only. Newest first.
   field. Each source must be an attrset with a unique string `name`, takes only `name`,
   `catalogue`, `aggregations` and `overrides` (any other field throws), and a
   field it carries must be an attrset.
+- An override record's overlays are applied after the lanes' and before the
+  caller's and the nucleus's: a record beats a lane on a shared attribute, and
+  the consumer's own overlays keep the last word.
+- Aggregation bodies are validated when read: an unknown key at the top of a
+  body or in a half, and a half that is not an attrset, throw naming the
+  aggregation, its file and the key.
 - `checks.x86_64-linux.selection` runs the suite.
 - Added `examples/` (`minimal`, `workstation`, `merged`), each evaluated by the
   suite for its inventory, its module list and real NixOS option values, and

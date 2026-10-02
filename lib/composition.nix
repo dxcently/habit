@@ -115,6 +115,10 @@ let
       })";
       unknown = lib.subtractLists bodyFields (lib.attrNames body);
       unknownIn = scope: lib.subtractLists halfFields (lib.attrNames (halfOf body scope));
+      notAttrs = lib.findFirst (scope: body ? ${scope} && !lib.isAttrs body.${scope}) null [
+        "system"
+        "home"
+      ];
       badHalf = lib.findFirst (scope: unknownIn scope != [ ]) null [
         "system"
         "home"
@@ -122,6 +126,8 @@ let
     in
     if unknown != [ ] then
       throw "${where} has unknown field(s): ${lib.concatStringsSep ", " unknown}; a body takes only ${lib.concatStringsSep ", " bodyFields}"
+    else if notAttrs != null then
+      throw "${where} has `${notAttrs}` as a ${builtins.typeOf body.${notAttrs}}, not an attrset; a half is an attrset taking only ${lib.concatStringsSep ", " halfFields}"
     else if badHalf != null then
       throw "${where} has unknown field(s) in `${badHalf}`: ${lib.concatStringsSep ", " (unknownIn badHalf)}; a half takes only ${lib.concatStringsSep ", " halfFields}"
     else
@@ -712,18 +718,20 @@ rec {
         nucleus
       ]
       ++ lib.optional (overlays != [ ]) { nixpkgs.overlays = overlays; }
+      # A list option's definitions merge in reverse list order, so a module
+      # placed here is applied after the lanes' overlays and before the
+      # caller's and the nucleus's: a record's fix wins over a lane's, and the
+      # consumer's own overlays keep the last word. The host's own overlays are
+      # applied first and lose to all of them unless the host orders them later
+      # with `lib.mkAfter`.
+      ++ lib.optional (overrides.overlays != [ ]) { nixpkgs.overlays = overrides.overlays; }
       ++ accountLanes
       ++ systemLanes
       ++ lib.optional (hmUsers != { }) homeWiring
       ++ extra
       # A record outranks everything the constructor imported on its behalf; the
-      # host's own module still outranks the record. Overlays are the exception:
-      # a list option's definitions merge in reverse list order, so `mkAfter`
-      # puts the record's overlays last, applied after the host's, the lanes',
-      # the caller's and the nucleus's, and a record's fix wins on any attribute
-      # they share.
+      # host's own module still outranks the record.
       ++ overrides.nixos
-      ++ lib.optional (overrides.overlays != [ ]) { nixpkgs.overlays = lib.mkAfter overrides.overlays; }
       ++ [ selection.nixos ];
     in
     if strandedHome != [ ] then
