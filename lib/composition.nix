@@ -581,7 +581,7 @@ rec {
       # The whole-tree aggregate and a SELECTED lane in one module list is not a
       # merge: both import the same `body`, so the body's `enable` option is
       # declared twice and nixpkgs throws. They are mutually exclusive — taking
-      # the aggregate means selecting nothing (README.md, "Selection") — so the collision
+      # the aggregate means selecting nothing — so the collision
       # is named here, where the list is assembled, rather than surfacing later
       # as that throw. A module that IS the dendrite directory is the whole tree.
       wholeTree = lib.filter (
