@@ -1,7 +1,7 @@
 # examples/minimal/registry.nix
 {
   catalogue = {
-    ssh = ./dendrites/ssh;
+    ssh = ./dendrites/ssh.nix;
   };
   aggregations = { };
 }

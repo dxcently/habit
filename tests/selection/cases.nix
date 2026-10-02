@@ -1114,11 +1114,14 @@ selectionCases
     in
     builtins.deepSeq resolved.modules (builtins.length resolved.modules);
 
+  # A single-file dendrite: the inventory names the file that answered.
   exampleMinimalInventory =
     let
       inv = (example ../../examples/minimal).inventory;
     in
-    "${inv.host}:${builtins.concatStringsSep "," (lib.attrNames inv.dendrites)}";
+    "${inv.host}:${
+      builtins.concatStringsSep "," (lib.mapAttrsToList (n: d: "${n}=${baseNameOf d.source}") inv.dendrites)
+    }";
 
   exampleMinimalModules = fingerprint (exampleModules ../../examples/minimal);
 
@@ -1187,7 +1190,7 @@ selectionCases
       (import ../../examples/merged/personal/registry.nix // { name = "personal"; })
       {
         name = "upstream";
-        catalogue.ssh = ../../examples/minimal/dendrites/ssh;
+        catalogue.ssh = ../../examples/minimal/dendrites/ssh.nix;
       }
     ]).catalogue;
 }

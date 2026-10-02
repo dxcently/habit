@@ -60,7 +60,7 @@ import "${sources.nixpkgs}/nixos/lib/eval-config.nix" {
 A capability (a "dendrite") is a record of modules per evaluator:
 
 ```nix
-# examples/minimal/dendrites/ssh/default.nix
+# examples/minimal/dendrites/ssh.nix
 {
   nixos = {
     services.openssh.enable = true;
@@ -75,7 +75,7 @@ host selects it:
 # examples/minimal/registry.nix
 {
   catalogue = {
-    ssh = ./dendrites/ssh;
+    ssh = ./dendrites/ssh.nix;
   };
   aggregations = { };
 }

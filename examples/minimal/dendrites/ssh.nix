@@ -1,4 +1,4 @@
-# examples/minimal/dendrites/ssh/default.nix
+# examples/minimal/dendrites/ssh.nix
 {
   nixos = {
     services.openssh.enable = true;

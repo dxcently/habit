@@ -104,7 +104,7 @@ mergeFieldNotAnAttrset              throws  registry source 'nulled': `catalogue
 overlayOrder                        ok      "lane,lane,record,caller,nucleus"
 recordOverlayBeatsLane              ok      "record"
 callerOverlayBeatsRecord            ok      "caller"
-exampleMinimalInventory             ok      "box:ssh"
+exampleMinimalInventory             ok      "box:ssh=ssh.nix"
 exampleMinimalModules               ok      ["path","set{services}","set{imports}"]
 exampleMinimalConfig                ok      "box ssh=true"
 exampleWorkstationInventory         ok      "bluetooth alice=notifications/dunst"

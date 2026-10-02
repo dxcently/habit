@@ -5,11 +5,14 @@ or directory that answers it.
 
 ```nix
 catalogue = {
-  ssh = ./dendrites/ssh;                       # a directory with default.nix
-  notifications = ./dendrites/notifications;
-  obsidian = ./caps/obsidian.nix;              # or a file
+  ssh = ./dendrites/ssh.nix;                   # a file
+  notifications = ./dendrites/notifications;   # or a directory with default.nix
 };
 ```
+
+[`examples/minimal`](https://github.com/dxcently/habit/tree/main/examples/minimal)
+uses the file form, [`examples/workstation`](https://github.com/dxcently/habit/tree/main/examples/workstation)
+the directory form.
 
 The catalogue holds names and paths only. An entry is `import`ed in the
 platform pass, and only when some scope enabled it.
@@ -29,7 +32,7 @@ A dendrite exposes the lanes it supports and no empty stand-ins for the rest.
 A lane's value is any module: an attrset, a function, or a path.
 
 ```nix
-# examples/minimal/dendrites/ssh/default.nix
+# examples/minimal/dendrites/ssh.nix
 {
   nixos = {
     services.openssh.enable = true;
