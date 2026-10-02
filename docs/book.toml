@@ -1,0 +1,9 @@
+[book]
+title = "habit"
+src = "."
+
+[build]
+create-missing = false
+
+[output.html.search]
+enable = true

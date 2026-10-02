@@ -8,6 +8,9 @@
 
   outputs =
     { self, nixpkgs }:
+    let
+      pkgs = nixpkgs.legacyPackages.x86_64-linux;
+    in
     {
       # Each entry is its file's own function of `{ lib }`, UNAPPLIED: a consumer
       # applies it with the `lib` its own host evaluation uses.
@@ -17,9 +20,6 @@
       };
 
       checks.x86_64-linux.selection =
-        let
-          pkgs = nixpkgs.legacyPackages.x86_64-linux;
-        in
         pkgs.runCommand "habit-selection"
           {
             nativeBuildInputs = [
@@ -36,6 +36,19 @@
             chmod -R u+w source
             bash source/tests/selection/run.sh > $out || { cat $out; exit 1; }
             cat $out
+          '';
+
+      # The book in docs/, published to GitHub Pages from this output. It is
+      # built only after every quoted example file is checked against the file.
+      checks.x86_64-linux.docs =
+        pkgs.runCommand "habit-docs"
+          {
+            nativeBuildInputs = [ pkgs.mdbook ];
+            src = self;
+          }
+          ''
+            bash $src/tests/docs/quotes.sh
+            mdbook build $src/docs -d $out
           '';
     };
 }
