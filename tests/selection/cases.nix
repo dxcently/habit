@@ -713,6 +713,25 @@ selectionCases
       lib.boolToString (builtins.toJSON viaHost.system.specialArgs == builtins.toJSON direct.specialArgs)
     }";
 
+  # The dendrite directory is every dendrite's body at once; handed over as a
+  # module beside a selected capability it declares that body's options twice.
+  # The refusal reads the hook's modules as well as `extraModules`, so each
+  # route to the same list has its own case. `.modules` forces the list, and
+  # the refusal sits on the path to it.
+  extraModulesTakesTheWholeTree = (
+    mkModules {
+      hostModules = [ { dendrites.systemonly.enable = true; } ];
+      extraModules = [ ./dendrites ];
+    }
+  ).modules;
+
+  extraModulesForTakesTheWholeTree = (
+    mkModules {
+      hostModules = [ { dendrites.systemonly.enable = true; } ];
+      extraModulesFor = _: [ ./dendrites ];
+    }
+  ).modules;
+
   # ── Merging registries (lib/catalogues.nix) ────────────────────────────────
   # Two sources that share no name merge into the union; one that shares a name
   # is refused naming the name and every source that defines it, so neither

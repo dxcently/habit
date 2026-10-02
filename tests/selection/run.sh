@@ -71,6 +71,8 @@ extraModulesForCanReachTheCatalogue throws  landmine/default.nix was imported
 extraModulesForKeepsItsPosition     ok      "allhosts,hook"
 hookDefaultsChangeNothing           ok      "same:true"
 mkHostPassesTheModulesThrough       ok      "same:true"
+extraModulesTakesTheWholeTree     throws  is the whole dendrite tree, which imports every dendrite's body
+extraModulesForTakesTheWholeTree    throws  is the whole dendrite tree, which imports every dendrite's body
 mergeCataloguesUnion                ok      "homeonly,landmine,notifications,systemonly"
 mergeCataloguesKeepsEveryValue      ok      "true"
 mergeCataloguesIsOrderFree          ok      "true"
