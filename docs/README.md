@@ -81,7 +81,7 @@ vague error is a failing test. [Errors](errors.md)
 | [The constructor](constructor.md)   | every argument, the module list order, hooks, the inventory      |
 | [Merging registries](merging.md)    | `mergeRegistries`, the source shape, its errors                  |
 | [Errors](errors.md)                 | each error habit throws, its cause, its fix                      |
-| [Comparisons](comparisons.md)       | den, dendritic with flake-parts, snowfall-lib, blueprint         |
+| [Comparisons](comparisons.md)       | what only habit does, and when den, flake-parts, snowfall-lib or blueprint fits better |
 
 ## Examples
 

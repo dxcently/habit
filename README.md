@@ -9,15 +9,33 @@ conditions give it; a host's habit is the module list its selection gives it.
 `mkIf` cannot keep an imported module's declarations out of the graph, and
 `mkDefault` sets priority, not imports. So habit decides what a host imports
 before NixOS evaluates anything, in an `evalModules` of its own, and hands
-NixOS only that. Group membership is settled by ordinary priorities, so a host
-switches one member of a group off with `enable = false`. habit is a pure
-function of nixpkgs `lib`.
+NixOS only that.
 
 ```
 host record ──► selection pass ──► resolved selection ──► platform pass ──► module list ──► nixosSystem
                 (gate, then select;                       (imports only           │
                  knows nothing of NixOS)                   what was kept)         └──► inventory
 ```
+
+## Why habit
+
+- **Nothing you didn't pick is imported.** An unselected capability, provider
+  or group body never reaches `import`; the test suite proves it with files that
+  throw the moment anything imports them.
+- **Groups without lock-in.** Take a group, drop one member with
+  `enable = false`, bring it back with `mkForce`. Ordinary NixOS priorities, no
+  new language.
+- **Every host can tell you what it is.** A generated inventory lists each
+  capability, its provider and the registry path it came from; nobody keeps it
+  by hand.
+- **Loud, not silent.** A name two merged registries both define, a misspelt key
+  in a group, a field nothing declared: each is an error naming the culprit.
+- **Plain modules, one function.** A capability's lanes are ordinary NixOS and
+  Home Manager modules; habit is a pure function of nixpkgs `lib`, with no other
+  input. Call it from a flake, npins or a flake-parts flake.
+
+How habit differs from den, flake-parts, snowfall-lib and blueprint:
+[Comparisons](docs/comparisons.md).
 
 ## Installation
 
@@ -124,18 +142,6 @@ That directory is [`examples/minimal`](examples/minimal); the test suite
 evaluates it, down to `config.services.openssh.enable`. Groups, providers,
 users and merged registries are in [`examples/`](examples).
 
-## Compared
-
-| | how a host drops one member of a shared group | unselected modules imported? | darwin / standalone Home Manager | discovers files |
-|---|---|---|---|---|
-| habit | `dendrites.<m>.enable = false`; `mkForce` puts it back | no (override records are read to be matched) | no / no | no |
-| [den](https://github.com/vic/den) | `excludes`, an append-only list | excluded aspects are not applied | yes / yes | no |
-| dendritic + [flake-parts](https://flake.parts) | not by priority: `imports` is a plain list | wherever a list names them | yes / yes | by convention |
-| [snowfall-lib](https://github.com/snowfallorg/lib) | the module gates itself | every module, every system | yes / yes | yes |
-| [blueprint](https://github.com/numtide/blueprint) | no groups | a host imports what it names | yes / yes | yes |
-
-Sources, revisions and where each one wins: [Comparisons](docs/comparisons.md).
-
 ## Documentation
 
 The book: <https://dxcently.github.io/habit/> (the same pages are in
@@ -152,4 +158,4 @@ The book: <https://dxcently.github.io/habit/> (the same pages are in
 | [The constructor](docs/constructor.md) | every argument, the module list, hooks, the inventory |
 | [Merging registries](docs/merging.md) | `mergeRegistries` and its errors |
 | [Errors](docs/errors.md) | each error, its cause, its fix |
-| [Comparisons](docs/comparisons.md) | den, dendritic + flake-parts, snowfall-lib, blueprint |
+| [Comparisons](docs/comparisons.md) | what only habit does; when den, flake-parts, snowfall-lib or blueprint fits better |
