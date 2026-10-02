@@ -106,7 +106,7 @@ exampleMinimalModules               ok      ["path","set{services}","set{imports
 exampleMinimalConfig                ok      "box ssh=true"
 exampleWorkstationInventory         ok      "bluetooth alice=notifications/dunst"
 exampleWorkstationModules           ok      ["path","set{users}","set{hardware}","set{home-manager,imports}","set{imports}"]
-exampleWorkstationConfig            ok      "desk bluetooth=true printing=false layout=us alice=true dunst=true mako=false"
+exampleWorkstationConfig            ok      "desk bluetooth=true printing=false layout=de alice=true dunst=true mako=false"
 exampleWorkstationSwitchedOffIsNeverImported ok 5
 exampleWorkstationSwitchedBackOnIsImported throws landmine/default.nix was imported
 exampleMergedInventory              ok      "dev:git,ssh,tmux"

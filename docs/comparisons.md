@@ -48,10 +48,6 @@ policies and `provides` route configuration across entities
 | standalone Home Manager | `den.homes.<system>.<name>` (`docs/src/content/docs/guides/standalone-home-manager.mdx`) | not built |
 | flake-parts | optional: `modules/outputs.nix` branches on its presence; `templates/minimal/flake.nix` uses plain `evalModules` | not used |
 
-An earlier evaluation against this revision confirmed that a host excluding
-an aspect does not apply that aspect's `nixos` module, while a host beside it
-that does not exclude it does.
-
 Choose den when you want parametric aspects (functions of `{ host, user }`,
 `README.md`),
 cross-entity routing, darwin or standalone homes. Choose habit when you want
@@ -77,9 +73,12 @@ class, then name (`extras/modules.nix`).
 | darwin, Home Manager | classes are free-form names, so their modules are published the same way | NixOS and the Home Manager NixOS module only |
 | ecosystem | flake-parts: "an ecosystem of modules that you can import" (`README.md`) | none; one library |
 
-An earlier evaluation found that a module named in `disabledModules` is still
-collected, so its own `imports` are still walked. `disabledModules` patches the
-result; it is not a selection layer.
+In nixpkgs `e554fab` (this repository's pin), `lib/modules.nix`
+`collectStructuredModules` loads every module and its `imports` and gathers each
+`disabledModules` entry on the way; `filterModules` removes the disabled modules
+only afterwards. A module named in `disabledModules` has been loaded by then,
+and the `disabledModules` of what it imports are still collected.
+`disabledModules` patches the result; it is not a selection layer.
 
 habit does not replace flake-parts: a flake-parts flake can call
 `mkNixosHost` like any other flake.

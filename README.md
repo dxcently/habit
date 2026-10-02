@@ -128,7 +128,7 @@ users and merged registries are in [`examples/`](examples).
 
 | | how a host drops one member of a shared group | unselected modules imported? | darwin / standalone Home Manager | discovers files |
 |---|---|---|---|---|
-| habit | `dendrites.<m>.enable = false`; `mkForce` puts it back | no | no / no | no |
+| habit | `dendrites.<m>.enable = false`; `mkForce` puts it back | no (override records are read to be matched) | no / no | no |
 | [den](https://github.com/vic/den) | `excludes`, an append-only list | excluded aspects are not applied | yes / yes | no |
 | dendritic + [flake-parts](https://flake.parts) | not by priority: `imports` is a plain list | wherever a list names them | yes / yes | by convention |
 | [snowfall-lib](https://github.com/snowfallorg/lib) | the module gates itself | every module, every system | yes / yes | yes |

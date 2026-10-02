@@ -24,7 +24,7 @@ module system on habit's schema are listed after them.
 
 | message | cause | fix |
 | ------- | ----- | --- |
-| `host '<host>': <path> is the whole dendrite tree, which imports every dendrite's body, and <names> is selected, so its lane imports that same body — one module list, the same declarations twice, which nixpkgs throws on as `already declared'. Keep one: select through the catalogue and drop the aggregate, or take the aggregate and select nothing.` | `extraModules` or `extraModulesFor` returned the directory holding the catalogue entries while a capability is selected | do what the message says ([the whole-tree refusal](constructor.md#the-whole-tree-refusal)) |
+| ``host '<host>': <path> is the whole dendrite tree, which imports every dendrite's body, and <names> is selected, so its lane imports that same body — one module list, the same declarations twice, which nixpkgs throws on as `already declared'. Keep one: select through the catalogue and drop the aggregate, or take the aggregate and select nothing.`` | `extraModules` or `extraModulesFor` returned the directory holding the catalogue entries while a capability is selected | do what the message says ([the whole-tree refusal](constructor.md#the-whole-tree-refusal)) |
 
 ## Aggregation bodies
 

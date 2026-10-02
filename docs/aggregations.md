@@ -24,7 +24,7 @@ The body is data, read only when a host or one of its users selects the group.
       "printing"
     ];
     nixos = {
-      services.xserver.xkb.layout = "us";
+      services.xserver.xkb.layout = "de";
     };
   };
 

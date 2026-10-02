@@ -47,7 +47,8 @@ A commit that changes a seam, an invariant or a registry or host record shape
 updates, in the same commit and never a follow-up: `README.md`, the `docs/` page
 that describes it, the examples it changes, and this file when an invariant
 moves. A comment or page that names a path or document must name one that
-exists in this repo.
+exists in this repo, unless it names the file of another repository together
+with the revision it was read at (`docs/comparisons.md` does).
 
 Docs quote example files whole, never a paraphrase: a ```` ```nix ```` block
 whose first line is `# examples/<path>` must equal that file, which
