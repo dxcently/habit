@@ -9,12 +9,12 @@ repository's code and tests.
 
 ## What only habit does
 
-None of the four does any of these.
+None of the four does any of these, in the setups each project documents.
 
 | habit | elsewhere | shown in |
 | ----- | --------- | -------- |
 | A host drops one member of a shared group with `enable = false`, and any later layer brings it back with `mkForce true` | den removes with `excludes`, an append-only list; a dendritic group is a plain `imports` list; snowfall-lib and blueprint have no groups | [Aggregations](aggregations.md#membership-is-mkdefault); [den](#den), [dendritic and flake-parts](#dendritic-and-flake-parts) |
-| A member a host switched off is never imported, and the suite proves it with a file that throws on import | den does not apply an excluded aspect, but loads the file that declares it; `disabledModules` loads a module before removing it; snowfall-lib imports every module into every system; blueprint has no members to switch off | [The two passes](two-passes.md#the-evaluation-boundary); [den](#den), [dendritic and flake-parts](#dendritic-and-flake-parts), [snowfall-lib](#snowfall-lib) |
+| A member a host switched off is never imported, and the suite proves it with a file that throws on import | den does not apply an excluded aspect, but the aspect is a definition in the module graph: in den's template, import-tree loads the file that declares it; `disabledModules` loads a module before removing it; snowfall-lib imports every module into every system; blueprint has no members to switch off | [The two passes](two-passes.md#the-evaluation-boundary); [den](#den), [dendritic and flake-parts](#dendritic-and-flake-parts), [snowfall-lib](#snowfall-lib) |
 | Each host's inventory names every capability, its provider and the path it came from | den lists aspect identities with no paths; the others record nothing | [The constructor](constructor.md#the-inventory); [den](#den) |
 | A name defined by two merged sources is an error naming both | `den.aspects` and `flake.modules` merge the two definitions into one | [Merging registries](merging.md#errors); [den](#den), [dendritic and flake-parts](#dendritic-and-flake-parts) |
 
