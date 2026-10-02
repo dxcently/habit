@@ -22,7 +22,7 @@ editing it.
    every source defining it.
 5. **The constructor knows no vocabulary.** A new field on the host record comes
    in through `selectionModules` / `extraModulesFor`, not by teaching
-   `composition.nix` a word. Both hooks default to the identity.
+   `composition.nix` a word. Both hooks default to nothing.
 6. **Every error names what failed.** The suite greps the real message, so a
    vague throw is a failing test.
 

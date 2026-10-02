@@ -82,7 +82,7 @@ mergeOverridesUnion                 ok      "allhosts,confined"
 mergeOverridesClash                 throws  overrides names defined by more than one source: 'allhosts' by alpha and gamma
 mergedRegistrySelects               ok      "true"
 mergeCataloguesThreeOwners          throws  'notifications' by alpha and gamma and delta
-mergeSourceWithoutName              throws  registry source #1 has no string `name`
+mergeSourceWithoutName              throws  registry source at position 2 has no string `name`
 mergeSourcesShareAName              throws  registry sources share a name: alpha
 mergeFieldNotAnAttrset              throws  registry source 'nulled': `catalogue` must be an attrset, got null
 overlayOrder                        ok      "lane,lane,caller,nucleus"

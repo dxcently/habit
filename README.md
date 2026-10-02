@@ -125,12 +125,15 @@ constructor free of any vocabulary. Four of those arguments need a word:
   every host name to each.
 - `specialArgs` is extended with `system` and `host = hostName` (those two win),
   and the result is what every platform module and every home module receives.
+  `system` is only that argument: the constructor never sets
+  `nixpkgs.hostPlatform`, so the `nucleus` or the host's own `nixos` module sets
+  it, or the host fails to evaluate.
 - `overlays` are the caller's package overlays. A lane's overlay runs before
   them, so a lane's `prev` carries none of the caller's packages.
 - `extraModules` land after the lanes and before override modules and the host's
-  own `nixos`. An `extraModules` path that is the directory holding catalogue
-  entries (an aggregate importing every capability's body), together with any
-  selected capability, is refused by name,
+  own `nixos`. An `extraModules` path, or one returned by `extraModulesFor`, that
+  is the directory holding catalogue entries (an aggregate importing every
+  capability's body), together with any selected capability, is refused by name,
   because both import the same body and the options would be declared twice.
   Take the whole directory and select nothing, or select and drop it.
 
@@ -200,7 +203,7 @@ clash is an error, the result does not depend on source order.
         aggregations = { workstation = ./groups/workstation; };
         overrides = { };
       };
-      other = { name = "other"; inherit (otherRegistry) catalogue aggregations overrides; };
+      other = otherRegistry // { name = "other"; };
       registry = {
         catalogue = catalogues.mergeCatalogues [ mine other ];
         aggregations = catalogues.mergeAggregations [ mine other ];
@@ -212,7 +215,7 @@ clash is an error, the result does not depend on source order.
         inherit nixpkgs registry;
         hostName = "box";
         hostModules = [ ./hosts/box ];
-        nucleus = ./nucleus;
+        nucleus = ./nucleus;                 # sets nixpkgs.hostPlatform
         homeManagerModule = home-manager.nixosModules.home-manager;
       }).system;
     };

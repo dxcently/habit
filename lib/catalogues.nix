@@ -18,7 +18,7 @@ let
   sourceName =
     index: source:
     if !(source ? name) || !(lib.isString source.name) then
-      throw "registry source #${toString index} has no string `name`; every source is named so a clash can say who defined it"
+      throw "registry source at position ${toString index} has no string `name`; every source is named so a clash can say who defined it"
     else
       source.name;
 
@@ -35,7 +35,7 @@ let
   mergeField =
     field: sources:
     let
-      names = lib.imap0 sourceName sources;
+      names = lib.imap1 sourceName sources;
       repeated = lib.unique (lib.filter (n: lib.count (m: m == n) names > 1) names);
 
       ownersOf = lib.zipAttrsWith (_: owners: owners) (
