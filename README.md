@@ -1,0 +1,207 @@
+# habit
+
+Host composition for NixOS: a host selects capabilities from a registry, and
+only what it selected is ever imported. A crystal's habit is the shape its
+conditions give it; a host's habit is the module list its selection gives it.
+
+habit is a pure function of `lib`. It reads no flake input at runtime, and its
+one `nixpkgs` input exists only for `checks`.
+
+## Two passes
+
+```
+host record ──► selection pass ──► resolved selection ──► platform pass ──► module list
+                (evalModules,                              (imports only
+                 knows nothing                              what selection
+                 of NixOS)                                  kept)
+```
+
+`mkDefault` sets definition priority; it cannot decide imports, and `mkIf` cannot
+keep an imported module's declarations out of the graph that imported them. So
+selection is resolved first, by an ordinary `lib.evalModules` over a small
+schema, and the platform import list is assembled from the result.
+
+**Selection** runs in two steps, because a host nests provider choices under the
+aggregation that owns them and those option names come from the aggregation's own
+body:
+
+- gate: every aggregation declares only `enable`; the answer is which
+  aggregations the host, or one of its users, selects.
+- select: the selected bodies are imported, declare their real options, and write
+  their membership. Nothing else is read.
+
+**Platform** takes the resolved selection and imports, per scope, the lane each
+selected capability exposes. An unselected catalogue entry is never `import`ed;
+an unselected provider file is never read.
+
+The `nixos` part of a host record is a `deferredModule`: nothing in it can
+influence selection, which is what keeps the two passes from chasing each other.
+
+## The registry
+
+A registry is plain data, read before any module graph exists.
+
+```nix
+{
+  catalogue     = { notifications = ./caps/notifications; obsidian = ./caps/obsidian.nix; };
+  aggregations  = { workstation = ./groups/workstation; };
+  overrides     = { broken-upstream = ./fixes/broken-upstream.nix; };   # optional
+}
+```
+
+| field          | maps                  | to                                                         |
+| -------------- | --------------------- | ---------------------------------------------------------- |
+| `catalogue`    | capability name       | the file or directory that answers it                      |
+| `aggregations` | group name            | a directory holding the group's `default.nix` body         |
+| `overrides`    | record name           | a file holding a capability-scoped fix                     |
+
+Names and paths only. Nothing is imported at registry time.
+
+**A capability** (a "dendrite") is a lane record: `{ nixos = …; homeManager = …; }`,
+each lane a module for one evaluator, only the lanes it supports. A multi-provider
+capability is `{ providers = { a = ./a.nix; b = ./b.nix; }; }` where each provider
+file is a lane record. Selecting a lane a capability does not expose is an error
+naming the lanes it does.
+
+**An aggregation** is data: `description`, then per scope (`system`, `home`) its
+`members` (capability names), `providers` (default provider per provider-bearing
+member), and optionally `nixos` / `homeManager` settings that ride the platform
+pass. Membership is `mkDefault`, so an ordinary selection outranks it, two
+aggregations naming one member merge, and two choosing different providers for it
+collide rather than letting import order pick a winner. An aggregation cannot
+select another aggregation.
+
+**An override record** is a fix that belongs to a capability, not a host:
+`{ dendrites = [ … ]; hosts = [ … ] (optional); overlay; nixos; homeManager; }`.
+It applies to the hosts that selected one of its targets (and its `homeManager`
+module only to the users that did). It selects nothing. Unknown fields, no
+targets, unknown targets, unknown hosts, and a record carrying nothing are errors
+naming the record and its file. The evaluation boundary is weaker than
+selection's: every host imports every record file to match it; only the record's
+functions stay uncalled when it does not match.
+
+## The host record
+
+```nix
+{
+  aggregation.workstation.enable = true;            # groups
+  aggregation.workstation.notifications.provider = "dunst";
+  dendrites.obsidian.enable = true;                 # lone capabilities
+  users.khoa = {
+    definition = ./users/khoa.nix;                  # { nixos; homeManager? }
+    homeManager.enable = true;
+    dendrites.notifications = { enable = true; provider = "mako"; };
+    homeManager.config = { … };                     # extra home settings
+  };
+  nixos = { pkgs, ... }: { … };                     # this machine, deferred
+}
+```
+
+A group's member is turned off the ordinary way:
+`dendrites.kitty.enable = false` outranks the group's `mkDefault`. A user who
+selects home capabilities with `homeManager.enable = false` is an error, not a
+quiet no-op.
+
+## The constructor
+
+`lib.composition` is the file `lib/composition.nix`, a function of `{ lib }`.
+
+| name                | does                                                                    |
+| ------------------- | ----------------------------------------------------------------------- |
+| `evalSelection`     | `{ registry, modules }` -> resolved selection (gate, then select)       |
+| `inventoryOf`       | `{ hostName, selection }` -> what the host resolved; the review surface |
+| `mkNixosModules`    | the platform pass: module list, `specialArgs`, selection, inventory     |
+| `mkNixosHost`       | `mkNixosModules` handed to `nixpkgs.lib.nixosSystem`                    |
+| `lanesFor`, `implOf`, `overridesFor`, `mkSchema`, `laneNames` | the pieces, for callers that assemble differently |
+
+`mkNixosModules` takes `hostName`, `registry`, `hostModules`, `nucleus` (the
+unconditional core module), `homeManagerModule`, and optionally `knownHosts`,
+`specialArgs`, `extraModules`, `overlays`, `system`, and two hooks that keep the
+constructor free of any vocabulary:
+
+- `selectionModules`: modules that join the host's own in BOTH selection steps,
+  so a field they declare is a field the host record can set and the gate step
+  can read.
+- `extraModulesFor`: a function of the resolved selection returning platform
+  modules, which is how a gate-pass choice becomes an import without a gate-pass
+  body import. It is handed the whole selection, catalogue values included, so
+  passing a path nothing selected is the caller's mistake to avoid.
+
+Both default to the identity.
+
+The inventory (`inventoryOf`, also `mkNixosModules`'s `inventory`) lists the
+aggregations, every capability selected with its provider and the file that
+answered, its users, and which override records matched. It is derived from
+selection, never maintained by hand.
+
+## Merging registries: `lib.catalogues`
+
+A consumer that merges two registries with `//` lets one side silently win every
+name both define. `lib.catalogues` refuses instead.
+
+```
+mergeCatalogues   :: [ source ] -> catalogue
+mergeAggregations :: [ source ] -> aggregations
+mergeOverrides    :: [ source ] -> overrides
+
+source = { name :: string; catalogue ? {}; aggregations ? {}; overrides ? {}; }
+```
+
+A name defined by more than one source throws, naming the name and each source:
+
+```
+catalogue names defined by more than one source: 'notifications' by aoide and dxflake
+```
+
+Aggregations and overrides follow the same rule through the same function: they
+are keyed by name exactly as the catalogue is, a clash drops one side's group or
+fix without a trace, and the host record selects them by that name. Because a
+clash is an error, the result does not depend on source order.
+
+## Wiring a consumer
+
+```nix
+{
+  inputs.habit.url = "github:…/habit";
+  inputs.habit.inputs.nixpkgs.follows = "nixpkgs";   # habit's nixpkgs only feeds its checks
+
+  outputs = { nixpkgs, habit, … }:
+    let
+      inherit (nixpkgs) lib;
+      composition = habit.lib.composition { inherit lib; };
+      catalogues  = habit.lib.catalogues  { inherit lib; };
+      registry = {
+        catalogue = catalogues.mergeCatalogues [
+          { name = "mine";  catalogue = ./caps; }
+          { name = "other"; catalogue = other.catalogue; }
+        ];
+        aggregations = catalogues.mergeAggregations [ … ];
+      };
+    in
+    {
+      nixosConfigurations.box = (composition.mkNixosHost {
+        inherit nixpkgs registry;
+        hostName = "box";
+        hostModules = [ ./hosts/box ];
+        nucleus = ./nucleus;
+        homeManagerModule = home-manager.nixosModules.home-manager;
+      }).system;
+    };
+}
+```
+
+The exports are unapplied: the consumer applies each with the `lib` its own host
+evaluation uses, so selection runs on the consumer's lib.
+
+## Tests
+
+`tests/selection/` holds executable cases over a fixture registry
+(`registry.nix`, `dendrites/`, `aggregations/`, `overrides/`, `users/`,
+`badrecords/`). A fixture implementation or aggregation body that throws on
+import proves that "never imported" is a fact, not a claim. `run.sh` evaluates
+each case on its own; a negative case must throw AND carry its expected message.
+
+```
+./tests/selection/run.sh [case]     # needs nix and jq
+nix flake check                     # the same suite, sandboxed
+```
