@@ -988,4 +988,152 @@ selectionCases
         if lib.hasPrefix "lane" tag then "lane" else tag
       ) (lib.evalModules { inherit (r) modules; }).config.nixpkgs.overlays
     );
+
+  # ── The examples (examples/) ───────────────────────────────────────────────
+  # Each example's `default.nix` is called as a consumer's flake would call it:
+  # habit's exports unapplied, a `nixpkgs` whose lib carries `nixosSystem`, and
+  # Home Manager. The NixOS tree is the one this suite's own `lib` came from,
+  # so a real `nixosSystem` evaluates against it and nothing is fetched. Home
+  # Manager is not in that tree: a stand-in declares the one option the
+  # constructor's wiring writes, so the system half still evaluates for real.
+  habit.lib = {
+    composition = import ../../lib/composition.nix;
+    catalogues = import ../../lib/catalogues.nix;
+  };
+
+  nixosSystem =
+    let
+      nixpkgsTree = dirOf (dirOf (builtins.unsafeGetAttrPos "evalModules" lib).file);
+    in
+    args:
+    import (nixpkgsTree + "/nixos/lib/eval-config.nix") (
+      {
+        inherit lib;
+        system = null;
+      }
+      // args
+    );
+
+  home-manager.nixosModules.home-manager =
+    { lib, ... }:
+    {
+      options.home-manager = lib.mkOption { type = lib.types.attrsOf lib.types.raw; };
+    };
+
+  example =
+    dir:
+    import dir {
+      inherit habit home-manager;
+      nixpkgs.lib = lib // {
+        inherit nixosSystem;
+      };
+    };
+
+  # The module list an example hands `nixosSystem`, without evaluating NixOS.
+  exampleModules =
+    dir:
+    (import dir {
+      inherit habit home-manager;
+      nixpkgs.lib = lib // {
+        nixosSystem = args: args;
+      };
+    }).system.modules;
+
+  # The example's own registry and host with one catalogue entry swapped for a
+  # body that throws on import, and the module list forced element by element:
+  # a lane is a lazy list element, so a length alone would never reach it.
+  workstationWithLandmine =
+    extraHostModules:
+    let
+      own = import ../../examples/workstation/registry.nix;
+      resolved = composition.mkNixosModules {
+        hostName = "desk";
+        registry = own // {
+          catalogue = own.catalogue // {
+            printing = ./dendrites/landmine;
+          };
+        };
+        hostModules = [ ../../examples/workstation/hosts/desk.nix ] ++ extraHostModules;
+        nucleus = ../../examples/workstation/nucleus.nix;
+        homeManagerModule = home-manager.nixosModules.home-manager;
+      };
+    in
+    builtins.deepSeq resolved.modules (builtins.length resolved.modules);
+
+  exampleMinimalInventory =
+    let
+      inv = (example ../../examples/minimal).inventory;
+    in
+    "${inv.host}:${builtins.concatStringsSep "," (lib.attrNames inv.dendrites)}";
+
+  exampleMinimalModules = fingerprint (exampleModules ../../examples/minimal);
+
+  exampleMinimalConfig =
+    let
+      inherit ((example ../../examples/minimal).system) config;
+    in
+    "${config.networking.hostName} ssh=${lib.boolToString config.services.openssh.enable}";
+
+  exampleWorkstationInventory =
+    let
+      inv = (example ../../examples/workstation).inventory;
+      names = d: builtins.concatStringsSep "," (lib.attrNames d);
+    in
+    "${names inv.dendrites} alice=${names inv.users.alice.dendrites}/${inv.users.alice.dendrites.notifications.provider}";
+
+  exampleWorkstationModules = fingerprint (exampleModules ../../examples/workstation);
+
+  exampleWorkstationConfig =
+    let
+      inherit ((example ../../examples/workstation).system) config;
+      home = config.home-manager.users.alice.imports;
+    in
+    builtins.concatStringsSep " " [
+      config.networking.hostName
+      "bluetooth=${lib.boolToString config.hardware.bluetooth.enable}"
+      "printing=${lib.boolToString config.services.printing.enable}"
+      "layout=${config.services.xserver.xkb.layout}"
+      "alice=${lib.boolToString config.users.users.alice.isNormalUser}"
+      "dunst=${lib.boolToString (lib.any (m: m.services.dunst.enable or false) home)}"
+      "mako=${lib.boolToString (lib.any (m: m ? services.mako) home)}"
+    ];
+
+  # `printing` is a member of `desktop` and the host switched it off: with its
+  # body replaced by one that throws on import, the whole module list is still
+  # built. The complement turns it back on above the host's `false`, and the
+  # same body is reached.
+  exampleWorkstationSwitchedOffIsNeverImported = workstationWithLandmine [ ];
+
+  exampleWorkstationSwitchedBackOnIsImported = workstationWithLandmine [
+    { dendrites.printing.enable = lib.mkForce true; }
+  ];
+
+  exampleMergedInventory =
+    let
+      inv = (example ../../examples/merged).inventory;
+    in
+    "${builtins.concatStringsSep "," inv.aggregation}:${builtins.concatStringsSep "," (lib.attrNames inv.dendrites)}";
+
+  exampleMergedModules = fingerprint (exampleModules ../../examples/merged);
+
+  exampleMergedConfig =
+    let
+      inherit ((example ../../examples/merged).system) config;
+    in
+    builtins.concatStringsSep " " [
+      "git=${lib.boolToString config.programs.git.enable}"
+      "ssh=${lib.boolToString config.services.openssh.enable}"
+      "tmux=${lib.boolToString config.programs.tmux.enable}"
+    ];
+
+  # The example's two sources and a third that also defines `ssh`.
+  exampleMergedClash =
+    (catalogues.mergeRegistries [
+      (import ../../examples/merged/shared/registry.nix // { name = "shared"; })
+      (import ../../examples/merged/personal/registry.nix // { name = "personal"; })
+      {
+        name = "upstream";
+        catalogue.ssh = ../../examples/minimal/dendrites/ssh;
+      }
+    ]).catalogue;
 }

@@ -12,9 +12,14 @@ root=$(cd ../.. && pwd)
 # lib comes from the flake's own locked nixpkgs. A consumer applies habit to
 # its own lib, so this tests the schema against one nixpkgs lib, not every
 # consumer's. `checks.selection` sets HABIT_LIB to the same nixpkgs' lib,
-# because a sandboxed build cannot fetch it.
+# because a sandboxed build cannot fetch it. Given HABIT_LIB nothing is
+# fetched, so the cases run against the dummy store: a real `nixosSystem` (the
+# example cases) asks for a store while it evaluates but writes nothing to it,
+# and a sandbox has no daemon to answer.
+store=()
 if [ -n "${HABIT_LIB:-}" ]; then
   lib="($HABIT_LIB)"
+  store=(--store dummy://)
 else
   rev=$(jq -r '.nodes.nixpkgs.locked.rev' "$root/flake.lock")
   lib="(builtins.getFlake \"github:nixos/nixpkgs/$rev\").lib"
@@ -91,6 +96,18 @@ mergeSourcesShareAName              throws  registry sources share a name: alpha
 mergeSourceUnknownField             throws  registry source 'typo' has unknown field(s): aggregation; a source takes only name, catalogue, aggregations, overrides
 mergeFieldNotAnAttrset              throws  registry source 'nulled': `catalogue` must be an attrset, got null
 overlayOrder                        ok      "lane,lane,caller,nucleus"
+exampleMinimalInventory             ok      "box:ssh"
+exampleMinimalModules               ok      ["path","set{services}","set{imports}"]
+exampleMinimalConfig                ok      "box ssh=true"
+exampleWorkstationInventory         ok      "bluetooth alice=notifications/dunst"
+exampleWorkstationModules           ok      ["path","set{users}","set{hardware}","set{home-manager,imports}","set{imports}"]
+exampleWorkstationConfig            ok      "desk bluetooth=true printing=false layout=us alice=true dunst=true mako=false"
+exampleWorkstationSwitchedOffIsNeverImported ok 5
+exampleWorkstationSwitchedBackOnIsImported throws landmine/default.nix was imported
+exampleMergedInventory              ok      "dev:git,ssh,tmux"
+exampleMergedModules                ok      ["path","set{programs}","set{services}","set{programs}","set{imports}"]
+exampleMergedConfig                 ok      "git=true ssh=true tmux=true"
+exampleMergedClash                  throws  catalogue names defined by more than one source: 'ssh' by shared and upstream
 EOF
 )
 
@@ -101,7 +118,7 @@ printf '%s\n' "------------------------------------------------------------"
 while read -r name expect want; do
   [ -z "$name" ] && continue
   [ -n "$only" ] && [ "$only" != "$name" ] && continue
-  out=$(nix eval --impure --json --show-trace \
+  out=$(nix eval "${store[@]}" --impure --json --show-trace \
           --expr "(import ./cases.nix { lib = $lib; }).$name" 2>&1)
   rc=$?
   if [ "$expect" = ok ]; then
