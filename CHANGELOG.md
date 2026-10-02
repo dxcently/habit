@@ -10,7 +10,8 @@ Append-only. Newest first.
 - Ported Aoide's selection suite (`tests/selection`) against this repo's own
   `lib/composition.nix`. The cases for `lib/songbook.nix` and `lib/pkgs.nix`
   stay in Aoide: those files are not part of habit.
-- Added `lib/catalogues.nix`: `mergeCatalogues`, `mergeAggregations` and
-  `mergeOverrides` throw on any name more than one source defines. Each source
+- Added `lib/catalogues.nix`: `mergeRegistries` merges sources into one
+  registry and throws on any name more than one source defines, naming the
+  field. Each source
   needs a unique string `name`, and a field it carries must be an attrset.
 - `checks.x86_64-linux.selection` runs the suite.

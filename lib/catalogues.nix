@@ -10,9 +10,10 @@
 #
 # Any of the three fields may be absent; one that is present must be an attrset.
 # Source names must be unique, or an error could not say which source clashed.
-# Each merge reads only its own field and returns the merged attrset, ready to
-# sit in a registry. Like composition.nix this is a function of `{ lib }` and
-# nothing else.
+# `mergeRegistries` returns a registry, ready to hand to the constructor. Each
+# of its fields is merged on its own and only when read, so a clash is reported
+# by the field it is in. Like composition.nix this is a function of `{ lib }`
+# and nothing else.
 { lib }:
 let
   sourceName =
@@ -54,7 +55,9 @@ let
       lib.foldl' (merged: source: merged // fieldOf field source) { } sources;
 in
 {
-  mergeCatalogues = mergeField "catalogue";
-  mergeAggregations = mergeField "aggregations";
-  mergeOverrides = mergeField "overrides";
+  mergeRegistries = sources: {
+    catalogue = mergeField "catalogue" sources;
+    aggregations = mergeField "aggregations" sources;
+    overrides = mergeField "overrides" sources;
+  };
 }

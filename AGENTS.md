@@ -18,8 +18,8 @@ editing it.
    no flake inputs, no `pkgs`, no `builtins.getFlake`, no environment. The flake
    exports them unapplied. `nixpkgs` in `flake.nix` is for `checks` only.
 4. **Names are unique across merged catalogues.** Merging registries goes
-   through `lib/catalogues.nix`, never `//`. A clash throws naming the name and
-   every source defining it.
+   through `mergeRegistries` in `lib/catalogues.nix`, never `//`. A clash
+   throws naming the name and every source defining it.
 5. **The constructor knows no vocabulary.** A new field on the host record comes
    in through `selectionModules` / `extraModulesFor`, not by teaching
    `composition.nix` a word. Both hooks default to nothing.
@@ -32,7 +32,8 @@ editing it.
   `tests/selection/run.sh`, and a fixture under `tests/selection/` if it needs
   one. A positive case alone does not prove "never imported": pair it with a
   fixture that throws on import.
-- A new merge: `lib/catalogues.nix`, through `mergeField`.
+- A new registry field to merge: `lib/catalogues.nix`, a line in `mergeRegistries`
+  through `mergeField`.
 
 ## Docs ride with code
 

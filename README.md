@@ -163,9 +163,7 @@ A consumer that merges two registries with `//` lets one side silently win every
 name both define. `lib.catalogues` refuses instead.
 
 ```
-mergeCatalogues   :: [ source ] -> catalogue
-mergeAggregations :: [ source ] -> aggregations
-mergeOverrides    :: [ source ] -> overrides
+mergeRegistries :: [ source ] -> { catalogue; aggregations; overrides; }
 
 source = { name :: string; catalogue ? {}; aggregations ? {}; overrides ? {}; }
 ```
@@ -180,10 +178,12 @@ A source without a string `name`, two sources sharing a name, and a field that
 is present but not an attrset (`catalogue = null`) each throw, naming the source
 or its position. A field may be absent.
 
-Aggregations and overrides follow the same rule through the same function: they
-are keyed by name exactly as the catalogue is, a clash drops one side's group or
-fix without a trace, and the host record selects them by that name. Because a
-clash is an error, the result does not depend on source order.
+The result is a registry, ready to hand to the constructor. Aggregations and
+overrides follow the same rule as the catalogue: they are keyed by name exactly
+as it is, a clash drops one side's group or fix without a trace, and the host
+record selects them by that name. Each field is merged when it is read, so a
+clash is reported by the field it is in. Because a clash is an error, the result
+does not depend on source order.
 
 ## Wiring a consumer
 
@@ -204,11 +204,7 @@ clash is an error, the result does not depend on source order.
         overrides = { };
       };
       other = otherRegistry // { name = "other"; };
-      registry = {
-        catalogue = catalogues.mergeCatalogues [ mine other ];
-        aggregations = catalogues.mergeAggregations [ mine other ];
-        overrides = catalogues.mergeOverrides [ mine other ];
-      };
+      registry = catalogues.mergeRegistries [ mine other ];
     in
     {
       nixosConfigurations.box = (composition.mkNixosHost {

@@ -73,17 +73,18 @@ hookDefaultsChangeNothing           ok      "same:true"
 mkHostPassesTheModulesThrough       ok      "same:true"
 extraModulesTakesTheWholeTree     throws  is the whole dendrite tree, which imports every dendrite's body
 extraModulesForTakesTheWholeTree    throws  is the whole dendrite tree, which imports every dendrite's body
-mergeCataloguesUnion                ok      "homeonly,landmine,notifications,systemonly"
-mergeCataloguesKeepsEveryValue      ok      "true"
-mergeCataloguesIsOrderFree          ok      "true"
-mergeCataloguesClash                throws  catalogue names defined by more than one source: 'notifications' by alpha and gamma
-mergeCataloguesSourceWithoutCatalogue ok    "homeonly,notifications"
-mergeAggregationsUnion              ok      "desk,kiosk"
-mergeAggregationsClash              throws  aggregations names defined by more than one source: 'desk' by alpha and gamma
-mergeOverridesUnion                 ok      "allhosts,confined"
-mergeOverridesClash                 throws  overrides names defined by more than one source: 'allhosts' by alpha and gamma
+mergeRegistriesCatalogueUnion                ok      "homeonly,landmine,notifications,systemonly"
+mergeRegistriesKeepsEveryValue      ok      "true"
+mergeRegistriesIsOrderFree          ok      "true"
+mergeRegistriesCatalogueClash                throws  catalogue names defined by more than one source: 'notifications' by alpha and gamma
+mergeRegistriesSourceWithoutCatalogue ok    "homeonly,notifications"
+mergeRegistriesAggregationsUnion              ok      "desk,kiosk"
+mergeRegistriesAggregationsClash              throws  aggregations names defined by more than one source: 'desk' by alpha and gamma
+mergeRegistriesOverridesUnion                 ok      "allhosts,confined"
+mergeRegistriesOverridesClash                 throws  overrides names defined by more than one source: 'allhosts' by alpha and gamma
+mergeRegistriesFieldsAreIndependent ok    "homeonly,notifications"
 mergedRegistrySelects               ok      "true"
-mergeCataloguesThreeOwners          throws  'notifications' by alpha and gamma and delta
+mergeRegistriesThreeOwners          throws  'notifications' by alpha and gamma and delta
 mergeSourceWithoutName              throws  registry source at position 2 has no string `name`
 mergeSourcesShareAName              throws  registry sources share a name: alpha
 mergeFieldNotAnAttrset              throws  registry source 'nulled': `catalogue` must be an attrset, got null

@@ -779,88 +779,105 @@ selectionCases
     };
   };
 
-  mergeCataloguesUnion = builtins.concatStringsSep "," (
-    lib.attrNames (catalogues.mergeCatalogues [
-      sourceA
-      sourceB
-    ])
-  );
-
-  mergeCataloguesKeepsEveryValue =
-    let
-      merged = catalogues.mergeCatalogues [
+  mergeRegistriesCatalogueUnion = builtins.concatStringsSep "," (
+    lib.attrNames
+      (catalogues.mergeRegistries [
         sourceA
         sourceB
-      ];
+      ]).catalogue
+  );
+
+  mergeRegistriesKeepsEveryValue =
+    let
+      merged =
+        (catalogues.mergeRegistries [
+          sourceA
+          sourceB
+        ]).catalogue;
     in
     lib.boolToString (merged == sourceA.catalogue // sourceB.catalogue);
 
-  mergeCataloguesIsOrderFree =
+  mergeRegistriesIsOrderFree =
     let
-      ab = catalogues.mergeCatalogues [
+      ab = catalogues.mergeRegistries [
         sourceA
         sourceB
       ];
-      ba = catalogues.mergeCatalogues [
+      ba = catalogues.mergeRegistries [
         sourceB
         sourceA
       ];
     in
     lib.boolToString (ab == ba);
 
-  mergeCataloguesClash = catalogues.mergeCatalogues [
-    sourceA
-    sourceB
-    sourceClashing
-  ];
-
-  mergeCataloguesSourceWithoutCatalogue = builtins.concatStringsSep "," (
-    lib.attrNames (catalogues.mergeCatalogues [
-      sourceA
-      { name = "bare"; }
-    ])
-  );
-
-  mergeAggregationsUnion = builtins.concatStringsSep "," (
-    lib.attrNames (catalogues.mergeAggregations [
+  mergeRegistriesCatalogueClash =
+    (catalogues.mergeRegistries [
       sourceA
       sourceB
-    ])
+      sourceClashing
+    ]).catalogue;
+
+  mergeRegistriesSourceWithoutCatalogue = builtins.concatStringsSep "," (
+    lib.attrNames
+      (catalogues.mergeRegistries [
+        sourceA
+        { name = "bare"; }
+      ]).catalogue
   );
 
-  mergeAggregationsClash = catalogues.mergeAggregations [
-    sourceA
-    sourceClashing
-  ];
+  mergeRegistriesAggregationsUnion = builtins.concatStringsSep "," (
+    lib.attrNames
+      (catalogues.mergeRegistries [
+        sourceA
+        sourceB
+      ]).aggregations
+  );
 
-  mergeOverridesUnion = builtins.concatStringsSep "," (
-    lib.attrNames (catalogues.mergeOverrides [
+  mergeRegistriesAggregationsClash =
+    (catalogues.mergeRegistries [
       sourceA
-      sourceB
-    ])
+      sourceClashing
+    ]).aggregations;
+
+  mergeRegistriesOverridesUnion = builtins.concatStringsSep "," (
+    lib.attrNames
+      (catalogues.mergeRegistries [
+        sourceA
+        sourceB
+      ]).overrides
   );
 
-  mergeOverridesClash = catalogues.mergeOverrides [
-    sourceA
-    sourceClashing
-  ];
+  mergeRegistriesOverridesClash =
+    (catalogues.mergeRegistries [
+      sourceA
+      sourceClashing
+    ]).overrides;
+
+  # A clash is reported by the field it is in; the fields that do not clash
+  # stay readable.
+  mergeRegistriesFieldsAreIndependent =
+    let
+      merged = catalogues.mergeRegistries [
+        sourceA
+        {
+          name = "delta";
+          overrides = {
+            allhosts = ./overrides/allhosts.nix;
+          };
+        }
+      ];
+    in
+    builtins.concatStringsSep "," (lib.attrNames merged.catalogue);
 
   # A merged registry is an ordinary registry: selection runs over it and
   # imports only what the host selected.
   mergedRegistrySelects =
     let
-      merged = {
-        catalogue = catalogues.mergeCatalogues [
-          sourceA
-          sourceB
-        ];
-        aggregations = catalogues.mergeAggregations [
-          sourceA
-          sourceB
-        ];
-      };
       selection = composition.evalSelection {
-        registry = merged;
+        registry = catalogues.mergeRegistries [
+          sourceA
+          sourceB
+        ];
         modules = [
           {
             dendrites.systemonly.enable = true;
@@ -877,34 +894,38 @@ selectionCases
       ).dendrites.systemonly.source
     );
 
-  mergeCataloguesThreeOwners = catalogues.mergeCatalogues [
-    sourceA
-    sourceClashing
-    {
-      name = "delta";
-      catalogue = {
-        notifications = ./dendrites/notifications;
-      };
-    }
-  ];
+  mergeRegistriesThreeOwners =
+    (catalogues.mergeRegistries [
+      sourceA
+      sourceClashing
+      {
+        name = "delta";
+        catalogue = {
+          notifications = ./dendrites/notifications;
+        };
+      }
+    ]).catalogue;
 
-  mergeSourceWithoutName = catalogues.mergeCatalogues [
-    sourceA
-    { catalogue = { }; }
-  ];
+  mergeSourceWithoutName =
+    (catalogues.mergeRegistries [
+      sourceA
+      { catalogue = { }; }
+    ]).catalogue;
 
-  mergeSourcesShareAName = catalogues.mergeCatalogues [
-    sourceA
-    (sourceB // { name = "alpha"; })
-  ];
+  mergeSourcesShareAName =
+    (catalogues.mergeRegistries [
+      sourceA
+      (sourceB // { name = "alpha"; })
+    ]).catalogue;
 
-  mergeFieldNotAnAttrset = catalogues.mergeCatalogues [
-    sourceA
-    {
-      name = "nulled";
-      catalogue = null;
-    }
-  ];
+  mergeFieldNotAnAttrset =
+    (catalogues.mergeRegistries [
+      sourceA
+      {
+        name = "nulled";
+        catalogue = null;
+      }
+    ]).catalogue;
 
   # The caller's `overlays` land after every lane's, and the nucleus after
   # both, in the list a platform evaluator concatenates. The lane overlays are
