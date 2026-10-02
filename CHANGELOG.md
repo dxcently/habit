@@ -16,3 +16,12 @@ Append-only. Newest first.
   `catalogue`, `aggregations` and `overrides` (any other field throws), and a
   field it carries must be an attrset.
 - `checks.x86_64-linux.selection` runs the suite.
+- Added `examples/` (`minimal`, `workstation`, `merged`), each evaluated by the
+  suite for its inventory, its module list and real NixOS option values, and
+  run the suite against the dummy store when `HABIT_LIB` is given.
+- Added `docs/`, the reference as an mdBook: the two passes, dendrites,
+  aggregations, the host record, override records, the constructor, merging
+  registries, errors and comparisons. `checks.x86_64-linux.docs` checks every
+  quoted example file against the file (`tests/docs/quotes.sh`) and builds the
+  book; `.github/workflows/pages.yml` publishes it. `README.md` is the short
+  entry point.

@@ -1,7 +1,8 @@
 # AGENTS.md — editing habit
 
-`README.md` says what habit is. This file holds the invariants to keep while
-editing it.
+`README.md` says what habit is, `docs/` is the reference (an mdBook, built by
+`checks.x86_64-linux.docs`), and `examples/` are worked examples the selection
+suite evaluates. This file holds the invariants to keep while editing them.
 
 ## Invariants
 
@@ -34,13 +35,25 @@ editing it.
   fixture that throws on import.
 - A new registry field to merge: `lib/catalogues.nix`, a line in `mergeRegistries`
   through `mergeField`.
+- A new example: a directory under `examples/` whose `default.nix` takes
+  `{ habit, nixpkgs, home-manager }`, its cases in the examples section of
+  `tests/selection/cases.nix` (inventory, module list, an option value) and their
+  rows in `tests/selection/run.sh`. Each file starts `# examples/<its path>`.
+- A new docs page: the file in `docs/` and its line in `docs/SUMMARY.md`.
 
 ## Docs ride with code
 
 A commit that changes a seam, an invariant or a registry or host record shape
-updates `README.md` (and this file when an invariant moves) in the same commit,
-never a follow-up. A comment that names a path or document must name one that
+updates, in the same commit and never a follow-up: `README.md`, the `docs/` page
+that describes it, the examples it changes, and this file when an invariant
+moves. A comment or page that names a path or document must name one that
 exists in this repo.
+
+Docs quote example files whole, never a paraphrase: a ```` ```nix ```` block
+whose first line is `# examples/<path>` must equal that file, which
+`tests/docs/quotes.sh` checks before the book builds. Links from `docs/` to
+files outside it use `https://github.com/dxcently/habit/blob/main/<path>`, since
+the book is served without them.
 
 ## Docs are timeless
 
