@@ -383,7 +383,7 @@ let
   # only spends what it hands back.
   #
   # The fixture set is written out rather than discovered, so a case can swap in
-  # one deliberately broken record; a real registry discovers its own.
+  # one deliberately broken record; a consumer's registry is plain data.
   overrides = {
     allhosts = ./overrides/allhosts.nix;
     confined = ./overrides/confined.nix;
@@ -668,7 +668,7 @@ selectionCases
     builtins.concatStringsSep "," (lib.evalModules { inherit (r) modules; }).config.fixture.marks;
 
   # With both hooks left out, the module list and the resolved inventory are the
-  # ones the constructor assembled before the hooks existed — which is what
+  # ones the constructor assembles without hooks — which is what
   # makes every expectation above a consumer's, unchanged. The module list is
   # compared element for element, not by count: a same-length list with a
   # different member is a change, and the fingerprint says which.
@@ -849,8 +849,86 @@ selectionCases
         ];
       };
     in
-    (composition.inventoryOf {
-      hostName = "fixture";
-      inherit selection;
-    }).host;
+    lib.boolToString (
+      lib.hasSuffix "/dendrites/systemonly" (
+        composition.inventoryOf {
+          hostName = "fixture";
+          inherit selection;
+        }
+      ).dendrites.systemonly.source
+    );
+
+  mergeCataloguesThreeOwners = catalogues.mergeCatalogues [
+    sourceA
+    sourceClashing
+    {
+      name = "delta";
+      catalogue = {
+        notifications = ./dendrites/notifications;
+      };
+    }
+  ];
+
+  mergeSourceWithoutName = catalogues.mergeCatalogues [
+    sourceA
+    { catalogue = { }; }
+  ];
+
+  mergeSourcesShareAName = catalogues.mergeCatalogues [
+    sourceA
+    (sourceB // { name = "alpha"; })
+  ];
+
+  mergeFieldNotAnAttrset = catalogues.mergeCatalogues [
+    sourceA
+    {
+      name = "nulled";
+      catalogue = null;
+    }
+  ];
+
+  # The caller's `overlays` land after every lane's, and the nucleus after
+  # both, in the list a platform evaluator concatenates. The lane overlays are
+  # thereby applied before the caller's, so a lane's `prev` carries none of the
+  # caller's packages.
+  overlayOrder =
+    let
+      tagged = tag: [ (_: _: { inherit tag; }) ];
+      r = mkModules {
+        registry = {
+          catalogue = {
+            laneone = ./dendrites/laneone;
+            lanetwo = ./dendrites/lanetwo;
+          };
+          aggregations = { };
+        };
+        hostModules = [
+          {
+            dendrites.laneone.enable = true;
+            dendrites.lanetwo.enable = true;
+          }
+        ];
+        nucleus = {
+          nixpkgs.overlays = tagged "nucleus";
+        };
+        overlays = tagged "caller";
+        extraModules = [
+          {
+            options.nixpkgs.overlays = lib.mkOption {
+              type = lib.types.listOf lib.types.anything;
+              default = [ ];
+            };
+          }
+        ];
+      };
+    in
+    builtins.concatStringsSep "," (
+      map (
+        o:
+        let
+          tag = (o { } { }).tag;
+        in
+        if lib.hasPrefix "lane" tag then "lane" else tag
+      ) (lib.evalModules { inherit (r) modules; }).config.nixpkgs.overlays
+    );
 }

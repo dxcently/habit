@@ -8,26 +8,50 @@
 #
 #   { name = "aoide"; catalogue = { … }; aggregations = { … }; overrides = { … }; }
 #
-# Any of the three fields may be absent. Each merge reads only its own field and
-# returns the merged attrset, ready to sit in a registry. Like composition.nix
-# this is a function of `{ lib }` and nothing else.
+# Any of the three fields may be absent; one that is present must be an attrset.
+# Source names must be unique, or an error could not say which source clashed.
+# Each merge reads only its own field and returns the merged attrset, ready to
+# sit in a registry. Like composition.nix this is a function of `{ lib }` and
+# nothing else.
 { lib }:
 let
+  sourceName =
+    index: source:
+    if !(source ? name) || !(lib.isString source.name) then
+      throw "registry source #${toString index} has no string `name`; every source is named so a clash can say who defined it"
+    else
+      source.name;
+
+  fieldOf =
+    field: source:
+    let
+      value = source.${field} or { };
+    in
+    if lib.isAttrs value then
+      value
+    else
+      throw "registry source '${source.name}': `${field}` must be an attrset, got ${builtins.typeOf value}";
+
   mergeField =
     field: sources:
     let
+      names = lib.imap0 sourceName sources;
+      repeated = lib.unique (lib.filter (n: lib.count (m: m == n) names > 1) names);
+
       ownersOf = lib.zipAttrsWith (_: owners: owners) (
-        map (source: lib.mapAttrs (_: _: source.name) (source.${field} or { })) sources
+        map (source: lib.mapAttrs (_: _: source.name) (fieldOf field source)) sources
       );
       clashes = lib.filterAttrs (_: owners: lib.length owners > 1) ownersOf;
       describe = lib.mapAttrsToList (
         name: owners: "'${name}' by ${lib.concatStringsSep " and " owners}"
       ) clashes;
     in
-    if clashes != { } then
+    if repeated != [ ] then
+      throw "registry sources share a name: ${lib.concatStringsSep ", " repeated}; each source needs its own"
+    else if clashes != { } then
       throw "${field} names defined by more than one source: ${lib.concatStringsSep "; " describe}"
     else
-      lib.foldl' (merged: source: merged // (source.${field} or { })) { } sources;
+      lib.foldl' (merged: source: merged // fieldOf field source) { } sources;
 in
 {
   mergeCatalogues = mergeField "catalogue";

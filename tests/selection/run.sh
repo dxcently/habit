@@ -9,9 +9,10 @@ set -uo pipefail
 cd "$(dirname "$0")" || exit 1
 root=$(cd ../.. && pwd)
 
-# lib comes from the flake's own locked nixpkgs, so the schema is tested
-# against the lib every host evaluates with. `checks.selection` sets HABIT_LIB
-# to the same nixpkgs' lib, because a sandboxed build cannot fetch it.
+# lib comes from the flake's own locked nixpkgs. A consumer applies habit to
+# its own lib, so this tests the schema against one nixpkgs lib, not every
+# consumer's. `checks.selection` sets HABIT_LIB to the same nixpkgs' lib,
+# because a sandboxed build cannot fetch it.
 if [ -n "${HABIT_LIB:-}" ]; then
   lib="($HABIT_LIB)"
 else
@@ -79,7 +80,12 @@ mergeAggregationsUnion              ok      "desk,kiosk"
 mergeAggregationsClash              throws  aggregations names defined by more than one source: 'desk' by alpha and gamma
 mergeOverridesUnion                 ok      "allhosts,confined"
 mergeOverridesClash                 throws  overrides names defined by more than one source: 'allhosts' by alpha and gamma
-mergedRegistrySelects               ok      "fixture"
+mergedRegistrySelects               ok      "true"
+mergeCataloguesThreeOwners          throws  'notifications' by alpha and gamma and delta
+mergeSourceWithoutName              throws  registry source #1 has no string `name`
+mergeSourcesShareAName              throws  registry sources share a name: alpha
+mergeFieldNotAnAttrset              throws  registry source 'nulled': `catalogue` must be an attrset, got null
+overlayOrder                        ok      "lane,lane,caller,nucleus"
 EOF
 )
 

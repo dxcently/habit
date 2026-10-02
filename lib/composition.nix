@@ -42,8 +42,8 @@
 #                      only. That discipline is the caller's, and
 #                      tests/selection pins it.
 #
-# Both default to the identity, and with them at their defaults the module list
-# is exactly the one this constructor has always assembled.
+# Both default to nothing (`[ ]` and `_: [ ]`), and with them at their defaults
+# the module list is exactly the one assembled without hooks.
 { lib }:
 let
   inherit (lib)
@@ -556,10 +556,9 @@ rec {
       # inside a lane's overlay `prev` carries none of the caller's packages and
       # reading one aborts with a missing attribute. A lane therefore builds
       # what it replaces with a FRESH `callPackage`, naming every argument it
-      # needs, and never inherits one from this base.
-      #
-      # For a lane's value to stand either way, a caller's overlay must step
-      # aside for a name `prev` already carries.
+      # needs, and never inherits one from this base. A caller's overlay that
+      # replaces a name a lane also replaces must step aside for a name `prev`
+      # already carries, or it overrides the lane's value.
       overlays ? [ ],
       selectionModules ? [ ],
       extraModulesFor ? (_: [ ]),

@@ -117,7 +117,27 @@ quiet no-op.
 `mkNixosModules` takes `hostName`, `registry`, `hostModules`, `nucleus` (the
 unconditional core module), `homeManagerModule`, and optionally `knownHosts`,
 `specialArgs`, `extraModules`, `overlays`, `system`, and two hooks that keep the
-constructor free of any vocabulary:
+constructor free of any vocabulary. Four of those arguments need a word:
+
+- `knownHosts` (default `[ hostName ]`) is the set of host names an override
+  record's `hosts = [ … ]` may name. A record confined to a host not in it fails
+  as "confined to unknown host(s)", so a consumer building several hosts passes
+  every host name to each.
+- `specialArgs` is extended with `system` and `host = hostName` (those two win),
+  and the result is what every platform module and every home module receives.
+- `overlays` are the caller's package overlays. A lane's overlay runs before
+  them, so a lane's `prev` carries none of the caller's packages.
+- `extraModules` land after the lanes and before override modules and the host's
+  own `nixos`. An `extraModules` path that is the directory holding catalogue
+  entries (an aggregate importing every capability's body), together with any
+  selected capability, is refused by name,
+  because both import the same body and the options would be declared twice.
+  Take the whole directory and select nothing, or select and drop it.
+
+A capability's lane names are `nixos`, `darwin` and `homeManager`. Only `nixos`
+and `homeManager` are consumed: there is no darwin constructor, so `darwin` is
+accepted as a name a capability may carry and is never imported. Override records
+take no `darwin` field.
 
 - `selectionModules`: modules that join the host's own in BOTH selection steps,
   so a field they declare is a field the host record can set and the gate step
@@ -127,7 +147,7 @@ constructor free of any vocabulary:
   body import. It is handed the whole selection, catalogue values included, so
   passing a path nothing selected is the caller's mistake to avoid.
 
-Both default to the identity.
+Both default to nothing: `[ ]` and `_: [ ]`.
 
 The inventory (`inventoryOf`, also `mkNixosModules`'s `inventory`) lists the
 aggregations, every capability selected with its provider and the file that
@@ -153,6 +173,10 @@ A name defined by more than one source throws, naming the name and each source:
 catalogue names defined by more than one source: 'notifications' by aoide and dxflake
 ```
 
+A source without a string `name`, two sources sharing a name, and a field that
+is present but not an attrset (`catalogue = null`) each throw, naming the source
+or its position. A field may be absent.
+
 Aggregations and overrides follow the same rule through the same function: they
 are keyed by name exactly as the catalogue is, a clash drops one side's group or
 fix without a trace, and the host record selects them by that name. Because a
@@ -170,12 +194,17 @@ clash is an error, the result does not depend on source order.
       inherit (nixpkgs) lib;
       composition = habit.lib.composition { inherit lib; };
       catalogues  = habit.lib.catalogues  { inherit lib; };
+      mine = {
+        name = "mine";
+        catalogue = { notifications = ./caps/notifications; };
+        aggregations = { workstation = ./groups/workstation; };
+        overrides = { };
+      };
+      other = { name = "other"; inherit (otherRegistry) catalogue aggregations overrides; };
       registry = {
-        catalogue = catalogues.mergeCatalogues [
-          { name = "mine";  catalogue = ./caps; }
-          { name = "other"; catalogue = other.catalogue; }
-        ];
-        aggregations = catalogues.mergeAggregations [ … ];
+        catalogue = catalogues.mergeCatalogues [ mine other ];
+        aggregations = catalogues.mergeAggregations [ mine other ];
+        overrides = catalogues.mergeOverrides [ mine other ];
       };
     in
     {
