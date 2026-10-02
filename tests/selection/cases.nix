@@ -908,6 +908,12 @@ selectionCases
       }
     ]).catalogue;
 
+  mergeSourceNotAnAttrset =
+    (catalogues.mergeRegistries [
+      sourceA
+      null
+    ]).catalogue;
+
   mergeSourceWithoutName =
     (catalogues.mergeRegistries [
       sourceA

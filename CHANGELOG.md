@@ -12,7 +12,7 @@ Append-only. Newest first.
   stay in Aoide: those files are not part of habit.
 - Added `lib/catalogues.nix`: `mergeRegistries` merges sources into one
   registry and throws on any name more than one source defines, naming the
-  field. Each source needs a unique string `name`, takes only `name`,
+  field. Each source must be an attrset with a unique string `name`, takes only `name`,
   `catalogue`, `aggregations` and `overrides` (any other field throws), and a
   field it carries must be an attrset.
 - `checks.x86_64-linux.selection` runs the suite.

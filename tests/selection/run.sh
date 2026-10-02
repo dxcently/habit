@@ -85,6 +85,7 @@ mergeRegistriesOverridesClash       throws  overrides names defined by more than
 mergeRegistriesFieldsAreIndependent ok      "homeonly,notifications:false"
 mergedRegistrySelects               ok      "true"
 mergeRegistriesThreeOwners          throws  'notifications' by alpha and gamma and delta
+mergeSourceNotAnAttrset            throws  registry source at position 2 is a null, not an attrset
 mergeSourceWithoutName              throws  registry source at position 2 has no string `name`
 mergeSourcesShareAName              throws  registry sources share a name: alpha
 mergeSourceUnknownField             throws  registry source 'typo' has unknown field(s): aggregation; a source takes only name, catalogue, aggregations, overrides

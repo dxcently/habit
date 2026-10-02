@@ -14,9 +14,9 @@
 # Source names must be unique, or an error could not say which source clashed.
 # `mergeRegistries` returns a registry, ready to hand to the constructor. Each
 # of its fields is merged on its own and only when read, so a clash is reported
-# by the field it is in; a fault of a whole source (no name, an unknown field)
-# is reported by whichever field is read first. Like composition.nix this is a function of `{ lib }`
-# and nothing else.
+# by the field it is in; a fault of a whole source (not an attrset, no name, an
+# unknown field) is reported by whichever field is read first. Like
+# composition.nix this is a function of `{ lib }` and nothing else.
 { lib }:
 let
   sourceFields = [
@@ -32,7 +32,9 @@ let
       named = source ? name && lib.isString source.name;
       unknown = lib.subtractLists sourceFields (lib.attrNames source);
     in
-    if unknown != [ ] then
+    if !lib.isAttrs source then
+      throw "registry source at position ${toString index} is a ${builtins.typeOf source}, not an attrset"
+    else if unknown != [ ] then
       throw "registry source ${
         if named then "'${source.name}'" else "at position ${toString index}"
       } has unknown field(s): ${lib.concatStringsSep ", " unknown}; a source takes only ${lib.concatStringsSep ", " sourceFields}"
