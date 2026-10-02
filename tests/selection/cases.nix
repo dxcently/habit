@@ -867,7 +867,9 @@ selectionCases
         }
       ];
     in
-    builtins.concatStringsSep "," (lib.attrNames merged.catalogue);
+    "${builtins.concatStringsSep "," (lib.attrNames merged.catalogue)}:${
+      lib.boolToString (builtins.tryEval merged.overrides).success
+    }";
 
   # A merged registry is an ordinary registry: selection runs over it and
   # imports only what the host selected.

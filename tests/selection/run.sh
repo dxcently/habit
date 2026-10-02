@@ -66,23 +66,23 @@ overrideCarriesNothing              throws  carries nothing to apply
 selectionModuleFieldIsVisible       ok      "sonata"
 selectionModuleFieldIsUnknownWithoutIt throws does not exist
 selectionModuleDrivesTheGatePass    ok      "workstation:notifications,systemonly"
-extraModulesForLandsOnlyWhenSelected ok     "1:0"
+extraModulesForLandsOnlyWhenSelected ok "1:0"
 extraModulesForCanReachTheCatalogue throws  landmine/default.nix was imported
 extraModulesForKeepsItsPosition     ok      "allhosts,hook"
 hookDefaultsChangeNothing           ok      "same:true"
 mkHostPassesTheModulesThrough       ok      "same:true"
-extraModulesTakesTheWholeTree     throws  is the whole dendrite tree, which imports every dendrite's body
+extraModulesTakesTheWholeTree       throws  is the whole dendrite tree, which imports every dendrite's body
 extraModulesForTakesTheWholeTree    throws  is the whole dendrite tree, which imports every dendrite's body
-mergeRegistriesCatalogueUnion                ok      "homeonly,landmine,notifications,systemonly"
+mergeRegistriesCatalogueUnion       ok      "homeonly,landmine,notifications,systemonly"
 mergeRegistriesKeepsEveryValue      ok      "true"
 mergeRegistriesIsOrderFree          ok      "true"
-mergeRegistriesCatalogueClash                throws  catalogue names defined by more than one source: 'notifications' by alpha and gamma
-mergeRegistriesSourceWithoutCatalogue ok    "homeonly,notifications"
-mergeRegistriesAggregationsUnion              ok      "desk,kiosk"
-mergeRegistriesAggregationsClash              throws  aggregations names defined by more than one source: 'desk' by alpha and gamma
-mergeRegistriesOverridesUnion                 ok      "allhosts,confined"
-mergeRegistriesOverridesClash                 throws  overrides names defined by more than one source: 'allhosts' by alpha and gamma
-mergeRegistriesFieldsAreIndependent ok    "homeonly,notifications"
+mergeRegistriesCatalogueClash       throws  catalogue names defined by more than one source: 'notifications' by alpha and gamma
+mergeRegistriesSourceWithoutCatalogue ok "homeonly,notifications"
+mergeRegistriesAggregationsUnion    ok      "desk,kiosk"
+mergeRegistriesAggregationsClash    throws  aggregations names defined by more than one source: 'desk' by alpha and gamma
+mergeRegistriesOverridesUnion       ok      "allhosts,confined"
+mergeRegistriesOverridesClash       throws  overrides names defined by more than one source: 'allhosts' by alpha and gamma
+mergeRegistriesFieldsAreIndependent ok      "homeonly,notifications:false"
 mergedRegistrySelects               ok      "true"
 mergeRegistriesThreeOwners          throws  'notifications' by alpha and gamma and delta
 mergeSourceWithoutName              throws  registry source at position 2 has no string `name`
