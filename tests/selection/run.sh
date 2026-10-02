@@ -87,6 +87,7 @@ mergedRegistrySelects               ok      "true"
 mergeRegistriesThreeOwners          throws  'notifications' by alpha and gamma and delta
 mergeSourceWithoutName              throws  registry source at position 2 has no string `name`
 mergeSourcesShareAName              throws  registry sources share a name: alpha
+mergeSourceUnknownField             throws  registry source 'typo' has unknown field(s): aggregation; a source takes only name, catalogue, aggregations, overrides
 mergeFieldNotAnAttrset              throws  registry source 'nulled': `catalogue` must be an attrset, got null
 overlayOrder                        ok      "lane,lane,caller,nucleus"
 EOF

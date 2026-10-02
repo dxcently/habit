@@ -174,6 +174,8 @@ A name defined by more than one source throws, naming the name and each source:
 catalogue names defined by more than one source: 'notifications' by aoide and dxflake
 ```
 
+A source takes only `name`, `catalogue`, `aggregations` and `overrides`; any
+other field (a misspelt `aggregation`) throws, naming the source and the field.
 A source without a string `name`, two sources sharing a name, and a field that
 is present but not an attrset (`catalogue = null`) each throw, naming the source
 or its position. A field may be absent.
@@ -182,7 +184,8 @@ The result is a registry, ready to hand to the constructor. Aggregations and
 overrides follow the same rule as the catalogue: they are keyed by name exactly
 as it is, a clash drops one side's group or fix without a trace, and the host
 record selects them by that name. Each field is merged when it is read, so a
-clash is reported by the field it is in. Because a clash is an error, the result
+clash is reported by the field it is in, while a fault of a whole source (an
+unknown field, no name) is reported by whichever field is read first. Because a clash is an error, the result
 does not depend on source order.
 
 ## Wiring a consumer
@@ -203,7 +206,7 @@ does not depend on source order.
         aggregations = { workstation = ./groups/workstation; };
         overrides = { };
       };
-      other = otherRegistry // { name = "other"; };
+      other = otherRegistry // { name = "other"; };   # otherRegistry carries only catalogue, aggregations, overrides
       registry = catalogues.mergeRegistries [ mine other ];
     in
     {

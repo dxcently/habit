@@ -9,16 +9,34 @@
 #   { name = "aoide"; catalogue = { … }; aggregations = { … }; overrides = { … }; }
 #
 # Any of the three fields may be absent; one that is present must be an attrset.
+# A source takes only those four fields: another one (a misspelt `aggregation`)
+# is an error naming it, since ignoring it would drop the group without a trace.
 # Source names must be unique, or an error could not say which source clashed.
 # `mergeRegistries` returns a registry, ready to hand to the constructor. Each
 # of its fields is merged on its own and only when read, so a clash is reported
-# by the field it is in. Like composition.nix this is a function of `{ lib }`
+# by the field it is in; a fault of a whole source (no name, an unknown field)
+# is reported by whichever field is read first. Like composition.nix this is a function of `{ lib }`
 # and nothing else.
 { lib }:
 let
-  sourceName =
+  sourceFields = [
+    "name"
+    "catalogue"
+    "aggregations"
+    "overrides"
+  ];
+
+  checkedName =
     index: source:
-    if !(source ? name) || !(lib.isString source.name) then
+    let
+      named = source ? name && lib.isString source.name;
+      unknown = lib.subtractLists sourceFields (lib.attrNames source);
+    in
+    if unknown != [ ] then
+      throw "registry source ${
+        if named then "'${source.name}'" else "at position ${toString index}"
+      } has unknown field(s): ${lib.concatStringsSep ", " unknown}; a source takes only ${lib.concatStringsSep ", " sourceFields}"
+    else if !named then
       throw "registry source at position ${toString index} has no string `name`; every source is named so a clash can say who defined it"
     else
       source.name;
@@ -36,7 +54,7 @@ let
   mergeField =
     field: sources:
     let
-      names = lib.imap1 sourceName sources;
+      names = lib.imap1 checkedName sources;
       repeated = lib.unique (lib.filter (n: lib.count (m: m == n) names > 1) names);
 
       ownersOf = lib.zipAttrsWith (_: owners: owners) (

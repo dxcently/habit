@@ -920,6 +920,15 @@ selectionCases
       (sourceB // { name = "alpha"; })
     ]).catalogue;
 
+  mergeSourceUnknownField =
+    (catalogues.mergeRegistries [
+      sourceA
+      {
+        name = "typo";
+        aggregation = { };
+      }
+    ]).catalogue;
+
   mergeFieldNotAnAttrset =
     (catalogues.mergeRegistries [
       sourceA
