@@ -1,4 +1,4 @@
-# habit
+# Overview
 
 habit is host composition for NixOS. A host selects capabilities from a
 registry, and only what it selected is ever imported. A crystal's habit is the

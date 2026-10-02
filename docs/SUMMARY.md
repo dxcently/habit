@@ -1,6 +1,6 @@
 # Summary
 
-[habit](README.md)
+[Overview](README.md)
 
 - [The two passes](two-passes.md)
 - [Dendrites](dendrites.md)
