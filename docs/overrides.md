@@ -62,6 +62,9 @@ record ──► hosts admits this host? ──no──► not applied
 - Records are taken in name order, so the result does not depend on the
   filesystem. Overlays compose the ordinary Nix way, each seeing the one before
   as `prev`; there is no overlap detection beyond that.
+- A record's overlays are applied after every other overlay of the host: the
+  host's, the lanes', the caller's and the nucleus's. On an attribute they
+  share, the record's wins (`overlayOrder`, `recordOverlayWins`).
 
 The inventory lists which records matched (`inventory.overrides`).
 

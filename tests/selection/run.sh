@@ -95,7 +95,8 @@ mergeSourceWithoutName              throws  registry source at position 2 has no
 mergeSourcesShareAName              throws  registry sources share a name: alpha
 mergeSourceUnknownField             throws  registry source 'typo' has unknown field(s): aggregation; a source takes only name, catalogue, aggregations, overrides
 mergeFieldNotAnAttrset              throws  registry source 'nulled': `catalogue` must be an attrset, got null
-overlayOrder                        ok      "lane,lane,caller,nucleus"
+overlayOrder                        ok      "lane,lane,caller,nucleus,record"
+recordOverlayWins                   ok      "record"
 exampleMinimalInventory             ok      "box:ssh"
 exampleMinimalModules               ok      ["path","set{services}","set{imports}"]
 exampleMinimalConfig                ok      "box ssh=true"

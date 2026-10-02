@@ -944,11 +944,10 @@ selectionCases
       }
     ]).catalogue;
 
-  # The caller's `overlays` land after every lane's, and the nucleus after
-  # both, in the list a platform evaluator concatenates. The lane overlays are
-  # thereby applied before the caller's, so a lane's `prev` carries none of the
-  # caller's packages.
-  overlayOrder =
+  # The platform pass's `nixpkgs.overlays`, in application order, for a host
+  # selecting two lanes and one override record whose overlay sets the same
+  # attribute (`tag`) as the lanes', the caller's and the nucleus's.
+  overlaysApplied =
     let
       tagged = tag: [ (_: _: { inherit tag; }) ];
       r = mkModules {
@@ -958,6 +957,7 @@ selectionCases
             lanetwo = ./dendrites/lanetwo;
           };
           aggregations = { };
+          overrides.overlaytag = ./overrides/overlaytag.nix;
         };
         hostModules = [
           {
@@ -979,15 +979,26 @@ selectionCases
         ];
       };
     in
-    builtins.concatStringsSep "," (
-      map (
-        o:
-        let
-          tag = (o { } { }).tag;
-        in
-        if lib.hasPrefix "lane" tag then "lane" else tag
-      ) (lib.evalModules { inherit (r) modules; }).config.nixpkgs.overlays
-    );
+    (lib.evalModules { inherit (r) modules; }).config.nixpkgs.overlays;
+
+  # The caller's `overlays` land after every lane's, and the nucleus after
+  # both, in the list a platform evaluator concatenates. The lane overlays are
+  # thereby applied before the caller's, so a lane's `prev` carries none of the
+  # caller's packages. A matched override record's overlay lands after all of
+  # them.
+  overlayOrder = builtins.concatStringsSep "," (
+    map (
+      o:
+      let
+        tag = (o { } { }).tag;
+      in
+      if lib.hasPrefix "lane" tag then "lane" else tag
+    ) overlaysApplied
+  );
+
+  # Applied in that order, the last overlay to set an attribute wins: the
+  # record's beats the lanes', the caller's and the nucleus's.
+  recordOverlayWins = (lib.foldl' (prev: o: prev // o prev prev) { } overlaysApplied).tag;
 
   # ── The examples (examples/) ───────────────────────────────────────────────
   # Each example's `default.nix` is called as a consumer's flake would call it:

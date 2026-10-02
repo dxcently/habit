@@ -78,7 +78,8 @@ The arguments that need more than a line:
   aborts with a missing attribute. A lane therefore builds what it replaces with
   a fresh `callPackage`, naming every argument it needs. A caller's overlay that
   replaces a name a lane also replaces must step aside for a name `prev`
-  already carries, or it overrides the lane's value.
+  already carries, or it overrides the lane's value. A matched override
+  record's overlay is applied after the caller's.
 - **`extraModules`** land after the lanes and before override modules and the
   host's own `nixos`.
 
@@ -103,7 +104,7 @@ The platform pass assembles one list, in this order:
  5  Home Manager wiring                            if any user has homeManager.enable
  6  extraModules ++ extraModulesFor selection
  7  each matched override record's `nixos`
- 8  { nixpkgs.overlays = <matched records' overlays>; }   if any
+ 8  { nixpkgs.overlays = mkAfter <matched records' overlays>; }   if any
  9  selection.nixos                                the host's `nixos`, merged with selected groups' `nixos`
 ```
 
@@ -111,8 +112,11 @@ Position is not priority. A scalar defined twice at the same priority
 conflicts wherever the two sit; `mkDefault`, `mkForce` and plain definitions
 decide. Position shows in list-typed options, whose definitions merge in
 reverse list order: the suite pins `nixpkgs.overlays` as lane, then caller,
-then nucleus (`overlayOrder`), and an `extraModulesFor` module after a matched
-record's `nixos` (`extraModulesForKeepsItsPosition`).
+then nucleus, then the matched records' (`overlayOrder`), and an
+`extraModulesFor` module after a matched record's `nixos`
+(`extraModulesForKeepsItsPosition`). Entry 8 is `mkAfter`, which is why a
+record's overlay is applied last and wins over a lane's, the caller's and the
+nucleus's on a shared attribute.
 
 The minimal example's list is three entries: the nucleus, the `ssh` lane, the
 host's `nixos`.

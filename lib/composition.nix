@@ -680,9 +680,13 @@ rec {
       ++ lib.optional (hmUsers != { }) homeWiring
       ++ extra
       # A record outranks everything the constructor imported on its behalf; the
-      # host's own module still outranks the record.
+      # host's own module still outranks the record. Overlays are the exception:
+      # a list option's definitions merge in reverse list order, so `mkAfter`
+      # puts the record's overlays last, applied after the host's, the lanes',
+      # the caller's and the nucleus's, and a record's fix wins on any attribute
+      # they share.
       ++ overrides.nixos
-      ++ lib.optional (overrides.overlays != [ ]) { nixpkgs.overlays = overrides.overlays; }
+      ++ lib.optional (overrides.overlays != [ ]) { nixpkgs.overlays = lib.mkAfter overrides.overlays; }
       ++ [ selection.nixos ];
     in
     if strandedHome != [ ] then
