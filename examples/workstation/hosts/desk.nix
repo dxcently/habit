@@ -5,7 +5,7 @@
 
   users.alice = {
     definition = ../users/alice.nix;
-    homeManager.enable = true;
+    home.enable = true;
     aggregation.desktop = {
       enable = true;
       notifications.provider = "dunst";

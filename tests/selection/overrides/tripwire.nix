@@ -5,5 +5,5 @@
 {
   dendrites = [ "homeonly" ];
   overlay = _final: _prev: throw "tripwire overlay was evaluated";
-  nixos = _: throw "tripwire nixos module was evaluated";
+  system = _: throw "tripwire system module was evaluated";
 }

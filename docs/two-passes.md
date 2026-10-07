@@ -43,10 +43,10 @@ selection on its own:
 The selection schema (`mkSchema` in `lib/composition.nix`) declares only
 selection options: `dendrites`, `aggregation`, `users`, `nixos` and a
 read-only `catalogue`. No NixOS option is declared there, so a host record
-cannot read one. Platform settings (the host's own `nixos`, an aggregation's
-`nixos`, a user's `homeManager.config`) are `deferredModule` options: the
-selection pass carries them as values and the platform pass hands them to the
-evaluator they are for.
+cannot read one. Platform settings (the host's own `nixos`, a group's
+`system.module` and `home.module`, a user's `home.config`) are `deferredModule`
+options: the selection pass carries them as values and the platform pass hands
+them to the evaluator they are for.
 
 ## Selection: gate, then select
 
@@ -86,10 +86,12 @@ same host modules, plus any `selectionModules` the caller passes
 
 ## Platform: import what was kept
 
-The platform pass walks the resolved selection and, per scope, imports the
-lane each selected capability exposes: the `nixos` lane for the system, the
-`homeManager` lane for each user who selected it. It is the only place
-anything from the catalogue is `import`ed.
+The platform pass walks the resolved selection and imports each selected
+capability once, wrapped ([Dendrites](dendrites.md#a-plain-module)): its system
+half applies in the host's evaluation, and its home half goes to the users it
+was selected for, which is every Home Manager user when the host selected it
+and the one user when a user did. Each user's module is wrapped the same way.
+It is the only place anything from the catalogue is `import`ed.
 
 ## The evaluation boundary
 

@@ -26,7 +26,7 @@
 # A selection option may never read the NixOS/Home Manager configuration it is
 # deciding — that is the circular import this split exists to prevent. Platform
 # settings therefore ride `deferredModule` options and are evaluated only in
-# the lane that was selected for them.
+# the evaluation they were written for.
 #
 # Nothing here knows any vocabulary. Two hooks keep it that way as a host record
 # grows fields the constructor has never heard of:
@@ -54,13 +54,7 @@ let
     types
     ;
 
-  # A lane is a module for one evaluator. A dendrite exposes the lanes it
-  # actually supports and no empty stand-ins for the rest.
-  laneNames = [
-    "nixos"
-    "darwin"
-    "homeManager"
-  ];
+  lanes = import ./lanes.nix { inherit lib; };
 
   # One selection scope: for each catalogued capability, whether it is selected
   # here and which implementation answers. Generated per catalogue name, so an
@@ -102,8 +96,7 @@ let
   halfFields = [
     "members"
     "providers"
-    "nixos"
-    "homeManager"
+    "module"
   ];
 
   readBody =
@@ -196,11 +189,16 @@ let
   # collide on `dendrites.<name>.provider` rather than letting import order
   # pick a winner. The body carries no gate of its own: it is data, and this is
   # the only place it is wrapped.
+  #
+  # A half's `module` rides where its scope's own settings are carried: the
+  # host's `nixos` for the system half, the user's `home.config` for the home
+  # half. `slot` names that place.
   aggregationConfig =
     {
       bodies,
       scope,
       root,
+      slot,
     }:
     lib.mapAttrsToList (
       name: body:
@@ -219,8 +217,7 @@ let
               provider = mkDefault cfg.${member}.provider;
             }) (half.providers or { });
         }
-        // lib.optionalAttrs (half ? nixos) { inherit (half) nixos; }
-        // lib.optionalAttrs (half ? homeManager) { homeManager.config = half.homeManager; }
+        // lib.optionalAttrs (half ? module) (slot half.module)
       )
     ) bodies;
 
@@ -252,7 +249,7 @@ let
 
         users = mkOption {
           default = { };
-          description = "Users attached to this host, and what each selects for its own home lane.";
+          description = "Users attached to this host, and what each selects for its own home.";
           type = types.attrsOf (
             types.submoduleWith {
               shorthandOnlyDefinesConfig = true;
@@ -267,17 +264,17 @@ let
                     options = {
                       definition = mkOption {
                         type = types.path;
-                        description = "Shared user definition: account lanes plus optional home preferences.";
+                        description = "The user's module: its own settings are the account, its `habit.home` is the user's home.";
                       };
-                      homeManager.enable = mkOption {
+                      home.enable = mkOption {
                         type = types.bool;
                         default = false;
-                        description = "Evaluate this user's home lane. Off means no Home Manager module is imported for them at all.";
+                        description = "Give this user a Home Manager configuration. Off means no Home Manager module is imported for them at all.";
                       };
-                      homeManager.config = mkOption {
+                      home.config = mkOption {
                         type = types.deferredModule;
                         default = { };
-                        description = "Extra home settings for this user, evaluated only in the home lane.";
+                        description = "Extra home settings for this user, evaluated only in their Home Manager configuration.";
                       };
                       dendrites = selectionScope catalogue;
                       aggregation = aggregationScope {
@@ -290,6 +287,7 @@ let
                       bodies = known;
                       scope = "home";
                       root = config;
+                      slot = module: { home.config = module; };
                     });
                   }
                 )
@@ -311,6 +309,7 @@ let
           bodies = known;
           scope = "system";
           root = config;
+          slot = module: { nixos = module; };
         }
       );
     };
@@ -319,13 +318,14 @@ let
   # Only what selection resolved is imported. A catalogue entry that was never
   # enabled is never `import`ed, and an unselected provider file is never read.
 
-  # Resolve one enabled capability to its implementation attrset.
+  # Resolve one enabled capability to the file that answers it. A provider set
+  # is the one entry read to find out which: it is data naming provider files.
   implOf =
     catalogue: name: provider:
     let
       entry = import catalogue.${name};
-      providers = entry.providers or null;
-      names = lib.concatStringsSep ", " (lib.attrNames (entry.providers or { }));
+      providers = if lib.isAttrs entry then entry.providers or null else null;
+      names = lib.concatStringsSep ", " (lib.attrNames providers);
     in
     if providers != null then
       if provider == null then
@@ -334,56 +334,36 @@ let
         throw "dendrite '${name}' has no provider '${provider}'; available providers: ${names}"
       else
         {
-          impl = import providers.${provider};
+          path = providers.${provider};
           label = "${name}/${provider}";
         }
     else if provider != null then
       throw "dendrite '${name}' has a single implementation and takes no provider (got '${provider}')"
     else
       {
-        impl = entry;
+        path = catalogue.${name};
         label = name;
       };
 
-  # Resolve one enabled capability to the lane this scope needs. Selecting a
-  # lane a dendrite does not support is an error, not a silently skipped import.
-  laneOf =
-    {
-      catalogue,
-      name,
-      provider,
-      lane,
-      scope,
-    }:
-    let
-      d = implOf catalogue name provider;
-      supported = lib.filter (l: d.impl ? ${l}) laneNames;
-    in
-    d.impl.${lane}
-      or (throw "dendrite '${d.label}' is selected ${scope} but exposes no ${lane} lane; it supports: ${
-        if supported == [ ] then "no lanes at all" else lib.concatStringsSep ", " supported
-      }");
-
-  # Every lane module for one selection scope, in catalogue order.
-  lanesFor =
-    {
-      catalogue,
-      selected,
-      lane,
-      scope,
-    }:
-    lib.concatMap (
-      name:
-      lib.optional selected.${name}.enable (laneOf {
-        inherit
-          catalogue
-          name
-          lane
-          scope
-          ;
-        inherit (selected.${name}) provider;
-      })
-    ) (lib.attrNames catalogue);
+  # `habit.selected`: what one scope resolved, a read-only option in the
+  # evaluation that scope's modules run in. It is written from selection data
+  # and never reads configuration, so it cannot recurse into the selection.
+  selectedModule = scope: {
+    _file = toString ./composition.nix;
+    options.habit.selected = mkOption {
+      type = types.attrsOf (
+        types.submodule {
+          options = {
+            enable = mkOption { type = types.bool; };
+            provider = mkOption { type = types.nullOr types.str; };
+          };
+        }
+      );
+      readOnly = true;
+      description = "Which capabilities this scope selected, and the provider that answers each.";
+    };
+    config.habit.selected = lib.mapAttrs (_: d: { inherit (d) enable provider; }) scope;
+  };
 
   enabledNames = selected: lib.attrNames (lib.filterAttrs (_: d: d.enable) selected);
 
@@ -398,18 +378,15 @@ let
   # The evaluation boundary here is WEAKER than selection's, and this is the
   # honest statement of it: every host imports every record file, because
   # matching is reading. What stays unevaluated is the work — `overlay` and the
-  # lane modules are functions, and an unmatched record's functions are never
+  # modules are functions, and an unmatched record's functions are never
   # called. Keep imports and package computation inside them; metadata that
   # computes defeats this, and the tests prove only the function bodies.
-  #
-  # `darwin` is absent on purpose: there is no darwin constructor to apply it,
-  # and a field that is silently dropped is worse than one that does not exist.
   overrideFields = [
     "dendrites"
     "hosts"
     "overlay"
-    "nixos"
-    "homeManager"
+    "system"
+    "home"
   ];
 
   # Read and validate one record. Typos fail here, naming the record and the
@@ -431,8 +408,8 @@ let
       badHosts = lib.filter (h: !(lib.elem h knownHosts)) (if hosts == null then [ ] else hosts);
       carries = lib.filter (f: body ? ${f}) [
         "overlay"
-        "nixos"
-        "homeManager"
+        "system"
+        "home"
       ];
     in
     if unknown != [ ] then
@@ -444,7 +421,7 @@ let
     else if badHosts != [ ] then
       throw "${where} is confined to unknown host(s): ${lib.concatStringsSep ", " badHosts}"
     else if carries == [ ] then
-      throw "${where} carries nothing to apply; give it an overlay, a nixos module or a homeManager module"
+      throw "${where} carries nothing to apply; give it an overlay, a system module or a home module"
     else
       {
         inherit name hosts;
@@ -456,14 +433,15 @@ let
   #
   # A record matches the HOST when its host filter admits this host and any
   # dendrite it targets was selected here — for the system OR by one of its
-  # users, because `useGlobalPkgs` means a home lane draws from the host's own
-  # package set and there is no separate home one to fix. Its `overlay` and
-  # `nixos` module then apply once, however many of its targets were selected.
+  # users, because `useGlobalPkgs` means a home configuration draws from the
+  # host's own package set and there is no separate home one to fix. Its
+  # `overlay` and `system` module then apply once, however many of its targets
+  # were selected.
   #
-  # A record matches a USER when its host filter admits this host and that
-  # user's own home selection hits a target; only then does its `homeManager`
-  # module ride that user's lane. The alternative — every user on a matched
-  # host — would put one person's fix in everyone else's home.
+  # A record's `home` module rides exactly the users its target's home half
+  # reaches: every user with a home when the host selected the target, the
+  # selecting user alone when a user did. The fix then travels with the thing
+  # it fixes.
   #
   # Order is record name, so what the list holds does not depend on the
   # filesystem. Overlays then compose the ordinary Nix way, each seeing the
@@ -491,9 +469,8 @@ let
       ) overrides;
 
       homeOf = u: enabledNames u.dendrites;
-      here = lib.unique (
-        enabledNames selection.dendrites ++ lib.concatMap homeOf (lib.attrValues selection.users)
-      );
+      hostChoice = enabledNames selection.dendrites;
+      here = lib.unique (hostChoice ++ lib.concatMap homeOf (lib.attrValues selection.users));
 
       admitsHost = r: r.hosts == null || lib.elem hostName r.hosts;
       hits = names: r: lib.any (d: lib.elem d names) r.dendrites;
@@ -503,9 +480,9 @@ let
     in
     {
       overlays = carried "overlay" forHost;
-      nixos = carried "nixos" forHost;
-      homeManager = lib.mapAttrs (
-        _: u: carried "homeManager" (lib.filter (r: admitsHost r && hits (homeOf u) r) records)
+      system = carried "system" forHost;
+      home = lib.mapAttrs (
+        _: u: carried "home" (lib.filter (r: admitsHost r && hits (hostChoice ++ homeOf u) r) records)
       ) selection.users;
       matched = map (r: r.name) forHost;
     };
@@ -513,8 +490,6 @@ in
 rec {
   inherit
     mkSchema
-    laneNames
-    lanesFor
     implOf
     overridesFor
     ;
@@ -553,8 +528,8 @@ rec {
     in
     eval (lib.genAttrs selected (name: readBody name aggregations.${name}));
 
-  # A host's resolved shape: what it selected, from where, for which lane.
-  # Generated from the selection, never maintained by hand.
+  # A host's resolved shape: what it selected and from where, for the system and
+  # for each user. Generated from the selection, never maintained by hand.
   inventoryOf =
     { hostName, selection }:
     let
@@ -573,7 +548,7 @@ rec {
       dendrites = describe selection.dendrites;
       users = lib.mapAttrs (_: u: {
         definition = toString u.definition;
-        homeManager = u.homeManager.enable;
+        home = u.home.enable;
         aggregation = chosen u.aggregation;
         dendrites = describe u.dendrites;
       }) selection.users;
@@ -596,13 +571,14 @@ rec {
       extraModules ? [ ],
       # Package overlays the CALLER provides — the base package set.
       #
-      # They do NOT reach a lane's `prev`: the lane is applied BEFORE these, so
-      # inside a lane's overlay `prev` carries none of the caller's packages and
-      # reading one aborts with a missing attribute. A lane therefore builds
-      # what it replaces with a FRESH `callPackage`, naming every argument it
-      # needs, and never inherits one from this base. A caller's overlay that
-      # replaces a name a lane also replaces must step aside for a name `prev`
-      # already carries, or it overrides the lane's value.
+      # They do NOT reach a selected module's `prev`: that module is applied
+      # BEFORE these, so inside its overlay `prev` carries none of the caller's
+      # packages and reading one aborts with a missing attribute. A module
+      # therefore builds what it replaces with a FRESH `callPackage`, naming
+      # every argument it needs, and never inherits one from this base. A
+      # caller's overlay that replaces a name a selected module also replaces
+      # must step aside for a name `prev` already carries, or it overrides the
+      # module's value.
       overlays ? [ ],
       selectionModules ? [ ],
       extraModulesFor ? (_: [ ]),
@@ -617,32 +593,7 @@ rec {
 
       # `extraModules` and the gate-pass hook's answer, in that order: a module
       # from the hook merges and outranks exactly as one the caller passed in.
-      # Resolved once — the collision check below and the platform pass read the
-      # same list.
       extra = extraModules ++ extraModulesFor selection;
-
-      # The whole-tree aggregate and a SELECTED lane in one module list is not a
-      # merge: both import the same `body`, so the body's `enable` option is
-      # declared twice and nixpkgs throws. They are mutually exclusive — taking
-      # the aggregate means selecting nothing — so the collision
-      # is named here, where the list is assembled, rather than surfacing later
-      # as that throw. A module that IS the dendrite directory is the whole tree.
-      wholeTree = lib.filter (
-        m:
-        builtins.isPath m
-        && lib.elem (toString m) (map (p: lib.dirOf (toString p)) (lib.attrValues catalogue))
-      ) extra;
-      chosenNames = lib.unique (
-        enabledNames selection.dendrites
-        ++ lib.concatMap (u: enabledNames u.dendrites) (lib.attrValues selection.users)
-      );
-
-      systemLanes = lanesFor {
-        inherit catalogue;
-        selected = selection.dendrites;
-        lane = "nixos";
-        scope = "for the system";
-      };
 
       # Capability-scoped fixes, resolved once selection is final and applied
       # before anything evaluates a package set.
@@ -658,51 +609,87 @@ rec {
 
       # Home Manager is wired only where a user actually asked for it; a host
       # with no home user never imports it. Asking for a home dendrite with the
-      # lane switched off is a configuration error, not a quiet no-op.
+      # user's home switched off is a configuration error, not a quiet no-op.
       args = specialArgs // {
         inherit system;
         host = hostName;
       };
 
-      hmUsers = lib.filterAttrs (_: u: u.homeManager.enable) selection.users;
+      hmUsers = lib.filterAttrs (_: u: u.home.enable) selection.users;
       strandedHome = lib.concatMap (
         userName:
         let
           u = selection.users.${userName};
           wanted = enabledNames u.dendrites;
         in
-        lib.optional (!u.homeManager.enable && wanted != [ ])
-          "user '${userName}' has homeManager.enable = false but selects home dendrites: ${lib.concatStringsSep ", " wanted}"
+        lib.optional (!u.home.enable && wanted != [ ])
+          "user '${userName}' has home.enable = false but selects home dendrites: ${lib.concatStringsSep ", " wanted}"
       ) (lib.attrNames selection.users);
 
-      userDefinition = u: import u.definition;
-
-      accountLanes = lib.mapAttrsToList (
-        userName: u:
+      # One wrapped module per selected capability, in catalogue order. The
+      # system half applies wherever it was selected, by the host or by a user.
+      # The home half goes to every home user when the host selected it and to
+      # the selecting user alone when a user did; a user it reaches by both
+      # routes gets it once. One system takes one implementation, so every
+      # selector must name the same provider: two implementations would both
+      # apply their system halves.
+      dendriteModules = lib.concatMap (
+        name:
         let
-          d = userDefinition u;
+          claims =
+            lib.optional selection.dendrites.${name}.enable {
+              who = "host";
+              inherit (selection.dendrites.${name}) provider;
+              users = lib.attrNames hmUsers;
+            }
+            ++ lib.concatMap (
+              userName:
+              let
+                d = selection.users.${userName}.dendrites.${name};
+              in
+              lib.optional d.enable {
+                who = "user '${userName}'";
+                inherit (d) provider;
+                users = [ userName ];
+              }
+            ) (lib.attrNames selection.users);
+          providers = lib.unique (map (c: c.provider) claims);
+          claimants = lib.concatStringsSep "; " (
+            map (c: "${c.who}: ${if c.provider == null then "no provider" else c.provider}") claims
+          );
+          impl = implOf catalogue name (lib.head providers);
         in
-        d.nixos
-          or (throw "user '${userName}' definition ${toString u.definition} exposes no nixos lane; it cannot create an account on this host")
+        if lib.length providers > 1 then
+          throw "dendrite '${name}' is selected with different providers (${claimants}); one system takes one implementation"
+        else
+          lib.optional (claims != [ ]) (
+            lanes.wrap {
+              inherit name;
+              inherit (impl) path;
+              system = true;
+              homeFor = lib.unique (lib.concatMap (c: c.users) claims);
+            }
+          )
+      ) (lib.attrNames catalogue);
+
+      # A user's module is an account on the system and the start of their home.
+      userModules = lib.mapAttrsToList (
+        userName: u:
+        lanes.wrap {
+          name = "user:${userName}";
+          path = u.definition;
+          system = true;
+          homeFor = lib.optional u.home.enable userName;
+        }
       ) selection.users;
 
-      homeFor =
-        userName: u:
-        let
-          d = userDefinition u;
-        in
-        {
-          imports =
-            lib.optional (d ? homeManager) d.homeManager
-            ++ lanesFor {
-              inherit catalogue;
-              selected = u.dendrites;
-              lane = "homeManager";
-              scope = "by user '${userName}'";
-            }
-            ++ (overrides.homeManager.${userName} or [ ])
-            ++ [ u.homeManager.config ];
-        };
+      userHome = userName: u: {
+        imports = [
+          (selectedModule u.dendrites)
+        ]
+        ++ (overrides.home.${userName} or [ ])
+        ++ [ u.home.config ];
+      };
 
       homeWiring = {
         imports = [ homeManagerModule ];
@@ -711,32 +698,31 @@ rec {
           useGlobalPkgs = true;
           backupFileExtension = "backup";
           extraSpecialArgs = args;
-          users = lib.mapAttrs homeFor hmUsers;
+          users = lib.mapAttrs userHome hmUsers;
         };
       };
 
       modules =
         lib.optional (overlays != [ ]) { nixpkgs.overlays = overlays; }
       # A list option's definitions merge in reverse list order, so a module
-      # placed here is applied after the lanes' overlays and before the
-      # caller's: a record's fix wins over a lane's, and the consumer's own
-      # overlays keep the last word. The host's own overlays are applied first
-      # and lose to all of them unless the host orders them later with
-      # `lib.mkAfter`.
+      # placed here is applied after the selected modules' overlays and before
+      # the caller's: a record's fix wins over a selected module's, and the
+      # consumer's own overlays keep the last word. The host's own overlays are
+      # applied first and lose to all of them unless the host orders them later
+      # with `lib.mkAfter`.
       ++ lib.optional (overrides.overlays != [ ]) { nixpkgs.overlays = overrides.overlays; }
-      ++ accountLanes
-      ++ systemLanes
+      ++ [ (selectedModule selection.dendrites) ]
+      ++ userModules
+      ++ dendriteModules
       ++ lib.optional (hmUsers != { }) homeWiring
       ++ extra
       # A record outranks everything the constructor imported on its behalf; the
       # host's own module still outranks the record.
-      ++ overrides.nixos
+      ++ overrides.system
       ++ [ selection.nixos ];
     in
     if strandedHome != [ ] then
       throw "host '${hostName}': ${lib.concatStringsSep "; " strandedHome}"
-    else if wholeTree != [ ] && chosenNames != [ ] then
-      throw "host '${hostName}': ${lib.concatStringsSep ", " (map toString wholeTree)} is the whole dendrite tree, which imports every dendrite's body, and ${lib.concatStringsSep ", " chosenNames} is selected, so its lane imports that same body — one module list, the same declarations twice, which nixpkgs throws on as `already declared'. Keep one: select through the catalogue and drop the aggregate, or take the aggregate and select nothing."
     else
       {
         inherit

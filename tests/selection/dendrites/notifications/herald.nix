@@ -1,4 +1,4 @@
 {
-  homeManager = _: { fixture.notifications = "herald"; };
-  nixos = _: { fixture.notifications = "herald"; };
+  fixture.marks = [ "herald" ];
+  habit.home.fixture.marks = [ "herald" ];
 }

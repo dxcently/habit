@@ -1,6 +1,6 @@
 # examples/workstation/dendrites/notifications/dunst.nix
 {
-  homeManager = {
+  habit.home = {
     services.dunst.enable = true;
   };
 }

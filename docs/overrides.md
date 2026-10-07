@@ -21,8 +21,8 @@ overrides = {
   dendrites = [ "notifications" ];              # required: catalogue names
   hosts = [ "desk" ];                           # optional: confine to these hosts
   overlay = final: prev: { … };                 # optional
-  nixos = { … };                                # optional
-  homeManager = { … };                          # optional
+  system = { … };                               # optional
+  home = { … };                                 # optional
 }
 ```
 
@@ -31,11 +31,12 @@ overrides = {
 | `dendrites`   | yes      | a non-empty list of catalogue names the record is about             |
 | `hosts`       | no       | the host names it is confined to; each must be in `knownHosts`      |
 | `overlay`     | one of these three | a package overlay for the host's package set              |
-| `nixos`       | one of these three | a NixOS module                                            |
-| `homeManager` | one of these three | a Home Manager module                                     |
+| `system`      | one of these three | a module for the host's evaluation                        |
+| `home`        | one of these three | a Home Manager module                                     |
 
-There is no `darwin` field: there is no darwin constructor to apply it, and a
-field that is silently dropped is worse than one that does not exist.
+`system` and `home` are the two halves a dendrite has, so a record carries the
+same pair. A field that is silently dropped is worse than one that does not
+exist, so a field outside the five is an error.
 
 ## Matching
 
@@ -46,26 +47,26 @@ record ──► hosts admits this host? ──no──► not applied
            a target selected here (system, or by any user)? ──no──► not applied
                 │ yes
                 ▼
-           overlay + nixos apply to the host, once
-           homeManager rides each user whose OWN selection hit a target
+           overlay + system apply to the host, once
+           home rides the users the target's home half reaches
 ```
 
 - A record matches the **host** when its `hosts` admits the host and any target
   was selected here, for the system or by one of its users. A capability only a
-  user selected still matches the host: with `useGlobalPkgs` the home lane
+  user selected still matches the host: with `useGlobalPkgs` a user's home
   draws from the host's package set, so there is no separate home one to fix.
-- Its `overlay` and `nixos` module apply **once**, however many of its targets
+- Its `overlay` and `system` module apply **once**, however many of its targets
   were selected.
-- Its `homeManager` module rides only the users whose own home selection hit
-  a target. Every user on a matched host would put one person's fix in
-  everyone else's home.
+- Its `home` module rides exactly the users the target's home half reaches:
+  every user with Home Manager when the host selected the target, the selecting
+  user alone when a user did, so the fix travels with the thing it fixes.
 - Records are taken in name order, so the result does not depend on the
   filesystem. Overlays compose the ordinary Nix way, each seeing the one before
   as `prev`; there is no overlap detection beyond that.
-- A record's overlays are applied after the lanes' and before the caller's. On
-  an attribute they share, the record's wins over a lane's and the caller's
-  wins over the record's, so the consumer's own
-  overlays keep the last word (`overlayOrder`, `recordOverlayBeatsLane`,
+- A record's overlays are applied after the selected modules' and before the
+  caller's. On an attribute they share, the record's wins over a module's and
+  the caller's wins over the record's, so the consumer's own
+  overlays keep the last word (`overlayOrder`, `recordOverlayBeatsDendrite`,
   `callerOverlayBeatsRecord`). The host's own overlays are applied first and
   lose to all of these ([the module list](constructor.md#the-module-list)).
 
@@ -79,11 +80,11 @@ its file:
 
 | fault                                      | message contains                                               |
 | ------------------------------------------ | -------------------------------------------------------------- |
-| a field outside the five                   | `has unknown field(s): …; a record takes only dendrites, hosts, overlay, nixos, homeManager` |
+| a field outside the five                   | `has unknown field(s): …; a record takes only dendrites, hosts, overlay, system, home` |
 | no `dendrites`, or an empty list           | `names no dendrites; a record must say which capabilities it is about` |
 | a target not in the catalogue              | `targets unknown dendrite(s): …; every target must be a catalogue name` |
 | a host not in `knownHosts`                 | `is confined to unknown host(s): …`                            |
-| none of `overlay`, `nixos`, `homeManager`  | `carries nothing to apply; give it an overlay, a nixos module or a homeManager module` |
+| none of `overlay`, `system`, `home`        | `carries nothing to apply; give it an overlay, a system module or a home module` |
 
 A consumer building several hosts passes every host name as `knownHosts` to
 each, or a record confined to another host fails on this one
@@ -96,7 +97,7 @@ This boundary is weaker than selection's, and it is stated exactly:
 - Every host imports every record file, because matching is reading. The
   record's attrset and its `dendrites` and `hosts` lists are evaluated on every
   host.
-- `overlay` is a function, and `nixos` and `homeManager` are best written as
+- `overlay` is a function, and `system` and `home` are best written as
   functions (`{ pkgs, ... }: { … }`). An unmatched record's functions are never
   called.
 
@@ -104,5 +105,5 @@ Keep imports and package computation inside those functions. Metadata that
 computes (a `dendrites` list built by importing something) defeats the
 boundary. The suite proves only the function bodies:
 `tests/selection/overrides/tripwire.nix`
-throws from its overlay and its `nixos` module, and resolving a host that does
+throws from its overlay and its `system` module, and resolving a host that does
 not select its target succeeds.

@@ -2,7 +2,8 @@
 
 Every error habit throws names what failed. The text below is the real
 message, with the parts that vary in angle brackets. Errors raised by the
-module system on habit's schema are listed after them.
+module system on habit's schema and the modules it routes are listed after
+them.
 
 ## Selecting capabilities
 
@@ -10,21 +11,30 @@ module system on habit's schema are listed after them.
 | ------- | ----- | --- |
 | `dendrite '<name>' is enabled but chose no provider; available providers: <list>` | a provider-bearing capability is enabled and nothing chose a provider | set `dendrites.<name>.provider`, or select it through a group whose body names a default |
 | `dendrite '<name>' has no provider '<p>'; available providers: <list>` | the chosen provider is not in the dendrite's `providers` | choose one from the list |
-| `dendrite '<name>' has a single implementation and takes no provider (got '<p>')` | a provider was set on a lane-record dendrite | remove the `provider` |
-| `dendrite '<label>' is selected <scope> but exposes no <lane> lane; it supports: <lanes>` | a scope asked for a lane the dendrite (or its chosen provider, `<name>/<provider>`) does not have; `<scope>` is `for the system` or `by user '<user>'` | select it in the scope it supports, or add the lane |
+| `dendrite '<name>' has a single implementation and takes no provider (got '<p>')` | a provider was set on a dendrite that is a plain module | remove the `provider` |
+| `dendrite '<name>' is selected with different providers (<claimants>); one system takes one implementation` | the host and a user, or two users, selected one capability with different providers; each claimant is `host` or `user '<user>'`, then its provider | make every selector name the same provider |
 
 ## Users
 
 | message | cause | fix |
 | ------- | ----- | --- |
-| `host '<host>': user '<user>' has homeManager.enable = false but selects home dendrites: <list>` | a user selects home capabilities with the home lane off | set `homeManager.enable = true`, or drop the selections |
-| `user '<user>' definition <path> exposes no nixos lane; it cannot create an account on this host` | the user definition has no `nixos` attribute | give the definition a `nixos` lane that creates the account |
+| `host '<host>': user '<user>' has home.enable = false but selects home dendrites: <list>` | a user selects home capabilities with their home off | set `home.enable = true`, or drop the selections |
 
-## Assembling the module list
+## Modules
 
-| message | cause | fix |
-| ------- | ----- | --- |
-| ``host '<host>': <path> is the whole dendrite tree, which imports every dendrite's body, and <names> is selected, so its lane imports that same body — one module list, the same declarations twice, which nixpkgs throws on as `already declared'. Keep one: select through the catalogue and drop the aggregate, or take the aggregate and select nothing.`` | `extraModules` or `extraModulesFor` returned the directory holding the catalogue entries while a capability is selected | do what the message says ([the whole-tree refusal](constructor.md#the-whole-tree-refusal)) |
+A selected dendrite, provider file or user module is wrapped when it is
+imported. Each message begins `<path> (habit module '<name>')`, where `<name>`
+is the capability or `user:<user>`.
+
+| message continues | cause | fix |
+| ----------------- | ----- | --- |
+| `does not look like a module, got <type>` | the file evaluates to something other than an attrset or a function returning one | write a module |
+| `has an unsupported top-level attribute: <names>; put configuration under `config`` | a module with `options` or `config` also has a stray top-level key | move it under `config` |
+| `config must be an attribute set, got <type>` | `config` is a list or other non-attrset | make it an attrset |
+| ``config is a `<type>` value habit cannot split`` | `config` is an `mkOrder` or another module-system value that is not `mkIf`, `mkMerge` or `mkOverride` | write the configuration as an attrset, or wrap it in one of those three |
+| ``unknown habit key(s): <keys>; only `home` is read`` | a key under `habit` other than `home` (`habit.homee`, `habit.selected`) | rename or remove it |
+| `` `habit` is a `<type>` value; write habit.home as a plain attribute `` | `habit = mkIf …` or another wrapped `habit`: the wrapper cannot split it without evaluating the condition | write `habit.home` as a plain attribute |
+| `` `habit` must be an attribute set holding `home`, got <type> `` | `habit` is a number, list or other non-attrset | make it an attrset |
 
 ## Aggregation bodies
 
@@ -35,8 +45,8 @@ selected aggregation only, when its body is read.
 | ----------------- | ----- | --- |
 | `is a <type>, not an attrset; a body is an attrset taking only description, system, home` | the body is a function (written like a dendrite), a list or another non-attrset | make it an attrset |
 | `has unknown field(s): <fields>; a body takes only description, system, home` | a misspelt half (`sytem`) or another key at the top of the body | rename or remove it |
-| ``has unknown field(s) in `<half>`: <fields>; a half takes only members, providers, nixos, homeManager`` | a key in `system` or `home` the constructor does not read (`member`, `nixso`); `<half>` is `system` or `home` | rename or remove it |
-| ``has `<half>` as a <type>, not an attrset; a half is an attrset taking only members, providers, nixos, homeManager`` | `system` or `home` is a list, string or other non-attrset | make it an attrset |
+| ``has unknown field(s) in `<half>`: <fields>; a half takes only members, providers, module`` | a key in `system` or `home` the constructor does not read (`member`, `nixos`); `<half>` is `system` or `home` | rename or remove it |
+| ``has `<half>` as a <type>, not an attrset; a half is an attrset taking only members, providers, module`` | `system` or `home` is a list, string or other non-attrset | make it an attrset |
 
 ## Override records
 
@@ -44,11 +54,11 @@ Each begins `override record '<name>' (<path>)`.
 
 | message continues | cause | fix |
 | ----------------- | ----- | --- |
-| `has unknown field(s): <fields>; a record takes only dendrites, hosts, overlay, nixos, homeManager` | a misspelt or unsupported field (`nixOS`, `darwin`) | rename or remove it |
+| `has unknown field(s): <fields>; a record takes only dendrites, hosts, overlay, system, home` | a misspelt or unsupported field (`nixos`, `homeManager`, `darwin`) | rename or remove it |
 | `names no dendrites; a record must say which capabilities it is about` | `dendrites` missing, empty, or not a list | list the catalogue names it fixes |
 | `targets unknown dendrite(s): <names>; every target must be a catalogue name` | a target not in the catalogue | correct the name, or add the capability |
 | `is confined to unknown host(s): <hosts>` | `hosts` names a host not in `knownHosts` | pass every host name as `knownHosts`, or correct the name |
-| `carries nothing to apply; give it an overlay, a nixos module or a homeManager module` | none of `overlay`, `nixos`, `homeManager` | add one, or delete the record |
+| `carries nothing to apply; give it an overlay, a system module or a home module` | none of `overlay`, `system`, `home` | add one, or delete the record |
 
 These are checked on every host, matched or not.
 
@@ -65,8 +75,9 @@ These are checked on every host, matched or not.
 
 ## From the module system
 
-habit's schema is an ordinary module, so a name it does not have fails the
-ordinary way, naming the file that set it when that module was given as a path:
+habit's schema and the modules it routes are ordinary modules, so a name they
+do not have fails the ordinary way, naming the file that set it when that module
+was given as a path:
 
 | message | cause |
 | ------- | ----- |
@@ -75,5 +86,6 @@ ordinary way, naming the file that set it when that module was given as a path:
 | ``The option `aggregation.<group>.<member>' does not exist.`` | a provider selector the group does not own in that scope |
 | ``The option `<field>' does not exist.`` | a host record field nothing declared; declare it with `selectionModules` |
 | ``The option `dendrites.<name>.provider' has conflicting definition values`` | two selected groups chose different providers for one member |
-| ``The option `users.<user>.nixos' does not exist.`` | a group's `home` half carries `nixos` |
-| ``The option `homeManager' does not exist.`` | a group's `system` half carries `homeManager` |
+| ``The option `<key>' does not exist.`` | a key of a dendrite's own configuration that no module declares where its system half is evaluated: a misspelt option, or a set of named lanes (`{ body; nixos; homeManager; }`), which habit reads as an ordinary module |
+| ``The option `<name>' in `<file>' is already declared in `<file>'.`` | a catalogue file that declares options and is selected, and is also imported by hand ([Dendrites](dendrites.md#what-is-not-a-module)) |
+| ``The option `habit.selected' is read-only, but it's set multiple times.`` | something other than the constructor defines `habit.selected`, in the host's evaluation or, as `home-manager.users.<user>.habit.selected`, in a user's home |

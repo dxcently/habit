@@ -1,6 +1,6 @@
-# Sets the attribute every lane and the caller set in
+# Sets the attribute every selected module and the caller set in
 # `overlayOrder`, so the winner is the last overlay applied.
 {
-  dendrites = [ "laneone" ];
+  dendrites = [ "overlayone" ];
   overlay = _: _: { tag = "record"; };
 }

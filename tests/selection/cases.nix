@@ -13,40 +13,30 @@ let
       modules = [ mod ];
     };
 
-  # Force the whole resolution: selection, inventory, and every lane module the
-  # host would import. Without this a throw hiding in an unforced thunk passes.
+  # Force every element of a module list, then answer `result`. A wrapped module
+  # imports its file when it is forced, so without this a throw hiding in an
+  # unforced thunk passes. Only to the head: a module's option declarations
+  # carry types that cannot be forced further.
+  forceEach = list: result: builtins.foldl' (acc: m: builtins.seq m acc) result list;
+
+  # The whole resolution: selection, inventory, and every element of the module
+  # list the host would import.
   resolve =
     mod:
     let
-      selection = select mod;
-      inv = composition.inventoryOf {
-        hostName = "fixture";
-        inherit selection;
-      };
-      lanes = {
-        system = composition.lanesFor {
-          inherit (selection) catalogue;
-          selected = selection.dendrites;
-          lane = "nixos";
-          scope = "for the system";
-        };
-        home = lib.mapAttrs (
-          userName: u:
-          composition.lanesFor {
-            inherit (selection) catalogue;
-            selected = u.dendrites;
-            lane = "homeManager";
-            scope = "by user '${userName}'";
-          }
-        ) selection.users;
-      };
+      r = mkModules { hostModules = [ mod ]; };
     in
-    builtins.deepSeq (builtins.toJSON inv) (builtins.deepSeq lanes { inherit selection inv lanes; });
+    builtins.deepSeq (builtins.toJSON r.inventory) (
+      forceEach r.modules {
+        inherit (r) selection modules;
+        inv = r.inventory;
+      }
+    );
 
   # A module list's identity, element for element, short of the values it holds.
   # `==` is no instrument here: Nix counts two distinct function objects as
-  # unequal, so a list carrying a lane function never compares equal to a copy
-  # of itself. What is left is each element's type, and for an attrset its
+  # unequal, so a list carrying a wrapped function never compares equal to a
+  # copy of itself. What is left is each element's type, and for an attrset its
   # attribute names.
   fingerprint =
     l:
@@ -85,11 +75,131 @@ let
     };
   };
 
+  # ── Stub platforms ─────────────────────────────────────────────────────────
+  # What the routed halves land in, without NixOS or Home Manager. `marks` is a
+  # list option, so a half applied twice shows twice. `systemFixtures` declares
+  # only what the fixtures write: a key the platform does not have, such as
+  # anything under `home-manager` without its module, is an error as on a real
+  # host. `anyKey` lets the system accept every other key too.
+  marksOption = lib.mkOption {
+    type = lib.types.listOf lib.types.str;
+    default = [ ];
+  };
+
+  systemFixtures = {
+    options.fixture.marks = marksOption;
+    options.fixture.account = lib.mkOption {
+      type = lib.types.attrsOf lib.types.bool;
+      default = { };
+    };
+  };
+
+  anyKey.freeformType = lib.types.lazyAttrsOf lib.types.anything;
+
+  # Home Manager's NixOS module as far as the constructor's wiring touches it:
+  # the wiring's options are free, and each user is a submodule that carries
+  # `marks` and accepts any other key. Like Home Manager's own, a user's
+  # definition is a module, so its `imports` are read as imports.
+  homeManagerStub = {
+    options.home-manager = lib.mkOption {
+      default = { };
+      type = lib.types.submodule {
+        freeformType = lib.types.lazyAttrsOf lib.types.anything;
+        options.users = lib.mkOption {
+          default = { };
+          type = lib.types.attrsOf (
+            lib.types.submoduleWith {
+              modules = [
+                {
+                  freeformType = lib.types.lazyAttrsOf lib.types.anything;
+                  options.fixture.marks = marksOption;
+                }
+              ];
+            }
+          );
+        };
+      };
+    };
+  };
+
+  # The configuration the constructor's module list evaluates to on a stub
+  # platform. `args` reach `mkNixosModules` beside the host `mod`.
+  evalAssembled =
+    {
+      mod ? { },
+      args ? { },
+      platform ? [
+        systemFixtures
+        anyKey
+      ],
+    }:
+    (lib.evalModules {
+      specialArgs = { inherit lib; };
+      modules =
+        platform
+        ++ (mkModules (
+          {
+            hostModules = [ mod ];
+            homeManagerModule = homeManagerStub;
+          }
+          // args
+        )).modules;
+    }).config;
+
+  marksOf = c: builtins.concatStringsSep "+" c.fixture.marks;
+
+  # What landed where: the system's marks, then each Home Manager user's.
+  assembled =
+    mod:
+    let
+      c = evalAssembled { inherit mod; };
+    in
+    builtins.concatStringsSep " " (
+      [ "sys=${marksOf c}" ]
+      ++ lib.mapAttrsToList (n: u: "${n}=${marksOf u}") (c.home-manager.users or { })
+    );
+
+  # A user with Home Manager on, whose module is the fixture of that name.
+  homeUser =
+    name: extra:
+    lib.recursiveUpdate {
+      definition = ./users + "/${name}.nix";
+      home.enable = true;
+    } extra;
+
+  dunst = {
+    enable = true;
+    provider = "dunst";
+  };
+
+  # What one scope selected, as `habit.selected` reports it.
+  selectedBy =
+    c:
+    builtins.concatStringsSep "," (
+      lib.mapAttrsToList (n: s: if s.provider == null then n else "${n}/${s.provider}") (
+        lib.filterAttrs (_: s: s.enable) c.habit.selected
+      )
+    );
+
+  # The fixture registry plus the entries only the module-system cases use.
+  registryWithModules = registry // {
+    catalogue = registry.catalogue // {
+      declares = ./dendrites/declares;
+      homeThrows = ./dendrites/homeThrows;
+      laneRecord = ./dendrites/laneRecord;
+    };
+  };
+
   selectionCases = rec {
     # ── A disabled implementation is never imported ────────────────────────────
     # landmine/default.nix throws on import; selecting everything around it and
     # forcing the resolution must still succeed.
     disabledIsInert = (resolve { dendrites.systemonly.enable = true; }).inv.host;
+
+    # The complement: selecting the landmine reaches it, so the case above
+    # passes because nothing imported it and not because the resolution never
+    # looks.
+    selectedModuleIsImported = (resolve { dendrites.landmine.enable = true; }).inv.host;
 
     # An enabled dendrite imports only the provider that was chosen. The
     # landmine provider sits beside dunst in the same registry.
@@ -109,7 +219,7 @@ let
         aggregation.workstation.enable = true;
         users.alice = {
           definition = ./users/alice.nix;
-          homeManager.enable = true;
+          home.enable = true;
           aggregation.desk.enable = true;
         };
       }).inv.host;
@@ -133,26 +243,29 @@ let
         };
       }).inv.host;
 
-    # ── Lane diagnostics ───────────────────────────────────────────────────────
-    # mako is home-only; selecting it at system scope must fail, not be skipped.
-    systemScopeWantsHomeOnlyProvider =
-      (resolve {
-        dendrites.notifications = {
-          enable = true;
-          provider = "mako";
-        };
-      }).lanes.system;
+    # ── Halves ─────────────────────────────────────────────────────────────────
+    # A module has no lane to be missing. Selected where it has nothing to say,
+    # it applies an empty half: homeonly has no system half, so the host gets
+    # nothing and its users get the home half.
+    homeOnlyModuleSelectedForTheSystemAppliesAnEmptySystemHalf = assembled {
+      dendrites.homeonly.enable = true;
+      users.alice = homeUser "alice" { };
+    };
 
-    systemScopeWantsHomeOnlyDendrite = (resolve { dendrites.homeonly.enable = true; }).lanes.system;
+    # The same for a home-only provider.
+    homeOnlyProviderSelectedForTheSystemAppliesAnEmptySystemHalf = assembled {
+      dendrites.notifications = {
+        enable = true;
+        provider = "mako";
+      };
+      users.alice = homeUser "alice" { };
+    };
 
-    homeScopeWantsSystemOnlyDendrite =
-      (resolve {
-        users.alice = {
-          definition = ./users/alice.nix;
-          homeManager.enable = true;
-          dendrites.systemonly.enable = true;
-        };
-      }).lanes.home;
+    # systemonly has no home half: a user selecting it applies the system half
+    # and their own home gets nothing.
+    systemOnlyModuleSelectedByAUserAppliesItsSystemHalf = assembled {
+      users.alice = homeUser "alice" { dendrites.systemonly.enable = true; };
+    };
 
     # ── Unknown names ──────────────────────────────────────────────────────────
     unknownDendrite = (resolve { dendrites.frobnicate.enable = true; }).inv.host;
@@ -189,7 +302,8 @@ let
       }).inv.dendrites.notifications.provider;
 
     # Two aggregations naming the same dendrite on the same terms merge into ONE
-    # selection — they do not instantiate it twice.
+    # selection — they do not instantiate it twice: one wrapped module for
+    # notifications and one for systemonly, and no more.
     aggregationsMergeOnSharedDendrite =
       let
         r = resolve {
@@ -197,7 +311,8 @@ let
           aggregation.annex.enable = true;
         };
       in
-      r.inv.dendrites.notifications.provider == "dunst" && builtins.length r.lanes.system == 2;
+      r.inv.dendrites.notifications.provider == "dunst"
+      && builtins.length (builtins.filter (m: lib.hasPrefix "habit:" (m.key or "")) r.modules) == 2;
 
     # Two aggregations choosing different providers for it collide; import order
     # never picks a winner.
@@ -243,7 +358,7 @@ let
       (resolve {
         users.alice = {
           definition = ./users/alice.nix;
-          homeManager.enable = true;
+          home.enable = true;
           aggregation.desk = {
             enable = true;
             notifications.provider = "dunst";
@@ -256,7 +371,7 @@ let
       (resolve {
         users.alice = {
           definition = ./users/alice.nix;
-          homeManager.enable = true;
+          home.enable = true;
           aggregation.backend.enable = true;
         };
       }).inv.host;
@@ -270,12 +385,12 @@ let
         r = resolve {
           users.alice = {
             definition = ./users/alice.nix;
-            homeManager.enable = true;
+            home.enable = true;
             aggregation.desk.enable = true;
           };
         };
       in
-      r.inv.users.alice.dendrites.notifications.provider == "dunst" && r.lanes.system == [ ];
+      r.inv.users.alice.dendrites.notifications.provider == "dunst" && r.inv.dendrites == { };
 
     # A user outranks the aggregation that attached them, independently of the
     # system selection.
@@ -283,7 +398,7 @@ let
       (resolve {
         users.alice = {
           definition = ./users/alice.nix;
-          homeManager.enable = true;
+          home.enable = true;
           aggregation.desk = {
             enable = true;
             notifications.provider = "mako";
@@ -292,52 +407,113 @@ let
       }).inv.users.alice.dendrites.notifications.provider;
 
     # ── Users ──────────────────────────────────────────────────────────────────
-    # Two users, same capability, different providers, each in its own scope.
+    # Selection is per scope: two users, same capability, different providers,
+    # each recorded in its own scope. Only the selection and its inventory are
+    # read; building the module list refuses this (below).
     twoUserScopes =
       let
-        r = resolve {
-          users.alice = {
-            definition = ./users/alice.nix;
-            homeManager.enable = true;
-            dendrites.notifications = {
-              enable = true;
-              provider = "mako";
+        inv = composition.inventoryOf {
+          hostName = "fixture";
+          selection = select {
+            users.alice = homeUser "alice" {
+              dendrites.notifications = {
+                enable = true;
+                provider = "mako";
+              };
             };
-          };
-          users.bob = {
-            definition = ./users/bob.nix;
-            homeManager.enable = true;
-            dendrites.notifications = {
-              enable = true;
-              provider = "dunst";
-            };
+            users.bob = homeUser "bob" { dendrites.notifications = dunst; };
           };
         };
       in
-      "${r.inv.users.alice.dendrites.notifications.provider}+${r.inv.users.bob.dendrites.notifications.provider}";
+      "${inv.users.alice.dendrites.notifications.provider}+${inv.users.bob.dendrites.notifications.provider}";
 
-    # Selecting a capability for the system does not select it for any user.
-    scopesDoNotLeak =
+    # ── Routing ────────────────────────────────────────────────────────────────
+    # The host's selection reaches every user with Home Manager on, a user's
+    # reaches that user, and a user reached both ways receives it once. The
+    # system half applies once however many selected it. Each result is what
+    # landed in the system and in each user's home, as `fixture.marks`.
+    hostSelectionReachesEveryHomeUser = assembled {
+      dendrites.notifications = dunst;
+      users.alice = homeUser "alice" { };
+      users.bob = homeUser "bob" { };
+    };
+
+    userSelectionReachesThatUserOnly = assembled {
+      users.alice = homeUser "alice" { dendrites.notifications = dunst; };
+      users.bob = homeUser "bob" { };
+    };
+
+    hostAndUserSelectionApplyOnce = assembled {
+      dendrites.notifications = dunst;
+      users.alice = homeUser "alice" { dendrites.notifications = dunst; };
+      users.bob = homeUser "bob" { };
+    };
+
+    usersSelectingOneModuleApplyItsSystemHalfOnce = assembled {
+      users.alice = homeUser "alice" { dendrites.notifications = dunst; };
+      users.bob = homeUser "bob" { dendrites.notifications = dunst; };
+    };
+
+    # One system takes one implementation of a capability: selectors that name
+    # different providers are refused, naming every claimant, whether the
+    # disagreement is the host's with a user or one user's with another.
+    hostAndUserWithDifferentProvidersAreRefused = assembled {
+      dendrites.notifications = dunst;
+      users.alice = homeUser "alice" {
+        dendrites.notifications = {
+          enable = true;
+          provider = "herald";
+        };
+      };
+    };
+
+    usersWithDifferentProvidersAreRefused = assembled {
+      users.alice = homeUser "alice" {
+        dendrites.notifications = {
+          enable = true;
+          provider = "mako";
+        };
+      };
+      users.bob = homeUser "bob" { dendrites.notifications = dunst; };
+    };
+
+    # A user without Home Manager has no home to receive it.
+    hostSelectionSkipsAUserWithoutHomeManager = assembled {
+      dendrites.notifications = dunst;
+      users.alice = homeUser "alice" { };
+      users.bob = homeUser "bob" { home.enable = false; };
+    };
+
+    # With no Home Manager user nothing is emitted under `home-manager`: the
+    # platform declares no such option, so an emitted empty set would fail.
+    hostSelectionWithoutHomeUsersEmitsNoHomeHalf = marksOf (evalAssembled {
+      platform = [ systemFixtures ];
+      mod.dendrites.notifications = dunst;
+    });
+
+    # A user's module is the account on the system and, in `habit.home`, that
+    # user's home alone. bob has Home Manager off, so his module has no home.
+    userModuleRoutesItsHalves =
       let
-        r = resolve {
-          dendrites.notifications = {
-            enable = true;
-            provider = "dunst";
-          };
-          users.alice = {
-            definition = ./users/alice.nix;
-            homeManager.enable = true;
+        c = evalAssembled {
+          mod.users = {
+            alice = homeUser "alice" { };
+            bob = homeUser "bob" { home.enable = false; };
           };
         };
+        accounts = builtins.concatStringsSep "," (lib.attrNames c.fixture.account);
+        homes = builtins.concatStringsSep "," (lib.attrNames c.home-manager.users);
+        aliceHome = lib.boolToString c.home-manager.users.alice.fixture.home.alice;
       in
-      r.lanes.home.alice == [ ];
+      "accounts=${accounts} alice=${aliceHome} homes=${homes}";
 
     # ── Home Manager absence ───────────────────────────────────────────────────
-    # A home selection with the lane switched off is a configuration error.
+    # A home selection with the user's home switched off is a configuration
+    # error.
     homeSelectionWithoutHomeManager = mkHost {
       users.alice = {
         definition = ./users/alice.nix;
-        homeManager.enable = false;
+        home.enable = false;
         dendrites.notifications = {
           enable = true;
           provider = "mako";
@@ -345,19 +521,122 @@ let
       };
     };
 
-    # A host whose users all have it off resolves cleanly and attaches no home
-    # lanes at all.
+    # A host whose users all have it off resolves cleanly and wires no Home
+    # Manager at all: on a platform without its module the evaluation succeeds,
+    # and the account is still created.
     homeManagerAbsent =
       let
-        r = resolve {
-          dendrites.systemonly.enable = true;
-          users.bob = {
-            definition = ./users/bob.nix;
-            homeManager.enable = false;
+        c = evalAssembled {
+          platform = [ systemFixtures ];
+          mod = {
+            dendrites.systemonly.enable = true;
+            users.bob = homeUser "bob" { home.enable = false; };
           };
         };
       in
-      !r.inv.users.bob.homeManager && r.lanes.home.bob == [ ];
+      "${marksOf c} accounts=${builtins.concatStringsSep "," (lib.attrNames c.fixture.account)}";
+
+    # ── habit.selected ─────────────────────────────────────────────────────────
+    # Every evaluation sees its own scope: the system eval what the host
+    # selected, each user's home what that user selected, and unselected names
+    # are there as disabled.
+    selectedFollowsEachScope =
+      let
+        c = evalAssembled {
+          mod = {
+            dendrites.systemonly.enable = true;
+            dendrites.notifications = dunst;
+            users.alice = homeUser "alice" { dendrites.homeonly.enable = true; };
+            users.bob = homeUser "bob" { };
+          };
+        };
+        home = n: selectedBy c.home-manager.users.${n};
+      in
+      "sys=${selectedBy c} alice=${home "alice"} bob=${home "bob"}";
+
+    selectedHoldsEveryCatalogueName =
+      let
+        c = evalAssembled { mod.dendrites.systemonly.enable = true; };
+      in
+      "${builtins.concatStringsSep "," (lib.attrNames c.habit.selected)} landmine=${lib.boolToString c.habit.selected.landmine.enable}";
+
+    # The constructor writes it, nobody else: a second definition is refused in
+    # the system eval and in a user's home alike.
+    selectedIsReadOnlyInTheSystemEval =
+      (evalAssembled {
+        args.extraModules = [ { habit.selected.systemonly.enable = true; } ];
+      }).habit.selected.systemonly.enable;
+
+    selectedIsReadOnlyInAUsersHome =
+      (evalAssembled {
+        mod.users.alice = homeUser "alice" {
+          home.config = {
+            habit.selected.systemonly.enable = true;
+          };
+        };
+      }).home-manager.users.alice.habit.selected.systemonly.enable;
+
+    # ── What is not a module ───────────────────────────────────────────────────
+    # A lane record is a module whose keys are options that do not exist, so it
+    # fails where the system half is evaluated, in the module system's words.
+    laneRecordIsRefusedWhereTheSystemHalfIsEvaluated =
+      (evalAssembled {
+        platform = [ systemFixtures ];
+        args.registry = registryWithModules;
+        mod.dendrites.laneRecord.enable = true;
+      }).fixture.marks;
+
+    # A module that declares options, selected once, is an ordinary module.
+    selectedModuleDeclaresItsOptions =
+      let
+        c = evalAssembled {
+          platform = [ systemFixtures ];
+          args.registry = registryWithModules;
+          mod.dendrites.declares.enable = true;
+        };
+      in
+      lib.boolToString c.fixture.declared;
+
+    # The home half is a thunk nobody reads while no user receives it: a host
+    # without Home Manager users never forces `habit.home`, and a user who does
+    # receive it reads it.
+    hostWithoutHomeUsersNeverForcesAHomeHalf =
+      let
+        c = evalAssembled {
+          platform = [ systemFixtures ];
+          args.registry = registryWithModules;
+          mod.dendrites.homeThrows.enable = true;
+        };
+      in
+      marksOf c;
+
+    homeHalfIsReadWhenAUserReceivesIt =
+      let
+        c = evalAssembled {
+          args.registry = registryWithModules;
+          mod = {
+            dendrites.homeThrows.enable = true;
+            users.alice = homeUser "alice" { };
+          };
+        };
+      in
+      marksOf c.home-manager.users.alice;
+
+    # The same file selected AND imported as itself is two copies of one
+    # module: the wrapper's key is not the file's, so nothing de-duplicates them
+    # and the module system refuses the second declaration.
+    selectedAndImportedTwiceIsRefused =
+      let
+        c = evalAssembled {
+          platform = [ systemFixtures ];
+          args = {
+            registry = registryWithModules;
+            extraModules = [ ./dendrites/declares ];
+          };
+          mod.dendrites.declares.enable = true;
+        };
+      in
+      lib.boolToString c.fixture.declared;
 
     # ── Host assembly ──────────────────────────────────────────────────────────
     # Only the strandedHome guard is forced here; nixosSystem is not evaluated,
@@ -409,9 +688,9 @@ let
 
   # The constructor's registry plus one record that matches a selected target,
   # for the case that witnesses WHERE the hook's modules land: the record's
-  # `nixos` half and the hook's module define the same list option, and a list
-  # option's definitions merge in module-list order, so the merged order is the
-  # position.
+  # `system` module and the hook's module define the same list option, and a
+  # list option's definitions merge in module-list order, so the merged order
+  # is the position.
   registryWithOverrides = registry // {
     overrides = {
       allhosts = ./overrides/allhosts.nix;
@@ -448,7 +727,7 @@ let
   alicePicksNotifications = {
     users.alice = {
       definition = ./users/alice.nix;
-      homeManager.enable = true;
+      home.enable = true;
       dendrites.notifications = {
         enable = true;
         provider = "mako";
@@ -504,9 +783,9 @@ selectionCases
   # record that does not apply, not a capability that gets installed.
   overrideNeedsSelectedTarget = builtins.length (applyOverrides { mod = { }; }).matched;
 
-  # A matched `nixos` module reaches the platform pass as a module — the
+  # A matched `system` module reaches the platform pass as a module — the
   # constructor hands it over, it does not evaluate it.
-  overrideNixosModuleApplies =
+  overrideSystemModuleApplies =
     let
       r = applyOverrides {
         mod = {
@@ -514,35 +793,91 @@ selectionCases
         };
       };
     in
-    builtins.head ((builtins.head r.nixos) { }).fixture.marks;
+    builtins.head ((builtins.head r.system) { }).fixture.marks;
 
   # A capability only a USER selected still matches, and the overlay it carries
-  # is host-scoped: `useGlobalPkgs` means the home lane draws from the host
-  # package set, so there is no separate home one to patch.
+  # is host-scoped: `useGlobalPkgs` means a home configuration draws from the
+  # host package set, so there is no separate home one to patch.
   overrideHomeOnlySelectionIsHostScoped =
     let
       r = applyOverrides { mod = alicePicksNotifications; };
     in
     ((builtins.head r.overlays) { } { }).fixture-homely;
 
-  # The homeManager half rides only the users whose own selection hit a target.
-  # bob is on the same matched host and gets nothing.
-  overrideHomeModuleTargetsSelectingUserOnly =
+  # A record's `home` module rides exactly the users its target's home half
+  # reaches: when a user selected the target, that user alone. bob is on the
+  # same matched host and gets nothing.
+  overrideHomeModuleReachesOnlyTheSelectingUser =
     let
       r = applyOverrides {
         mod = {
           users = alicePicksNotifications.users // {
             bob = {
               definition = ./users/bob.nix;
-              homeManager.enable = true;
+              home.enable = true;
             };
           };
         };
       };
     in
-    "${toString (builtins.length r.homeManager.alice)}:${toString (builtins.length r.homeManager.bob)}";
+    "${toString (builtins.length r.home.alice)}:${toString (builtins.length r.home.bob)}";
 
-  # tripwire's overlay and nixos module both throw. Nothing here selects
+  # When the host selected the target its home half goes to every user, and so
+  # does the record's `home` module.
+  overrideHomeModuleReachesEveryUserForAHostSelectedTarget =
+    let
+      r = applyOverrides {
+        mod = {
+          dendrites.notifications = {
+            enable = true;
+            provider = "dunst";
+          };
+          users.alice = {
+            definition = ./users/alice.nix;
+            home.enable = true;
+          };
+          users.bob = {
+            definition = ./users/bob.nix;
+            home.enable = true;
+          };
+        };
+      };
+    in
+    "${toString (builtins.length r.home.alice)}:${toString (builtins.length r.home.bob)}";
+
+  # Where that module lands: in the home of the user who selected the target,
+  # and in nobody else's.
+  overrideHomeModuleLandsInTheSelectingUsersHome =
+    let
+      c = evalAssembled {
+        args.registry = registry // {
+          overrides.homely = ./overrides/homely.nix;
+        };
+        mod.users = {
+          alice = homeUser "alice" { };
+          bob = homeUser "bob" { dendrites.notifications = dunst; };
+        };
+      };
+      homeOf =
+        n: builtins.concatStringsSep "+" (lib.sort lib.lessThan c.home-manager.users.${n}.fixture.marks);
+    in
+    "bob=${homeOf "bob"} alice=${homeOf "alice"}";
+
+  # Position inside one user's home, later reading first: the module a selected
+  # dendrite contributes, then the matched record's `home` module, then the
+  # `module` of the aggregation's home half.
+  homeModulesKeepTheirPosition =
+    let
+      c = evalAssembled {
+        args.registry = registry // {
+          overrides.homely = ./overrides/homely.nix;
+        };
+        mod.users.alice = homeUser "alice" { aggregation.homesettings.enable = true; };
+      };
+    in
+    builtins.concatStringsSep "," c.home-manager.users.alice.fixture.marks;
+
+  # tripwire's overlay and system module both throw. Nothing here selects
   # `homeonly`, so forcing the whole result proves an unmatched record's
   # functions are never called — the metadata above them is read on every host,
   # and that is the whole of the boundary.
@@ -557,7 +892,7 @@ selectionCases
         mod = {
           users.alice = {
             definition = ./users/alice.nix;
-            homeManager.enable = true;
+            home.enable = true;
             dendrites.homeonly.enable = true;
           };
         };
@@ -651,30 +986,30 @@ selectionCases
   # included, and a catalogue path is a body the hook can `import` itself. That
   # is deliberate: narrowing it would take the resolved selectors out of a
   # caller's reach. The discipline is the caller's, so it is pinned here: an
-  # unselected catalogue path imported from the hook throws in the pass that
-  # hands the hook its argument, which is where a caller notices.
+  # unselected catalogue path imported from the hook throws as soon as the
+  # module list is forced, which is where a caller notices.
   extraModulesForCanReachTheCatalogue =
-    (mkModules { extraModulesFor = sel: [ (import sel.catalogue.landmine) ]; }).modules;
+    let
+      r = mkModules { extraModulesFor = sel: [ (import sel.catalogue.landmine) ]; };
+    in
+    forceEach r.modules r.inventory.host;
 
-  # Position, not just presence. The hook's modules sit with `extraModules` —
-  # after the constructor's own imports, before the override records and before
-  # the host's own module — so a record or the host can still outrank them. A
-  # list option both the hook's module and a matched record's `nixos` half
+  # Position, not just presence. Every module of the host's own is merged by
+  # list order: a selected module sits first, then the hook's modules with
+  # `extraModules`, then the matched records' `system` modules, then the host's
+  # own module — so a record or the host can still outrank what came before. A
+  # list option the selected module, the hook's module and a matched record all
   # define merges in module-list order (a later module's definition reads
   # first), which is what makes the merged order a witness of the position
-  # rather than of the hook merely being present.
+  # rather than of each being merely present.
   extraModulesForKeepsItsPosition =
     let
-      # The platform vocabulary the fixture lanes write into. A real caller's
+      # The platform vocabulary the fixture modules write into. A real caller's
       # own modules declare it; the constructor knows none of it.
       vocabulary = {
         options.fixture.marks = lib.mkOption {
           type = lib.types.listOf lib.types.str;
           default = [ ];
-        };
-        options.fixture.systemonly = lib.mkOption {
-          type = lib.types.bool;
-          default = false;
         };
         options.nixpkgs.overlays = lib.mkOption {
           type = lib.types.listOf lib.types.anything;
@@ -737,25 +1072,6 @@ selectionCases
     "${if fingerprint viaHost.system.modules == fingerprint direct.modules then "same" else "differ"}:${
       lib.boolToString (builtins.toJSON viaHost.system.specialArgs == builtins.toJSON direct.specialArgs)
     }";
-
-  # The dendrite directory is every dendrite's body at once; handed over as a
-  # module beside a selected capability it declares that body's options twice.
-  # The refusal reads the hook's modules as well as `extraModules`, so each
-  # route to the same list has its own case. `.modules` forces the list, and
-  # the refusal sits on the path to it.
-  extraModulesTakesTheWholeTree = (
-    mkModules {
-      hostModules = [ { dendrites.systemonly.enable = true; } ];
-      extraModules = [ ./dendrites ];
-    }
-  ).modules;
-
-  extraModulesForTakesTheWholeTree = (
-    mkModules {
-      hostModules = [ { dendrites.systemonly.enable = true; } ];
-      extraModulesFor = _: [ ./dendrites ];
-    }
-  ).modules;
 
   # ── The wrapper (lib/lanes.nix) ────────────────────────────────────────────
   # Stub platforms assembled from three pieces: a freeform system that accepts
@@ -1161,24 +1477,24 @@ selectionCases
     ]).catalogue;
 
   # The platform pass's `nixpkgs.overlays`, in application order, for a host
-  # selecting two lanes and one override record whose overlay sets the same
-  # attribute (`tag`) as the lanes' and the caller's.
+  # selecting two dendrites and one override record whose overlay sets the same
+  # attribute (`tag`) as the dendrites' and the caller's.
   overlaysApplied =
     let
       tagged = tag: [ (_: _: { inherit tag; }) ];
       r = mkModules {
         registry = {
           catalogue = {
-            laneone = ./dendrites/laneone;
-            lanetwo = ./dendrites/lanetwo;
+            overlayone = ./dendrites/overlayone;
+            overlaytwo = ./dendrites/overlaytwo;
           };
           aggregations = { };
           overrides.overlaytag = ./overrides/overlaytag.nix;
         };
         hostModules = [
           {
-            dendrites.laneone.enable = true;
-            dendrites.lanetwo.enable = true;
+            dendrites.overlayone.enable = true;
+            dendrites.overlaytwo.enable = true;
           }
         ];
         overlays = tagged "caller";
@@ -1194,17 +1510,18 @@ selectionCases
     in
     (lib.evalModules { inherit (r) modules; }).config.nixpkgs.overlays;
 
-  # The caller's `overlays` land after every lane's, in the list a platform
-  # evaluator concatenates. The lane overlays are thereby applied before the
-  # caller's, so a lane's `prev` carries none of the caller's packages. A matched override record's overlay lands between the
-  # lanes' and the caller's.
+  # The caller's `overlays` land after every selected dendrite's, in the list a
+  # platform evaluator concatenates. The dendrites' overlays are thereby applied
+  # before the caller's, so a dendrite's `prev` carries none of the caller's
+  # packages. A matched override record's overlay lands between the dendrites'
+  # and the caller's.
   overlayOrder = builtins.concatStringsSep "," (
     map (
       o:
       let
         tag = (o { } { }).tag;
       in
-      if lib.hasPrefix "lane" tag then "lane" else tag
+      if lib.hasPrefix "overlay" tag then "dendrite" else tag
     ) overlaysApplied
   );
 
@@ -1216,9 +1533,9 @@ selectionCases
       lib.filter (o: lib.elem (o { } { }).tag tags) overlaysApplied
     )).tag;
 
-  recordOverlayBeatsLane = winnerAmong [
-    "laneone"
-    "lanetwo"
+  recordOverlayBeatsDendrite = winnerAmong [
+    "overlayone"
+    "overlaytwo"
     "record"
   ];
 
@@ -1232,8 +1549,9 @@ selectionCases
   # habit's exports unapplied, a `nixpkgs` whose lib carries `nixosSystem`, and
   # Home Manager. The NixOS tree is the one this suite's own `lib` came from,
   # so a real `nixosSystem` evaluates against it and nothing is fetched. Home
-  # Manager is not in that tree: a stand-in declares the one option the
-  # constructor's wiring writes, so the system half still evaluates for real.
+  # Manager is not in that tree: `homeManagerStub` stands in for it, so the
+  # system half still evaluates for real and each user's home is a submodule
+  # that collects what was routed to it.
   habit.lib = {
     composition = import ../../lib/composition.nix;
     catalogues = import ../../lib/catalogues.nix;
@@ -1252,11 +1570,7 @@ selectionCases
       // args
     );
 
-  home-manager.nixosModules.home-manager =
-    { lib, ... }:
-    {
-      options.home-manager = lib.mkOption { type = lib.types.attrsOf lib.types.raw; };
-    };
+  home-manager.nixosModules.home-manager = homeManagerStub;
 
   example =
     dir:
@@ -1279,7 +1593,8 @@ selectionCases
 
   # The example's own registry and host with one catalogue entry swapped for a
   # body that throws on import, and the module list forced element by element:
-  # a lane is a lazy list element, so a length alone would never reach it.
+  # a wrapped module is a lazy list element, so a length alone would never reach
+  # it.
   workstationWithLandmine =
     extraHostModules:
     let
@@ -1295,7 +1610,7 @@ selectionCases
         homeManagerModule = home-manager.nixosModules.home-manager;
       };
     in
-    builtins.deepSeq resolved.modules (builtins.length resolved.modules);
+    forceEach resolved.modules (builtins.length resolved.modules);
 
   # A single-file dendrite: the inventory names the file that answered.
   exampleMinimalInventory =
@@ -1326,7 +1641,7 @@ selectionCases
   exampleWorkstationConfig =
     let
       inherit ((example ../../examples/workstation).system) config;
-      home = config.home-manager.users.alice.imports;
+      home = config.home-manager.users.alice;
     in
     builtins.concatStringsSep " " [
       config.networking.hostName
@@ -1334,9 +1649,17 @@ selectionCases
       "printing=${lib.boolToString config.services.printing.enable}"
       "layout=${config.services.xserver.xkb.layout}"
       "alice=${lib.boolToString config.users.users.alice.isNormalUser}"
-      "dunst=${lib.boolToString (lib.any (m: m.services.dunst.enable or false) home)}"
-      "mako=${lib.boolToString (lib.any (m: m ? services.mako) home)}"
+      "dunst=${lib.boolToString (home.services.dunst.enable or false)}"
+      "mako=${lib.boolToString (home.services.mako.enable or false)}"
     ];
+
+  # `habit.selected` in the example's real system evaluation and in alice's
+  # home: the host's own scope in one, hers in the other.
+  exampleWorkstationSelected =
+    let
+      inherit ((example ../../examples/workstation).system) config;
+    in
+    "sys=${selectedBy config} alice=${selectedBy config.home-manager.users.alice}";
 
   # `printing` is a member of `desktop` and the host switched it off: with its
   # body replaced by one that throws on import, the whole module list is still

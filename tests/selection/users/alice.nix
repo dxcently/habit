@@ -1,4 +1,4 @@
 {
-  nixos = _: { fixture.account.alice = true; };
-  homeManager = _: { fixture.home.alice = true; };
+  fixture.account.alice = true;
+  habit.home.fixture.home.alice = true;
 }

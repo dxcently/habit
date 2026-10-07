@@ -23,7 +23,7 @@ The body is data, read only when a host or one of its users selects the group.
       "bluetooth"
       "printing"
     ];
-    nixos = {
+    module = {
       services.xserver.xkb.layout = "de";
     };
   };
@@ -40,11 +40,14 @@ The body is data, read only when a host or one of its users selects the group.
 | `system` / `home`       | the half that answers when the host / a user selects the group            |
 | `<half>.members`        | capability names the group enables in that scope                          |
 | `<half>.providers`      | `{ <member> = "<default provider>"; }` for provider-bearing members; each is also a member |
-| `system.nixos`          | NixOS settings that ride the platform pass with the host's own `nixos`    |
-| `home.homeManager`      | Home Manager settings that ride each selecting user's home lane           |
+| `<half>.module`         | a module the half carries beside its members, below                       |
 
-A `nixos` in the home half, or a `homeManager` in the system half, fails as an
-option that does not exist.
+The two halves' `module` land where their scope's own settings do:
+
+| half     | `module` lands                                                                               |
+| -------- | -------------------------------------------------------------------------------------------- |
+| `system` | in the host's evaluation, merged with the host's own `nixos`                                 |
+| `home`   | in each selecting user's home, after the homes of that user's modules and of the matched override records, merged with the user's own `home.config` |
 
 A selected body is validated when it is read, and each failure names the
 aggregation and its file ([Errors](errors.md#aggregation-bodies)):
@@ -53,8 +56,8 @@ aggregation and its file ([Errors](errors.md#aggregation-bodies)):
   names its type;
 - a field outside this table at the top (a misspelt `sytem`) names the field;
 - a `system` or `home` that is not an attrset names the half and its type;
-- a key outside `members`, `providers`, `nixos` and `homeManager` in a half (a
-  `member`, a `nixso`) names the half and the key.
+- a key outside `members`, `providers` and `module` in a half (a `member`, a
+  `nixos`) names the half and the key.
 
 A body nobody selected is never read, so it is never validated either.
 
@@ -86,7 +89,7 @@ Everything about membership follows from that priority.
 | ------------------------------------------------------ | ------------------------------------------------------------- |
 | host sets `dendrites.printing.enable = false`          | `false` (priority 100) beats the group's `true` (1000): printing is never imported |
 | a layer above sets `dendrites.printing.enable = mkForce true` | back on: `mkForce` (50) beats the host's `false`        |
-| two selected groups name the same member, same terms   | they merge into one selection; the lane is imported once      |
+| two selected groups name the same member, same terms   | they merge into one selection; the module is imported once    |
 | two selected groups choose different providers for it  | error: `dendrites.<member>.provider` has conflicting definition values |
 | host sets `dendrites.notifications.provider = "x"`     | the host's choice beats the group's default                   |
 
@@ -100,7 +103,7 @@ The workstation example switches a member off:
 
   users.alice = {
     definition = ../users/alice.nix;
-    homeManager.enable = true;
+    home.enable = true;
     aggregation.desktop = {
       enable = true;
       notifications.provider = "dunst";

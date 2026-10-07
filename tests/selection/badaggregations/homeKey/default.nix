@@ -1,5 +1,5 @@
 {
-  description = "A body whose home half carries `nixso`, not `nixos`.";
+  description = "A body whose home half carries `nixso`, not `module`.";
 
   home.nixso = { };
 }

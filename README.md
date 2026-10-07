@@ -30,9 +30,10 @@ host record ──► selection pass ──► resolved selection ──► plat
   by hand.
 - **Loud, not silent.** A name two merged registries both define, a misspelt key
   in a group, a field nothing declared: each is an error naming the culprit.
-- **Plain modules, one function.** A capability's lanes are ordinary NixOS and
-  Home Manager modules; habit is a pure function of nixpkgs `lib`, with no other
-  input. Call it from a flake, npins or a flake-parts flake.
+- **Plain modules, one function.** A capability is an ordinary NixOS module,
+  and what belongs in a user's home goes in `habit.home`; habit is a pure
+  function of nixpkgs `lib`, with no other input. Call it from a flake, npins or
+  a flake-parts flake.
 
 How habit differs from den, flake-parts, snowfall-lib and blueprint:
 [Comparisons](docs/comparisons.md).
@@ -49,7 +50,9 @@ inputs.habit.inputs.nixpkgs.follows = "nixpkgs";   # habit's nixpkgs only feeds 
 `habit.lib.composition` and `habit.lib.catalogues` are exported unapplied:
 apply each to your own `lib`.
 
-Without flakes, the library is two files that take `{ lib }` and nothing else.
+Without flakes, the library is `lib/composition.nix` and `lib/catalogues.nix`,
+each taking `{ lib }` and nothing else, and `lib/lanes.nix`, which
+`composition.nix` reads from beside itself.
 With [npins](https://github.com/andir/npins) (or `fetchTarball`) providing
 `nixpkgs`, `habit` and `home-manager`:
 
@@ -74,14 +77,12 @@ import "${sources.nixpkgs}/nixos/lib/eval-config.nix" {
 
 ## Quick start
 
-A capability (a "dendrite") is a record of modules per evaluator:
+A capability (a "dendrite") is a plain NixOS module:
 
 ```nix
 # examples/minimal/dendrites/ssh.nix
 {
-  nixos = {
-    services.openssh.enable = true;
-  };
+  services.openssh.enable = true;
 }
 ```
 
@@ -152,7 +153,7 @@ The book: <https://dxcently.github.io/habit/> (the same pages are in
 |---|---|
 | [habit](docs/README.md) | the words, the ideas, the examples, the tests |
 | [The two passes](docs/two-passes.md) | why selection runs first; gate and select; what is read when |
-| [Dendrites](docs/dendrites.md) | lane records, lanes, several providers |
+| [Dendrites](docs/dendrites.md) | plain modules, `habit.home`, `habit.selected`, several providers |
 | [Aggregations](docs/aggregations.md) | groups, membership by priority, provider choices |
 | [The host record](docs/host-record.md) | every field, users and Home Manager |
 | [Override records](docs/overrides.md) | fixes that belong to a capability |

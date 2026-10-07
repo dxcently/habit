@@ -1,4 +1,4 @@
-# Home-only provider: selecting it for the system must fail, not be skipped.
+# Home-only provider: selected for the system it applies an empty system half.
 {
-  homeManager = _: { fixture.notifications = "mako"; };
+  habit.home.fixture.marks = [ "mako" ];
 }

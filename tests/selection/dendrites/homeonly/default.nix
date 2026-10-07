@@ -1,3 +1,3 @@
 {
-  homeManager = _: { fixture.homeonly = true; };
+  habit.home.fixture.marks = [ "homeonly" ];
 }

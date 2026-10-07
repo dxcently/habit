@@ -8,18 +8,19 @@ suite evaluates. This file holds the invariants to keep while editing them.
 
 1. **Selection never reads platform configuration.** The selection pass is an
    `evalModules` over `mkSchema` that knows nothing of NixOS. Platform settings
-   ride `deferredModule` options and are evaluated only in the lane selected for
-   them. Anything that lets a selection option read `config` of the platform is
-   the circular import the two passes exist to prevent.
+   ride `deferredModule` options and are evaluated only in the evaluation they
+   were written for. Anything that lets a selection option read `config` of the
+   platform is the circular import the two passes exist to prevent.
 2. **Unselected modules are never imported.** A catalogue entry, a provider file
-   or an aggregation body is `import`ed iff selection kept it. The one weaker
-   boundary is override records (read to be matched; only their functions stay
-   uncalled) and is stated as such.
+   or an aggregation body is `import`ed iff selection kept it: `lanes.wrap` is
+   handed selected paths only, and a wrapped module imports its file when it is
+   forced. The one weaker boundary is override records (read to be matched; only
+   their functions stay uncalled) and is stated as such.
 3. **A pure function of `lib`.** `lib/*.nix` take `{ lib }` and nothing else:
    no flake inputs, no `pkgs`, no `builtins.getFlake`, no environment. The flake
    exports the public ones unapplied; `lib/lanes.nix` is internal, exported by
-   nothing and applied to the same `lib` by whoever imports it. `nixpkgs` in
-   `flake.nix` is for `checks` only.
+   nothing and imported by `lib/composition.nix`, which applies it to its own
+   `lib`. `nixpkgs` in `flake.nix` is for `checks` only.
 4. **Names are unique across merged catalogues.** Merging registries goes
    through `mergeRegistries` in `lib/catalogues.nix`, never `//`. A clash
    throws naming the name and every source defining it.

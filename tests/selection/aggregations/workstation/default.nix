@@ -6,7 +6,7 @@
   system = {
     members = [ "systemonly" ];
     providers.notifications = "dunst";
-    nixos = {
+    module = {
       networking.hostName = "workstation-fixture";
     };
   };

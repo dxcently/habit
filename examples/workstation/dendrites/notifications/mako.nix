@@ -1,6 +1,6 @@
 # examples/workstation/dendrites/notifications/mako.nix
 {
-  homeManager = {
+  habit.home = {
     services.mako.enable = true;
   };
 }

@@ -28,14 +28,15 @@ fi
 # case                              expect  substring the error must contain
 cases=$(cat <<'EOF'
 disabledIsInert                     ok      "fixture"
+selectedModuleIsImported            throws  landmine/default.nix was imported
 unselectedProviderIsInert           ok      "dunst"
 unselectedAggregationIsInert        ok      "fixture"
 missingProvider                     throws  chose no provider; available providers: dunst, herald, landmine, mako
 unknownProvider                     throws  has no provider 'nope'; available providers: dunst, herald, landmine, mako
 providerOnSingleImpl                throws  single implementation and takes no provider (got 'mako')
-systemScopeWantsHomeOnlyProvider    throws  'notifications/mako' is selected for the system but exposes no nixos lane; it supports: homeManager
-systemScopeWantsHomeOnlyDendrite    throws  'homeonly' is selected for the system but exposes no nixos lane; it supports: homeManager
-homeScopeWantsSystemOnlyDendrite    throws  'systemonly' is selected by user 'alice' but exposes no homeManager lane; it supports: nixos
+homeOnlyModuleSelectedForTheSystemAppliesAnEmptySystemHalf ok "sys= alice=homeonly"
+homeOnlyProviderSelectedForTheSystemAppliesAnEmptySystemHalf ok "sys= alice=mako"
+systemOnlyModuleSelectedByAUserAppliesItsSystemHalf ok "sys=systemonly alice="
 unknownDendrite                     throws  does not exist
 unknownAggregation                  throws  does not exist
 unknownAggregationSelector          throws  aggregation.workstation.compositor
@@ -50,13 +51,30 @@ backendAggregationIsReachable       throws  landmine/default.nix was imported
 userAggregationContributesHomeMembers ok    true
 userOverridesAggregationProvider    ok      "mako"
 twoUserScopes                       ok      "mako+dunst"
-scopesDoNotLeak                     ok      true
-homeSelectionWithoutHomeManager     throws  homeManager.enable = false but selects home dendrites: notifications
-homeManagerAbsent                   ok      true
+hostSelectionReachesEveryHomeUser   ok      "sys=dunst alice=dunst bob=dunst"
+userSelectionReachesThatUserOnly    ok      "sys=dunst alice=dunst bob="
+hostAndUserSelectionApplyOnce       ok      "sys=dunst alice=dunst bob=dunst"
+usersSelectingOneModuleApplyItsSystemHalfOnce ok "sys=dunst alice=dunst bob=dunst"
+hostAndUserWithDifferentProvidersAreRefused throws dendrite 'notifications' is selected with different providers (host: dunst; user 'alice': herald); one system takes one implementation
+usersWithDifferentProvidersAreRefused throws dendrite 'notifications' is selected with different providers (user 'alice': mako; user 'bob': dunst); one system takes one implementation
+hostSelectionSkipsAUserWithoutHomeManager ok "sys=dunst alice=dunst"
+hostSelectionWithoutHomeUsersEmitsNoHomeHalf ok "dunst"
+userModuleRoutesItsHalves           ok      "accounts=alice,bob alice=true homes=alice"
+homeSelectionWithoutHomeManager     throws  has home.enable = false but selects home dendrites: notifications
+homeManagerAbsent                   ok      "systemonly accounts=bob"
+selectedFollowsEachScope            ok      "sys=notifications/dunst,systemonly alice=homeonly bob="
+selectedHoldsEveryCatalogueName     ok      "homeonly,landmine,notifications,systemonly landmine=false"
+selectedIsReadOnlyInTheSystemEval   throws  The option `habit.selected' is read-only, but it's set multiple times
+selectedIsReadOnlyInAUsersHome      throws  The option `home-manager.users.alice.habit.selected' is read-only, but it's set multiple times
+laneRecordIsRefusedWhereTheSystemHalfIsEvaluated throws does not exist
+selectedModuleDeclaresItsOptions    ok      "true"
+hostWithoutHomeUsersNeverForcesAHomeHalf ok "homeThrows"
+homeHalfIsReadWhenAUserReceivesIt   throws  habit.home was read
+selectedAndImportedTwiceIsRefused   throws  is already declared in
 aggregationMisspeltHalf             throws  has unknown field(s): member, sytem; a body takes only description, system, home
-aggregationSystemKey                throws  has unknown field(s) in `system`: member; a half takes only members, providers, nixos, homeManager
-aggregationHomeKey                  throws  has unknown field(s) in `home`: nixso; a half takes only members, providers, nixos, homeManager
-aggregationListHalf                 throws  has `system` as a list, not an attrset; a half is an attrset taking only members, providers, nixos, homeManager
+aggregationSystemKey                throws  has unknown field(s) in `system`: member; a half takes only members, providers, module
+aggregationHomeKey                  throws  has unknown field(s) in `home`: nixso; a half takes only members, providers, module
+aggregationListHalf                 throws  has `system` as a list, not an attrset; a half is an attrset taking only members, providers, module
 aggregationFunctionBody             throws  is a lambda, not an attrset; a body is an attrset taking only description, system, home
 unselectedBadBodyIsInert            ok      true
 overrideMatchesSelectedTarget       ok      "allhosts"
@@ -64,9 +82,12 @@ overrideHostFilterAdmits            ok      "allhosts,confined,homely"
 overrideHostFilterExcludes          ok      "allhosts,homely"
 overrideAppliesOnceForTwoTargets    ok      1
 overrideNeedsSelectedTarget         ok      0
-overrideNixosModuleApplies          ok      "allhosts"
+overrideSystemModuleApplies         ok      "allhosts"
 overrideHomeOnlySelectionIsHostScoped ok    "patched"
-overrideHomeModuleTargetsSelectingUserOnly ok "1:0"
+overrideHomeModuleReachesOnlyTheSelectingUser ok "1:0"
+overrideHomeModuleReachesEveryUserForAHostSelectedTarget ok "1:1"
+overrideHomeModuleLandsInTheSelectingUsersHome ok "bob=dunst+homely alice="
+homeModulesKeepTheirPosition        ok      "aggregation,homely,dunst"
 overrideUnmatchedBodiesAreInert     ok      true
 overrideMatchedBodyIsCallable       throws  tripwire overlay was evaluated
 overrideUnknownField                throws  unknown field(s): nixOS; a record takes only
@@ -79,11 +100,9 @@ selectionModuleFieldIsUnknownWithoutIt throws does not exist
 selectionModuleDrivesTheGatePass    ok      "workstation:notifications,systemonly"
 extraModulesForLandsOnlyWhenSelected ok "1:0"
 extraModulesForCanReachTheCatalogue throws  landmine/default.nix was imported
-extraModulesForKeepsItsPosition     ok      "allhosts,hook"
+extraModulesForKeepsItsPosition     ok      "allhosts,hook,systemonly"
 hookDefaultsChangeNothing           ok      "same:true"
 mkHostPassesTheModulesThrough       ok      "same:true"
-extraModulesTakesTheWholeTree       throws  is the whole dendrite tree, which imports every dendrite's body
-extraModulesForTakesTheWholeTree    throws  is the whole dendrite tree, which imports every dendrite's body
 wrapFunctionModule                  ok      "same:true:fn,home-manager,out,sys"
 wrapAttrsModule                     ok      "same:true:home-manager,out,sys"
 wrapOptionsAndConfigModule          ok      "same:true:home-manager,opt,out,sys"
@@ -131,19 +150,20 @@ mergeSourceWithoutName              throws  registry source at position 2 has no
 mergeSourcesShareAName              throws  registry sources share a name: alpha
 mergeSourceUnknownField             throws  registry source 'typo' has unknown field(s): aggregation; a source takes only name, catalogue, aggregations, overrides
 mergeFieldNotAnAttrset              throws  registry source 'nulled': `catalogue` must be an attrset, got null
-overlayOrder                        ok      "lane,lane,record,caller"
-recordOverlayBeatsLane              ok      "record"
+overlayOrder                        ok      "dendrite,dendrite,record,caller"
+recordOverlayBeatsDendrite          ok      "record"
 callerOverlayBeatsRecord            ok      "caller"
 exampleMinimalInventory             ok      "box:ssh=ssh.nix"
-exampleMinimalModules               ok      ["set{services}","set{imports}"]
+exampleMinimalModules               ok      ["set{_file,config,options}","set{_class,_file,config,disabledModules,imports,key,options}","set{imports}"]
 exampleMinimalConfig                ok      "box ssh=true"
 exampleWorkstationInventory         ok      "bluetooth alice=notifications/dunst"
-exampleWorkstationModules           ok      ["set{users}","set{hardware}","set{home-manager,imports}","set{imports}"]
+exampleWorkstationModules           ok      ["set{_file,config,options}","set{_class,_file,config,disabledModules,imports,key,options}","set{_class,_file,config,disabledModules,imports,key,options}","set{_class,_file,config,disabledModules,imports,key,options}","set{home-manager,imports}","set{imports}"]
 exampleWorkstationConfig            ok      "desk bluetooth=true printing=false layout=de alice=true dunst=true mako=false"
-exampleWorkstationSwitchedOffIsNeverImported ok 4
+exampleWorkstationSelected          ok      "sys=bluetooth alice=notifications/dunst"
+exampleWorkstationSwitchedOffIsNeverImported ok 6
 exampleWorkstationSwitchedBackOnIsImported throws landmine/default.nix was imported
 exampleMergedInventory              ok      "dev:git,ssh,tmux"
-exampleMergedModules                ok      ["set{programs}","set{services}","set{programs}","set{imports}"]
+exampleMergedModules                ok      ["set{_file,config,options}","set{_class,_file,config,disabledModules,imports,key,options}","set{_class,_file,config,disabledModules,imports,key,options}","set{_class,_file,config,disabledModules,imports,key,options}","set{imports}"]
 exampleMergedConfig                 ok      "git=true ssh=true tmux=true"
 exampleMergedClash                  throws  catalogue names defined by more than one source: 'ssh' by shared and upstream
 EOF

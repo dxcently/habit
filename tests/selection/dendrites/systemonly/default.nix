@@ -1,3 +1,3 @@
 {
-  nixos = _: { fixture.systemonly = true; };
+  fixture.marks = [ "systemonly" ];
 }

@@ -7,7 +7,7 @@
       "bluetooth"
       "printing"
     ];
-    nixos = {
+    module = {
       services.xserver.xkb.layout = "de";
     };
   };

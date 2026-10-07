@@ -10,10 +10,10 @@ The host record is what one host selects. It is one or more modules
   dendrites.obsidian.enable = true;                         # lone capabilities
   dendrites.kitty.enable = false;                           # a group member, switched off
   users.khoa = {
-    definition = ./users/khoa.nix;                          # { nixos; homeManager? }
-    homeManager.enable = true;
+    definition = ./users/khoa.nix;                          # a plain module: the account, and habit.home
+    home.enable = true;
     dendrites.notifications = { enable = true; provider = "mako"; };
-    homeManager.config = { … };                             # extra home settings
+    home.config = { … };                                    # extra home settings
   };
   nixos = { pkgs, ... }: { … };                             # this machine, deferred
 }
@@ -41,8 +41,8 @@ NixOS `config`: [the selection pass](two-passes.md) has neither.
 
 `nixos` is a `deferredModule`: anything may go in it, and nothing in it can
 influence selection. It lands last in the module list
-([The constructor](constructor.md#the-module-list)), merged with the `nixos`
-half of every selected group.
+([The constructor](constructor.md#the-module-list)), merged with the
+`system.module` of every selected group.
 
 ## Users
 
@@ -50,59 +50,64 @@ Each `users.<user>` is a scope of its own.
 
 | field                                        | type            | default | means                                                       |
 | -------------------------------------------- | --------------- | ------- | ----------------------------------------------------------- |
-| `definition`                                 | path            | none    | the shared user definition: `{ nixos; homeManager?; }`      |
-| `homeManager.enable`                         | bool            | `false` | evaluate this user's home lane; off imports no Home Manager for them |
-| `homeManager.config`                         | deferred module | `{ }`   | extra home settings, evaluated only in the home lane        |
+| `definition`                                 | path            | none    | the user's module: its own settings are the account, its `habit.home` is the user's home |
+| `home.enable`                                | bool            | `false` | give this user a Home Manager configuration; off imports no Home Manager for them |
+| `home.config`                                | deferred module | `{ }`   | extra home settings, evaluated only in the user's Home Manager configuration |
 | `dendrites.<name>.enable` / `.provider`      | as above        |         | select a capability for this user's home                    |
 | `aggregation.<group>.enable` / `.<member>.provider` | as above |         | select a group's `home` half for this user                  |
 
 ```nix
 # examples/workstation/users/alice.nix
 {
-  nixos = {
-    users.users.alice.isNormalUser = true;
-  };
-  homeManager = {
+  users.users.alice.isNormalUser = true;
+
+  habit.home = {
     home.stateVersion = "26.11";
   };
 }
 ```
 
-The definition's `nixos` lane is the account: it is imported for every user on
-the host, Home Manager or not. A definition without one is an error, since the
-user would have no account. Its optional `homeManager` lane opens that user's
-home configuration.
+The user's module is an ordinary module, wrapped like a dendrite
+([Dendrites](dendrites.md#a-plain-module)): its own settings are the account,
+applied in the host's evaluation for every user on the host, Home Manager or
+not; its `habit.home` goes to that user alone, and only when `home.enable =
+true`.
 
 ### What a user's home is made of
 
-For each user with `homeManager.enable = true`, in this order:
+For each user with `home.enable = true`, in this order. The first two are
+separate definitions of `home-manager.users.<user>`, merged in module-list
+order ([The constructor](constructor.md#the-module-list)); the rest are the
+imports of the wiring's own definition, which comes after them:
 
-1. the definition's `homeManager` lane, if it has one
-2. the `homeManager` lane of every capability the user selected
-3. the `homeManager` module of every override record the user's own selection
+1. the user module's `habit.home`
+2. the home half of every capability the host selected and of every capability
+   this user selected, in catalogue order
+3. `habit.selected`, this user's own scope ([Dendrites](dendrites.md#reading-the-selection))
+4. the `home` module of every override record the user's own selection
    matched
-4. `homeManager.config`, merged with the `home.homeManager` half of every group
-   the user selected
+5. `home.config`, merged with the `home.module` of every group the user
+   selected
 
 ### Home Manager wiring
 
 The constructor imports `homeManagerModule` only when at least one user has
-`homeManager.enable = true`; a host with no home user never imports it. When it
+`home.enable = true`; a host with no home user never imports it. When it
 does, it sets:
 
 | option                           | value                                          |
 | -------------------------------- | ---------------------------------------------- |
 | `home-manager.useUserPackages`   | `true`                                         |
-| `home-manager.useGlobalPkgs`     | `true`: home lanes draw from the host's package set |
+| `home-manager.useGlobalPkgs`     | `true`: homes draw from the host's package set |
 | `home-manager.backupFileExtension` | `"backup"`                                   |
 | `home-manager.extraSpecialArgs`  | the constructor's `specialArgs` (with `system` and `host`) |
-| `home-manager.users.<user>`      | the list above                                 |
+| `home-manager.users.<user>`      | the wiring's imports above, beside the halves routed to the user |
 
-A user who selects home capabilities with `homeManager.enable = false` is an
-error, not a quiet no-op:
+A user who selects home capabilities with `home.enable = false` is an error,
+not a quiet no-op:
 
 ```
-host 'desk': user 'alice' has homeManager.enable = false but selects home dendrites: notifications
+host 'desk': user 'alice' has home.enable = false but selects home dendrites: notifications
 ```
 
 Home Manager here is the NixOS module. There is no standalone

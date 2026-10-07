@@ -1,3 +1,3 @@
 {
-  nixos = _: { fixture.account.bob = true; };
+  fixture.account.bob = true;
 }

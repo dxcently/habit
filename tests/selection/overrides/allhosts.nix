@@ -2,5 +2,5 @@
 {
   dendrites = [ "systemonly" ];
   overlay = _final: _prev: { fixture-allhosts = "patched"; };
-  nixos = _: { fixture.marks = [ "allhosts" ]; };
+  system = _: { fixture.marks = [ "allhosts" ]; };
 }

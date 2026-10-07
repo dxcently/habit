@@ -10,8 +10,9 @@ gives it.
 | word            | is                                                                     | page                                  |
 | --------------- | ---------------------------------------------------------------------- | ------------------------------------- |
 | registry        | plain data: capability, group and fix names mapped to paths            | [The constructor](constructor.md)     |
-| dendrite        | a capability: a lane record, or a set of providers that are lane records | [Dendrites](dendrites.md)           |
-| lane            | a module for one evaluator: `nixos`, `homeManager` (`darwin` is accepted, never read) | [Dendrites](dendrites.md) |
+| dendrite        | a capability: one plain module, or a set of providers that are plain modules | [Dendrites](dendrites.md)        |
+| half            | the system half or the home half (`habit.home`) of one module, derived when a selected module is imported | [Dendrites](dendrites.md#a-plain-module) |
+| `habit.selected` | what a scope selected: a read-only option in every evaluation         | [Dendrites](dendrites.md#reading-the-selection) |
 | aggregation     | a group of dendrites, written as data, selected by name                | [Aggregations](aggregations.md)       |
 | host record     | what one host selects, plus its own deferred `nixos` settings          | [The host record](host-record.md)     |
 | override record | a fix that belongs to a capability and applies where it was selected   | [Override records](overrides.md)      |
@@ -41,6 +42,11 @@ switches it back on. No second group, no exclude list, no `mkIf`: the same
 priorities that settle every other NixOS option settle membership.
 [Aggregations](aggregations.md)
 
+**A dendrite is a plain module.** habit's own vocabulary on the capability side
+is `habit.home` for what belongs in a user's home and `habit.selected` for what
+was selected. Which half goes where is decided when a selected module is
+imported, by who selected it. [Dendrites](dendrites.md)
+
 **Nothing unselected is imported.** A catalogue entry, a provider file and an
 aggregation body are each `import`ed if and only if selection kept them. The
 suite proves it with fixtures that throw when imported. The one weaker
@@ -49,8 +55,9 @@ boundary, override records, is stated where it lives.
 
 **A pure function of `lib`.** `lib/composition.nix` and `lib/catalogues.nix`
 each take `{ lib }` and nothing else: no flake inputs, no `pkgs`, no
-environment. The flake exports them unapplied, so selection runs on the
-consumer's own `lib`, and the library works without flakes at all.
+environment (`lib/lanes.nix`, which the first reads, is the same). The flake
+exports the two unapplied, so selection runs on the consumer's own `lib`, and
+the library works without flakes at all.
 
 **Names are unique across merged catalogues.** Two registries merged with `//`
 let one side silently win every name both define. `mergeRegistries` refuses,
@@ -74,7 +81,7 @@ vague error is a failing test. [Errors](errors.md)
 | page                                | covers                                                          |
 | ----------------------------------- | --------------------------------------------------------------- |
 | [The two passes](two-passes.md)     | why selection runs first, gate and select, the boundary         |
-| [Dendrites](dendrites.md)           | lane records, lanes, multi-provider capabilities                 |
+| [Dendrites](dendrites.md)           | plain modules, `habit.home`, `habit.selected`, multi-provider capabilities |
 | [Aggregations](aggregations.md)     | group bodies, membership by priority, provider choices           |
 | [The host record](host-record.md)   | every field a host sets, users and Home Manager                  |
 | [Override records](overrides.md)    | capability-scoped fixes, matching, the weaker boundary           |
@@ -102,10 +109,10 @@ file the suite evaluates.
 
 `tests/selection/` holds executable cases over a fixture registry
 (`registry.nix`, `dendrites/`, `aggregations/`, `overrides/`, `users/`,
-`badrecords/`) and over the examples. A fixture implementation or aggregation
-body that throws on import proves that "never imported" is a fact, not a
-claim. `run.sh` evaluates each case on its own; a negative case must throw AND
-carry its expected message.
+`badrecords/`), over the wrapper (`lanes/`) and over the examples. A fixture
+implementation or aggregation body that throws on import proves that "never
+imported" is a fact, not a claim. `run.sh` evaluates each case on its own; a
+negative case must throw AND carry its expected message.
 
 ```
 ./tests/selection/run.sh [case]     # needs nix and jq

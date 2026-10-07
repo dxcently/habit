@@ -9,7 +9,7 @@ it returns:
 | `mkNixosModules`  | the platform pass: module list, `specialArgs`, selection, inventory        |
 | `evalSelection`   | `{ registry, modules }` -> resolved selection (gate, then select)          |
 | `inventoryOf`     | `{ hostName, selection }` -> what the host resolved; the review surface    |
-| `lanesFor`, `implOf`, `overridesFor`, `mkSchema`, `laneNames` | the pieces, for callers that assemble differently |
+| `implOf`, `overridesFor`, `mkSchema` | the pieces, for callers that assemble differently |
 
 ## The registry
 
@@ -70,27 +70,22 @@ The arguments that need more than a line:
   win), and the result is what every platform module and every home module
   receives.
 - **`system`** is only that argument. The constructor never sets
-  `nixpkgs.hostPlatform`: the host's own `nixos`, a selected group's `nixos` or
+  `nixpkgs.hostPlatform`: the host's own `nixos`, a selected group's `system.module` or
   an `extraModules` entry sets it, or the host fails to evaluate. The examples
   set it in the host's own `nixos`.
-- **`overlays`**: a lane's overlay is applied before the caller's, so inside a
-  lane's overlay `prev` carries none of the caller's packages and reading one
-  aborts with a missing attribute. A lane therefore builds what it replaces with
-  a fresh `callPackage`, naming every argument it needs. A caller's overlay that
-  replaces a name a lane also replaces must step aside for a name `prev`
-  already carries, or it overrides the lane's value. A matched override
-  record's overlay is applied after the lanes' and before the caller's.
-- **`extraModules`** land after the lanes and before the matched records'
-  `nixos` modules and the host's own `nixos`.
-
-### The whole-tree refusal
-
-An `extraModules` path, or one returned by `extraModulesFor`, that is the
-directory holding catalogue entries (an aggregate whose `default.nix` imports
-every capability's body), together with any selected capability, is refused by
-name. Both would import the same body, so its options would be declared twice
-and nixpkgs would throw `already declared`. Keep one: take the whole directory
-and select nothing, or select through the catalogue and drop the aggregate.
+- **`overlays`**: a selected module's overlay is applied before the caller's,
+  so inside it `prev` carries none of the caller's packages and reading one
+  aborts with a missing attribute. A module therefore builds what it replaces
+  with a fresh `callPackage`, naming every argument it needs. A caller's overlay
+  that replaces a name a selected module also replaces must step aside for a
+  name `prev` already carries, or it overrides the module's value. A matched
+  override record's overlay is applied after the modules' and before the
+  caller's.
+- **`extraModules`** land after the selected modules and before the matched
+  records' `system` modules and the host's own `nixos`. A catalogue file listed
+  here that the host also selected is two copies of one module, which nixpkgs
+  refuses as `already declared`: select it or import it, not both
+  ([Dendrites](dendrites.md#what-is-not-a-module)).
 
 ## The module list
 
@@ -99,27 +94,34 @@ The platform pass assembles one list, in this order:
 ```
  1  { nixpkgs.overlays = overlays; }               if overlays != [ ]
  2  { nixpkgs.overlays = <matched records' overlays>; }   if any
- 3  each user definition's `nixos` lane            the accounts
- 4  each selected capability's `nixos` lane        catalogue (name) order
- 5  Home Manager wiring                            if any user has homeManager.enable
- 6  extraModules ++ extraModulesFor selection
- 7  each matched override record's `nixos`
- 8  selection.nixos                                the host's `nixos`, merged with selected groups' `nixos`
+ 3  habit.selected for the system                  the host's own scope
+ 4  each user's module, wrapped                    the accounts, and each user's `habit.home`
+ 5  each selected capability, wrapped              catalogue (name) order, one per capability
+ 6  Home Manager wiring                            if any user has home.enable
+ 7  extraModules ++ extraModulesFor selection
+ 8  each matched override record's `system`
+ 9  selection.nixos                                the host's `nixos`, merged with selected groups' `system.module`
 ```
 
 Position is not priority. A scalar defined twice at the same priority
 conflicts wherever the two sit; `mkDefault`, `mkForce` and plain definitions
 decide. Position shows in list-typed options, whose definitions merge in
-reverse list order: the suite pins `nixpkgs.overlays` as lane, then the matched
-records', then the caller's (`overlayOrder`), and an
-`extraModulesFor` module after a matched record's `nixos`
-(`extraModulesForKeepsItsPosition`). Overlays apply in that order and the last
-to set an attribute wins, so a record's overlay beats a lane's, and the
-caller's beats the record's. The host's own overlays come
+reverse list order: the suite pins `nixpkgs.overlays` as the selected modules',
+then the matched records', then the caller's (`overlayOrder`), and an
+`extraModulesFor` module after a selected module and before a matched record's
+`system` module (`extraModulesForKeepsItsPosition`). Overlays apply in that
+order and the last to set an attribute wins, so a record's overlay beats a
+selected module's, and the caller's beats the record's. The host's own overlays come
 first and lose to all of them; a host that must win orders its definition
 later, `nixpkgs.overlays = lib.mkAfter [ … ]`.
 
-The minimal example's list is two entries: the `ssh` lane, the host's `nixos`.
+A home half is not in this list: it is a `home-manager.users.<user>`
+definition made by the wrapped module in item 4 or 5, merged by that module's
+position, so it comes before the wiring's own per-user imports
+([The host record](host-record.md#what-a-users-home-is-made-of)).
+
+The minimal example's list is three entries: `habit.selected`, the wrapped
+`ssh` module, the host's `nixos`.
 
 ## The two hooks
 
@@ -161,7 +163,7 @@ the workstation example (paths shortened to the repository root):
   "users": {
     "alice": {
       "definition": "./examples/workstation/users/alice.nix",
-      "homeManager": true,
+      "home": true,
       "aggregation": [ "desktop" ],
       "dendrites": {
         "notifications": { "provider": "dunst", "source": "./examples/workstation/dendrites/notifications" }
@@ -177,11 +179,12 @@ the workstation example (paths shortened to the repository root):
 | `host`        | `hostName`                                                              |
 | `aggregation` | the groups the host selected                                            |
 | `dendrites`   | each capability selected for the system: its `provider` and `source`, the catalogue path that answered |
-| `users`       | per user: `definition`, `homeManager`, its groups and its capabilities  |
+| `users`       | per user: `definition`, `home` (whether Home Manager is on), its groups and its capabilities |
 | `overrides`   | the override records that matched this host (`mkNixosModules` only; `inventoryOf` alone has no records to match) |
 
 `printing` is absent: the host switched it off, so it is not part of what the
-host is.
+host is. The inventory says nothing of a module's halves: whether a module has a
+home half is known only by importing it, which the inventory never does.
 
 ## Wiring a consumer
 
