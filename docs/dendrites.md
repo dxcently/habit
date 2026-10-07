@@ -35,8 +35,8 @@ habit imports the file when a scope selects it and splits it into two halves:
 
 | half   | is                                     | applied in                                   |
 | ------ | -------------------------------------- | -------------------------------------------- |
-| system | the module as written, minus `habit`   | the host's evaluation                        |
-| home   | the value of `habit.home`              | the Home Manager configuration of each user it reaches |
+| system | the module as written, minus `habit`   | the host's evaluation (NixOS or nix-darwin)  |
+| home   | the value of `habit.home`              | the Home Manager configuration of each user it reaches, or the standalone home itself |
 
 A module with no `habit.home` has an empty home half, and one with only
 `habit.home` has an empty system half. Selecting either where it has nothing to
@@ -56,8 +56,8 @@ Settings for a user's Home Manager configuration go in `habit.home`:
 }
 ```
 
-`habit.home` is a module of its own: an attrset, or a function of Home
-Manager's `{ config, lib, pkgs, ... }`. `habit` is not an option anywhere;
+`habit.home` is a module of its own: an attrset, a function of Home
+Manager's `{ config, lib, pkgs, ... }`, or a path to one. `habit` is not an option anywhere;
 habit reads it out of the module's top-level configuration, through `mkIf`,
 `mkMerge` and `mkOverride` wrappers without evaluating their conditions, and
 removes it before the module system sees the rest. So:
@@ -71,9 +71,22 @@ removes it before the module system sees the rest. So:
 - the module's own head (`{ config, lib, ... }:`) is the system's, so reading
   `config` there reads NixOS options; `habit.home = { config, lib, ... }: ...`
   binds Home Manager's own `config` and its `lib`, extended with `lib.hm`;
-- the home half is a definition of `home-manager.users.<user>`, emitted only for
-  users it reaches, so a host without a Home Manager user never mentions
-  `home-manager` at all.
+- the home half is a module defined for `home-manager.users.<user>`, emitted
+  only for users it reaches, so a host without a Home Manager user never
+  mentions `home-manager` at all. A `mkIf`, `mkMerge` or `mkOverride` around
+  `habit.home`, or around the module's configuration, is carried down to what
+  the half sets, in every class: the definition of the user is always a plain
+  module, so one module's priority never filters another's home half for the
+  same user. A condition covers what the half sets and no more: it cannot cover
+  the half's `imports` or option declarations, which are read before any
+  condition is, so a half under a condition that carries either is refused,
+  naming the module, and they go in a `habit.home` no condition covers. Write
+  `mkIf` outside `mkOverride` (`mkIf c (mkOverride p x)`), as nixpkgs itself
+  requires: the other order fails in the module system. In a standalone home
+  there is no `home-manager.users`: the half is imported into the home itself,
+  and the module's own head is then Home Manager's, so a module meant for both
+  reads only its own options and `habit.selected` there, never another module's
+  system option.
 
 ## Halves and scopes
 
@@ -84,6 +97,7 @@ Who selected a module decides where its halves go:
 | the host          | applied     | every user with `home.enable = true`           |
 | user `U`          | applied     | `U` only                                       |
 | the host and `U`  | applied once | `U` once                                      |
+| a standalone home | dropped, `imports` with it | the home itself                 |
 
 A user's selection applies the system half as well, because some modules need
 both sides (a screen locker's PAM service). A module reached by several
@@ -93,11 +107,29 @@ A user with `home.enable = false` receives no home half; selecting a module
 for that user's home is an error
 ([Errors](errors.md#users)).
 
+## Darwin
+
+habit has no declaration of which platforms a module supports. A module is
+written the way nixpkgs teaches (guard a Linux-only setting with `mkIf
+pkgs.stdenv.isLinux`, or keep the file Linux-only), and one that reaches a
+nix-darwin host with an option nix-darwin does not have fails as the module
+system's own error, naming the module's file:
+
+```
+error: The option `services' does not exist. Definition values:
+- In `/path/to/dendrites/linuxOnly':
+```
+
+The message says the option does not exist, not that the module has no darwin
+support: the module system raises it for the whole evaluation, after every
+module has been merged, so habit cannot catch it for one module.
+
 ## Reading the selection
 
 `habit.selected.<name>` is a read-only option in every evaluation: the host's
 evaluation holds what the host selected, and each user's Home Manager
-configuration holds what that user selected. A module can react to what else
+configuration holds what that user selected. A standalone home holds what it
+selected. A module can react to what else
 was selected without importing it:
 
 ```nix

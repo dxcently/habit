@@ -152,7 +152,7 @@ splitMkIfFalseDropsBothHalves       ok      "sys= home="
 splitMkMerge                        ok      "sys=a:1,b:2 home=a:x,b:y"
 splitMkIfOfMkMerge                  ok      "sys=a:1,b:2 home=a:x"
 splitMkOverride                     ok      "sys=k:s home=k:h"
-splitNeverForcesACondition          ok      "if"
+leavesNeverForceACondition          ok      "if"
 splitHabitUnderMkIf                 throws  lanes/habitIf.nix (habit module 'habitIf'): `habit` is a `if` value; write habit.home as a plain attribute
 splitUnknownHabitKey                throws  lanes/habitTypo.nix (habit module 'habitTypo'): unknown habit key(s): homee; only `home` is read
 splitConfigNotAttrs                 throws  lanes/nonAttrsConfig.nix (habit module 'nonAttrsConfig'): config must be an attribute set, got list
@@ -169,10 +169,48 @@ wrapSystemOnRefusesAnUndeclaredOption throws The option `nonexistent' does not e
 wrapNoHomeUserEmitsNothingWithoutHomeManager ok "sys=k:s home="
 wrapHomeUserNeedsHomeManager        throws  The option `home-manager' does not exist
 wrapNotAModule                      throws  lanes/notModule.nix (habit module 'notModule'): does not look like a module, got string
+homeHalvesOfDifferentPrioritiesBothReachTheUser ok "sys= home=a:1,b:2"
+homeNotAModuleIsRefusedForAUser     throws  lanes/homeNotAModule.nix (habit module 'homeNotAModule') `habit.home`: does not look like a module, got int
+homeHalfMayBeAPath                  ok      "sys= home=k:p"
+homeImportsApplyWhenNothingCoversThem ok    "sys= home=k:i"
+homeImportsUnderAConditionAreRefused throws lanes/conditionedImports.nix (habit module 'conditionedImports') `habit.home`: carries `imports` or `options` under a condition; a condition covers only what the half sets, so move them out of it
+homeOptionsUnderAConditionAreRefused throws lanes/conditionedOptions.nix (habit module 'conditionedOptions') `habit.home`: carries `imports` or `options` under a condition; a condition covers only what the half sets, so move them out of it
 wrapUnsupportedTopLevelAttribute    throws  lanes/unsupportedAttr.nix (habit module 'unsupportedAttr'): has an unsupported top-level attribute: bogus; put configuration under `config`
 splitHabitNotAttrs                  throws  lanes/habitNotAttrs.nix (habit module 'habitNotAttrs'): `habit` must be an attribute set holding `home`, got int
 selectionKeyInsideADendriteIsRefused throws lanes/habitSelects.nix (habit module 'habitSelects'): unknown habit key(s): dendrites; only `home` is read
 nestedImportedHabitHomeIsRefused    throws  The option `habit.home' does not exist
+directPlain                         ok      "sys= home=k:h"
+directMkIfFalseDropsTheHomeHalf     ok      "sys= home="
+directMkIfFalseCoversEveryPartOfAMerge ok   "sys= home="
+directMkMerge                       ok      "sys= home=a:x,b:y"
+directMkIfOfMkMerge                 ok      "sys= home=a:x"
+directMkOverride                    ok      "sys= home=k:h"
+directMkIfOfMkOverride              ok      "sys= home=k:h"
+directFunctionUnderMkIf             ok      "sys= home=k:H"
+directFunctionUnderMkIfFalse        ok      "sys= home="
+directHomeValueUnderMkIf            ok      "sys= home="
+directHomeNotAModule                throws  lanes/homeNotAModule.nix (habit module 'homeNotAModule') `habit.home`: does not look like a module, got int
+directHomeIsRead                    throws  habit.home was read
+darwinAppliesTheSystemHalfAndRoutesTheHome ok "sys=dunst casks=kitty accounts=alice alice=dunst,homebrew"
+darwinRefusesAnOptionItDoesNotHave  throws  The option `services' does not exist
+darwinNamesTheModuleItRefuses       throws  dendrites/linuxOnly'
+mkDarwinHostPassesTheModulesThrough ok      "same:true"
+mkHomePassesTheModulesThrough       ok      "same:true:the caller's pkgs"
+standaloneHomeDropsTheSystemLane    ok      "linuxOnly"
+standaloneHomeAppliesTheHomeHalfOnly ok     "dunst"
+standaloneHomeNeverImportsAnUnselectedModule ok 3
+standaloneHomeImportsWhatItSelected throws  landmine/default.nix was imported
+standaloneHomeSelectedIsItsOwnScope ok      "homeonly,notifications/mako"
+standaloneHomeSelectedIsReadOnly    throws  The option `habit.selected' is read-only, but it's set multiple times
+standaloneHomeSettingUsersIsRefused throws  hosts/homeSetsUsers.nix sets `habit.users`; a standalone home has no users, the host module is the home itself
+standaloneHomeAggregationSelectsItsHomeHalf ok "dunst+aggregation"
+standaloneHomeModulesKeepTheirPosition ok   "dunst,host,aggregation,homely"
+standaloneHomeAppliesItsOverrideRecords ok  "matched=allhosts,homely overlays=2 marks=dunst,homely"
+standaloneHomeSelectionModulesSeeTheHomeScope ok "scan=home platform=home"
+standaloneHomeFailsTheAssertionForAnImportedSelection throws hosts/selectsSshInImport.nix but the host scan never saw it (scans do not follow `imports`)
+unknownClassIsRefused               throws  unknown class 'frobnicate'; habit builds darwin, home, nixos
+homeUserNeedsTheHomeManagerModule   throws  host 'fixture': user(s) alice have home.enable = true but no `homeManagerModule` was given
+standaloneHomeTakesNoHomeManagerModule throws home 'alice' was given a `homeManagerModule`; a standalone home is evaluated by Home Manager itself and imports none
 mergeRegistriesCatalogueUnion       ok      "homeonly,landmine,notifications,systemonly"
 mergeRegistriesKeepsEveryValue      ok      "true"
 mergeRegistriesIsOrderFree          ok      "true"
@@ -208,6 +246,10 @@ exampleMergedInventory              ok      "dev:git,ssh,tmux"
 exampleMergedModules                ok      ["lambda","set{_class,_file,config,disabledModules,imports,key,options}","set{_class,_file,config,disabledModules,imports,key,options}","set{_class,_file,config,disabledModules,imports,key,options}","path"]
 exampleMergedConfig                 ok      "git=true ssh=true tmux=true"
 exampleMergedClash                  throws  catalogue names defined by more than one source: 'ssh' by shared and upstream
+exampleHomeInventory                ok      "alice:ssh=ssh.nix"
+exampleHomeModules                  ok      ["lambda","set{_class,_file,config,disabledModules,imports,key,options}","path"]
+exampleHomeConfig                   ok      "alice ssh=true"
+exampleHomeSelected                 ok      "ssh"
 EOF
 )
 

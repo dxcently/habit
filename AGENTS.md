@@ -44,6 +44,10 @@ suite evaluates. This file holds the invariants to keep while editing them.
   `tests/selection/run.sh`, and a fixture under `tests/selection/` if it needs
   one (a host under `hosts/`). A positive case alone does not prove "never
   imported": pair it with a fixture that throws on import.
+- A new class of target: its scope in `scopeOf` and a builder beside
+  `mkNixosHost` in `lib/composition.nix`, and cases in the classes section of
+  `tests/selection/cases.nix` against a stub option tree, since the library
+  takes no input to evaluate the real one.
 - A new registry field to merge: `lib/catalogues.nix`, a line in `mergeRegistries`
   through `mergeField`.
 - A new example: a directory under `examples/` whose `default.nix` takes

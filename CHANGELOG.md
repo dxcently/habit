@@ -81,6 +81,43 @@ Append-only. Newest first.
   values (it reads the host module's literal `habit.*` and nothing else), and the
   constructor knows no consumer's vocabulary (it knows habit's own words).
 
+- One core, `mkModules { class; … }`, serves three classes, each with a thin
+  builder that takes the evaluator's flake from the caller (habit reads no input):
+  `mkNixosHost` (`nixpkgs`, as before), `mkDarwinHost` (`darwin`, calling
+  `darwin.lib.darwinSystem`) and `mkHome` (`home-manager` and `pkgs`, calling
+  `home-manager.lib.homeManagerConfiguration { pkgs; modules; extraSpecialArgs; }`
+  and returning `{ home, selection, inventory }`). `mkNixosModules` is
+  `mkModules` with the class set, and returns the module list as before. A class
+  not among `nixos`, `darwin` and `home` is refused by name.
+- A darwin host is a nix-darwin module built exactly as a NixOS host is, with
+  Home Manager's darwin module as `homeManagerModule`. habit declares nothing
+  about whether a module supports darwin: a NixOS-only option fails as the module
+  system's own error naming the module's file.
+- A standalone home is a Home Manager module that is its own host module. Its
+  scope is `home`: every selected module's system half is dropped, `imports` with
+  it, and its home half is imported into the home itself; `habit.aggregation`
+  selects a group's `home` half; `habit.selected` is the home's own; a matched override record applies its
+  `overlay` and its `home` module, and `overridesFor` returns the latter as
+  `standalone`. `habit.users` in a home host is refused, naming the file.
+  `mkSchema` and `evalSelection` take `scope` (default `system`), which hook
+  modules receive as their `scope` argument.
+- A home half is always a plain module, in every class: for a user it is the
+  definition of `home-manager.users.<user>`, in a home an import, and a `mkIf`,
+  `mkMerge` or `mkOverride` around `habit.home` or around the module's config is
+  carried down to the leaves of its `config`. Before, such a wrapper sat on the
+  user's definition, where the users type filters definitions by priority, so a
+  module whose `habit.home` was under `mkOverride` silently dropped every other
+  module's home half for that user. A condition covers what the half sets, not
+  its `imports` or `options`, which are read before any condition is: a half
+  under a condition that carries either is refused, naming the module. A
+  `habit.home` that is not a module (`5`) is refused naming the file and
+  `habit.home`; a path is the module it names.
+- `homeManagerModule` is optional: a user with `home.enable = true` and none
+  given is an error naming the host, and a home given one is an error too,
+  since Home Manager is its evaluator.
+- Added `examples/home`: a standalone home selecting a module whose system half
+  a home drops.
+
 ## v1
 
 - Extracted `lib/composition.nix` from Aoide (`1239a83d333cde0b4a3d7bc28e6c8a989093b92d`,

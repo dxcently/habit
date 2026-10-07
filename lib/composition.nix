@@ -250,13 +250,18 @@ let
       aggregations,
       bodies,
       inert,
+      scope,
     }:
     {
       dendrites = selectionScope { inherit catalogue inert; };
 
       aggregation = aggregationScope {
-        inherit aggregations bodies inert;
-        scope = "system";
+        inherit
+          aggregations
+          bodies
+          inert
+          scope
+          ;
       };
 
       users = mkOption {
@@ -335,19 +340,25 @@ let
       aggregations,
       bodies ? null,
       selectionModules ? [ ],
+      scope ? "system",
     }:
     {
       freeformType = types.lazyAttrsOf types.raw;
 
       options.habit = mkOption {
-        type = habitType "system" (
+        type = habitType scope (
           [
             (
               { config, ... }:
               {
                 options =
                   habitOptions {
-                    inherit catalogue aggregations bodies;
+                    inherit
+                      catalogue
+                      aggregations
+                      bodies
+                      scope
+                      ;
                     inert = false;
                   }
                   // {
@@ -362,7 +373,7 @@ let
                   [ { inherit catalogue; } ]
                   ++ aggregationConfig {
                     bodies = knownBodies bodies;
-                    scope = "system";
+                    inherit scope;
                     root = config;
                   }
                 );
@@ -481,6 +492,7 @@ let
       registry,
       hostFile,
       selectionModules,
+      scope,
     }:
     {
       config,
@@ -507,11 +519,12 @@ let
     {
       _file = toString ./composition.nix;
 
-      options.habit = habitOption "system" selection.dendrites (
+      options.habit = habitOption scope selection.dendrites (
         [
           {
             options = habitOptions {
               inherit (registry) catalogue aggregations;
+              inherit scope;
               bodies = null;
               inert = true;
             };
@@ -602,7 +615,9 @@ let
   # A record's `home` module rides exactly the users its target's home half
   # reaches: every user with a home when the host selected the target, the
   # selecting user alone when a user did. The fix then travels with the thing
-  # it fixes.
+  # it fixes. A standalone home has no users: its own selection is the one
+  # that matches, and `standalone` holds the `home` modules it applies to
+  # itself.
   #
   # Order is record name, so what the list holds does not depend on the
   # filesystem. Overlays then compose the ordinary Nix way, each seeing the
@@ -645,8 +660,19 @@ let
       home = lib.mapAttrs (
         _: u: carried "home" (lib.filter (r: admitsHost r && hits (hostChoice ++ homeOf u) r) records)
       ) selection.users;
+      standalone = carried "home" forHost;
       matched = map (r: r.name) forHost;
     };
+
+  # What a class changes is its scope. A `system` class applies a module's
+  # system half, takes users, and sends the home half to each user's Home
+  # Manager. A `home` class is a Home Manager configuration: the system half is
+  # dropped, and the home half is imported into the configuration itself.
+  scopeOf = {
+    nixos = "system";
+    darwin = "system";
+    home = "home";
+  };
 
   # A selection module is a module of `habit`, so what it declares is
   # `habit.<name>`. These are habit's own, and a hook declaring one would
@@ -660,16 +686,13 @@ let
   ];
 
   refuseReservedNames =
-    hooks: result:
+    scope: hooks: result:
     let
       declared =
         removeAttrs
           (lib.evalModules {
             modules = hooks ++ [ { _module.check = false; } ];
-            specialArgs = {
-              inherit lib;
-              scope = "system";
-            };
+            specialArgs = { inherit lib scope; };
           }).options
           [ "_module" ];
       clashing = lib.intersectLists reservedNames (lib.attrNames declared);
@@ -703,6 +726,7 @@ rec {
       host,
       specialArgs ? { },
       selectionModules ? [ ],
+      scope ? "system",
     }:
     let
       inherit (registry) catalogue aggregations;
@@ -719,6 +743,7 @@ rec {
                 aggregations
                 bodies
                 selectionModules
+                scope
                 ;
             })
             hostModule
@@ -729,11 +754,15 @@ rec {
 
       chosen = agg: lib.attrNames (lib.filterAttrs (_: a: a.enable) agg);
 
-      selected = lib.unique (
-        chosen gate.aggregation ++ lib.concatMap (u: chosen u.aggregation) (lib.attrValues gate.users)
-      );
+      selected =
+        if scope == "home" && lib.attrNames gate.users != [ ] then
+          throw "habit: host ${hostModule._file} sets `habit.users`; a standalone home has no users, the host module is the home itself"
+        else
+          lib.unique (
+            chosen gate.aggregation ++ lib.concatMap (u: chosen u.aggregation) (lib.attrValues gate.users)
+          );
     in
-    refuseReservedNames selectionModules (
+    refuseReservedNames scope selectionModules (
       eval (lib.genAttrs selected (name: readBody name aggregations.${name}))
     );
 
@@ -765,17 +794,18 @@ rec {
 
   # The platform pass. Assemble the module list from the resolved selection.
   #
-  # `mkNixosHost` calls this and adds nothing to it: the list below is the whole
-  # assembly, so a caller that wants the modules for something other than
-  # `nixosSystem` — a test node is one — gets this list rather than a second
-  # copy of it.
-  mkNixosModules =
+  # One core serves every class. The builders below add the evaluator the caller
+  # supplies and nothing else: the list is the whole assembly, so a caller that
+  # wants the modules for something other than the evaluator — a test node is
+  # one — gets this list rather than a second copy of it.
+  mkModules =
     {
+      class,
       hostName,
       knownHosts ? [ hostName ],
       registry,
       host,
-      homeManagerModule,
+      homeManagerModule ? null,
       specialArgs ? { },
       extraModules ? [ ],
       # Package overlays the CALLER provides — the base package set.
@@ -794,6 +824,11 @@ rec {
       system ? "x86_64-linux",
     }:
     let
+      scope =
+        scopeOf.${class}
+          or (throw "unknown class '${class}'; habit builds ${lib.concatStringsSep ", " (lib.attrNames scopeOf)}");
+      isHome = scope == "home";
+
       # What every platform module and every home module receives, and what the
       # scan applies the host to.
       args = specialArgs // {
@@ -802,7 +837,12 @@ rec {
       };
 
       selection = evalSelection {
-        inherit registry host selectionModules;
+        inherit
+          registry
+          host
+          selectionModules
+          scope
+          ;
         specialArgs = args;
       };
 
@@ -884,7 +924,7 @@ rec {
             lanes.wrap {
               inherit name;
               inherit (impl) path;
-              system = true;
+              standalone = isHome;
               homeFor = lib.unique (lib.concatMap (c: c.users) claims);
             }
           )
@@ -896,7 +936,7 @@ rec {
         lanes.wrap {
           name = "user:${userName}";
           path = u.definition;
-          system = true;
+          standalone = false;
           homeFor = lib.optional u.home.enable userName;
         }
       ) selection.users;
@@ -950,6 +990,7 @@ rec {
             registry
             hostFile
             selectionModules
+            scope
             ;
         })
       ]
@@ -958,22 +999,26 @@ rec {
       ++ lib.optional (hmUsers != { }) homeWiring
       ++ extra
       # A record outranks everything the constructor imported on its behalf; the
-      # selected aggregations' system modules come next, and the host's own
-      # module outranks them all.
-      ++ overrides.system
-      ++ aggregationModules "system" selection.aggregation
+      # selected aggregations' modules come next, and the host's own module
+      # outranks them all. A home takes its records' and groups' home modules
+      # for its own.
+      ++ (if isHome then overrides.standalone else overrides.system)
+      ++ aggregationModules scope selection.aggregation
       ++ [ host ];
     in
     if strandedHome != [ ] then
       throw "host '${hostName}': ${lib.concatStringsSep "; " strandedHome}"
+    else if hmUsers != { } && homeManagerModule == null then
+      throw "host '${hostName}': user(s) ${lib.concatStringsSep ", " (lib.attrNames hmUsers)} have home.enable = true but no `homeManagerModule` was given"
+    else if isHome && homeManagerModule != null then
+      throw "home '${hostName}' was given a `homeManagerModule`; a standalone home is evaluated by Home Manager itself and imports none"
     else
       {
         inherit
           modules
           selection
           ;
-        # What a platform evaluator gets; `mkNixosHost` passes it straight to
-        # `nixosSystem`.
+        # What a platform evaluator gets; a builder passes it straight to it.
         specialArgs = args;
         # The review surface: what this host resolved, derived from selection
         # and never maintained by hand.
@@ -982,6 +1027,10 @@ rec {
         };
       };
 
+  mkNixosModules = args: mkModules (args // { class = "nixos"; });
+
+  # Each builder takes the evaluator's own flake from the caller, since habit
+  # reads no input: `nixpkgs`, `darwin` (nix-darwin) or `home-manager`.
   mkNixosHost =
     args@{ nixpkgs, ... }:
     let
@@ -991,6 +1040,40 @@ rec {
       inherit (resolved) selection inventory;
       system = nixpkgs.lib.nixosSystem {
         inherit (resolved) modules specialArgs;
+      };
+    };
+
+  mkDarwinHost =
+    args@{ darwin, ... }:
+    let
+      resolved = mkModules (removeAttrs args [ "darwin" ] // { class = "darwin"; });
+    in
+    {
+      inherit (resolved) selection inventory;
+      system = darwin.lib.darwinSystem {
+        inherit (resolved) modules specialArgs;
+      };
+    };
+
+  mkHome =
+    args@{ home-manager, pkgs, ... }:
+    let
+      resolved = mkModules (
+        removeAttrs args [
+          "home-manager"
+          "pkgs"
+        ]
+        // {
+          class = "home";
+        }
+      );
+    in
+    {
+      inherit (resolved) selection inventory;
+      home = home-manager.lib.homeManagerConfiguration {
+        inherit pkgs;
+        inherit (resolved) modules;
+        extraSpecialArgs = resolved.specialArgs;
       };
     };
 }

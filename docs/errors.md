@@ -38,6 +38,15 @@ Two more come from the platform evaluation and the hooks:
 | message | cause | fix |
 | ------- | ----- | --- |
 | `host '<host>': user '<user>' has home.enable = false but selects home dendrites: <list>` | a user selects home capabilities with their home off | set `home.enable = true`, or drop the selections |
+| ``host '<host>': user(s) <users> have home.enable = true but no `homeManagerModule` was given`` | a user has Home Manager on and the caller gave none to import | pass Home Manager's `nixosModules.home-manager` or `darwinModules.home-manager` as `homeManagerModule` |
+
+## Classes
+
+| message | cause | fix |
+| ------- | ----- | --- |
+| `unknown class '<class>'; habit builds darwin, home, nixos` | `mkModules` was given a `class` it does not build | use `nixos`, `darwin` or `home`, or a builder |
+| ``habit: host <file> sets `habit.users`; a standalone home has no users, the host module is the home itself`` | a home host module writes `habit.users` | drop it: the host module is the one home |
+| ``home '<name>' was given a `homeManagerModule`; a standalone home is evaluated by Home Manager itself and imports none`` | `mkHome`, or `mkModules` for a `home`, was given `homeManagerModule` | remove it |
 
 ## Modules
 
@@ -48,6 +57,8 @@ is the capability or `user:<user>`.
 | message continues | cause | fix |
 | ----------------- | ----- | --- |
 | `does not look like a module, got <type>` | the file evaluates to something other than an attrset or a function returning one | write a module |
+| `` `habit.home`: does not look like a module, got <type> `` | `habit.home` is a number, list or other non-module | write `habit.home` as an attrset, a function or a path |
+| `` `habit.home`: carries `imports` or `options` under a condition; a condition covers only what the half sets, so move them out of it `` | `habit.home`, or the module's config, is under `mkIf` and the half has `imports` or `options` | put them in a `habit.home` that no `mkIf` covers |
 | `has an unsupported top-level attribute: <names>; put configuration under `config`` | a module with `options` or `config` also has a stray top-level key | move it under `config` |
 | `config must be an attribute set, got <type>` | `config` is a list or other non-attrset | make it an attrset |
 | ``config is a `<type>` value habit cannot split`` | `config` is an `mkOrder` or another module-system value that is not `mkIf`, `mkMerge` or `mkOverride` | write the configuration as an attrset, or wrap it in one of those three |
@@ -105,6 +116,6 @@ was given as a path:
 | ``The option `habit.aggregation.<group>.<member>' does not exist.`` | a provider selector the group does not own in that scope |
 | ``The option `habit.<key>' does not exist.`` | a key under `habit` nothing declared: a misspelt one (`habit.dendrtes`, with the nearest names suggested) or a host field to declare with `selectionModules`; also a `habit.home` written by a file a dendrite imports |
 | ``The option `habit.dendrites.<name>.provider' has conflicting definition values`` | two selected groups chose different providers for one member |
-| ``The option `<key>' does not exist.`` | a key of a dendrite's own configuration that no module declares where its system half is evaluated: a misspelt option, or a set of named lanes (`{ body; nixos; homeManager; }`), which habit reads as an ordinary module |
+| ``The option `<key>' does not exist.`` | a key of a dendrite's own configuration that no module declares where its system half is evaluated: a misspelt option, an option the platform does not have (a NixOS-only option on nix-darwin), or a set of named lanes (`{ body; nixos; homeManager; }`), which habit reads as an ordinary module |
 | ``The option `<name>' in `<file>' is already declared in `<file>'.`` | a catalogue file that declares options and is selected, and is also imported by hand ([Dendrites](dendrites.md#what-is-not-a-module)) |
 | ``The option `habit.selected' is read-only, but it's set multiple times.`` | something other than the constructor defines `habit.selected`, in the host's evaluation or, as `home-manager.users.<user>.habit.selected`, in a user's home |

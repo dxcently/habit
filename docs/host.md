@@ -1,8 +1,9 @@
 # The host module
 
-The host is one module. NixOS evaluates it whole, like any module, and habit
-reads the keys it wrote under `habit` to decide what the host is made of. It is
-given to the constructor as `host`: a path, or a module value.
+The host is one module. The platform (NixOS, nix-darwin or Home Manager)
+evaluates it whole, like any module, and habit reads the keys it wrote under
+`habit` to decide what the host is made of. It is given to the constructor as
+`host`: a path, or a module value.
 
 ```nix
 # examples/workstation/hosts/desk.nix
@@ -26,9 +27,9 @@ given to the constructor as `host`: a path, or a module value.
 }
 ```
 
-Everything under `habit` selects; everything else is ordinary NixOS
-configuration, evaluated by NixOS and by nothing before it. The host module is
-the last entry of the module list
+Everything under `habit` selects; everything else is ordinary platform
+configuration, evaluated by the platform and by nothing before it. The host
+module is the last entry of the module list
 ([The constructor](constructor.md#the-module-list)), after the selected groups'
 `system.module`s.
 
@@ -61,9 +62,9 @@ beside them and may not declare one of them
 
 ## The scan
 
-Selection has to read the host before any NixOS evaluation exists, and the host
-is also a NixOS module. The scan reads the part of it that selection needs and
-nothing else.
+Selection has to read the host before any platform evaluation exists, and the
+host is also a platform module. The scan reads the part of it that selection
+needs and nothing else.
 
 For the selection pass habit applies the host module to the caller's
 `specialArgs` (with `system` and `host`), with four arguments replaced by values
@@ -111,8 +112,8 @@ Three consequences, each with a test:
 ### Imports are not scanned
 
 A file the host `imports` is never read by the scan, so a selection written in
-it would be absorbed and select nothing. NixOS evaluates the whole host, so the
-platform evaluation declares the same `habit.*` keys, inert, and fails every key
+it would be absorbed and select nothing. The platform evaluates the whole host,
+so the platform evaluation declares the same `habit.*` keys, inert, and fails every key
 the scan did not see: any key written by a file other than the host's, whatever
 it holds, and any key written inline in the host's own `imports`, which shares
 the host's file, whose value selection does not hold. An unwritten key is `null`
@@ -129,8 +130,9 @@ configuration. It covers every `habit` key: `habit.dendrites`,
 `habit.aggregation` and `habit.users` (including `home.config`), and the keys a
 `selectionModules` module declares. A key an `extraModules` entry writes is
 refused the same way. The assertion is an entry of `config.assertions`, which
-NixOS declares and fails the build on; an evaluation of the module list by bare
-`lib.evalModules` declares `assertions` itself.
+NixOS, nix-darwin and Home Manager each declare and fail the build on; an
+evaluation of the module list by bare `lib.evalModules` declares `assertions`
+itself.
 
 ## Users
 
@@ -198,5 +200,61 @@ not a quiet no-op:
 host 'desk': user 'alice' has home.enable = false but selects home dendrites: notifications
 ```
 
-Home Manager here is the NixOS module. There is no standalone
-`homeConfigurations` output.
+Home Manager here is the NixOS module; on darwin it is its darwin module, and
+a standalone home has no users at all (below).
+
+## A darwin host
+
+A darwin host is a nix-darwin module with the same `habit.*` keys and the same
+users, and `mkDarwinHost` takes Home Manager's `darwinModules.home-manager` as
+`homeManagerModule`. Home Manager takes a user's home directory from
+`users.users.<user>.home` there, so a user module on darwin sets it. habit has
+no declaration for whether a module supports darwin; a module that sets an
+option nix-darwin does not have fails as the module system's own error
+([Dendrites](dendrites.md#darwin)).
+
+## A standalone home
+
+A standalone home is a Home Manager configuration with no system around it, and
+its host module is the home's own module:
+
+```nix
+# examples/home/hosts/alice.nix
+{
+  habit.dendrites.ssh.enable = true;
+
+  home.username = "alice";
+  home.homeDirectory = "/home/alice";
+  home.stateVersion = "26.11";
+}
+```
+
+The scan reads it as it reads any host. What a home accepts under `habit`:
+
+| key                                              | in a home                                                 |
+| ------------------------------------------------ | --------------------------------------------------------- |
+| `habit.dendrites.<name>.enable` / `.provider`    | select a capability for the home                          |
+| `habit.aggregation.<group>.enable` / `.<member>.provider` | select a group's `home` half; its `system` half is not read |
+| a `selectionModules` key                         | as for any host; the module's `scope` argument is `"home"` |
+| `habit.users`                                    | refused                                                   |
+
+A home is one user's configuration, so there is nothing to attach users to; the
+module that would have been `habit.users.<user>.home.config` is the host module
+itself. Setting `habit.users` fails naming the file:
+
+```
+habit: host hosts/alice.nix sets `habit.users`; a standalone home has no users, the host module is the home itself
+```
+
+What a selected capability gives the home:
+
+- its system half is dropped, `imports` with it, so a module whose system half
+  sets an option Home Manager does not have still evaluates;
+- its home half is imported into the home, where Home Manager itself reads it
+  as it reads the rest of the module list;
+- `habit.selected` is the home's own selection;
+- a matched override record contributes its `overlay` and its `home` module; its
+  `system` module is dropped with the rest of the system half.
+
+`homeManagerModule` is refused: Home Manager is the evaluator, and there is
+nothing to import.

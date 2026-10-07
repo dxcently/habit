@@ -1,7 +1,8 @@
 # Overview
 
-habit is host composition for NixOS. A host selects capabilities from a
-registry, and only what it selected is ever imported. A crystal's habit is the
+habit is host composition for NixOS, nix-darwin and standalone Home Manager. A
+host selects capabilities from a registry, and only what it selected is ever
+imported. A crystal's habit is the
 shape its conditions give it; a host's habit is the module list its selection
 gives it.
 
@@ -15,16 +16,20 @@ gives it.
 | `habit.selected` | what a scope selected: a read-only option in every evaluation         | [Dendrites](dendrites.md#reading-the-selection) |
 | scan            | how selection reads the host module: its `habit.*` keys only, never the platform's values | [The host module](host.md#the-scan) |
 | aggregation     | a group of dendrites, written as data, selected by name                | [Aggregations](aggregations.md)       |
-| host module     | one module: its `habit.*` keys select, everything else is the host's NixOS configuration | [The host module](host.md) |
+| host module     | one module: its `habit.*` keys select, everything else is the host's own platform configuration | [The host module](host.md) |
+| class           | what a host is built for: `nixos`, `darwin` or `home`; it sets the scope and the evaluator the caller supplies | [The constructor](constructor.md#classes) |
 | override record | a fix that belongs to a capability and applies where it was selected   | [Override records](overrides.md)      |
 | nucleus         | by convention, the aggregation of dendrites every host selects         | [Aggregations](aggregations.md#what-every-host-carries) |
 | inventory       | what a host resolved, derived from its selection                       | [The constructor](constructor.md#the-inventory) |
 
 ```
 registry ─┐
-          ├─► selection pass ─► resolved selection ─┬─► platform pass ─► module list ─► nixosSystem
+          ├─► selection pass ─► resolved selection ─┬─► platform pass ─► module list ─► your evaluator
 host ─────┘   (gate, select)                        └─► inventory
 ```
+
+The evaluator is `nixosSystem`, `darwinSystem` or `homeManagerConfiguration`,
+and the caller supplies it: habit takes no flake input.
 
 ## The ideas
 
@@ -94,34 +99,37 @@ vague error is a failing test. [Errors](errors.md)
 | [The two passes](two-passes.md)     | why selection runs first, gate and select, the boundary         |
 | [Dendrites](dendrites.md)           | plain modules, `habit.home`, `habit.selected`, multi-provider capabilities |
 | [Aggregations](aggregations.md)     | group bodies, membership by priority, provider choices           |
-| [The host module](host.md)          | the `habit.*` keys, the scan and its limits, users and Home Manager |
+| [The host module](host.md)          | the `habit.*` keys, the scan and its limits, users and Home Manager, darwin and standalone homes |
 | [Override records](overrides.md)    | capability-scoped fixes, matching, the weaker boundary           |
-| [The constructor](constructor.md)   | every argument, the module list order, hooks, the inventory      |
+| [The constructor](constructor.md)   | the classes and their builders, every argument, the module list order, hooks, the inventory |
 | [Merging registries](merging.md)    | `mergeRegistries`, the source shape, its errors                  |
 | [Errors](errors.md)                 | each error habit throws, its cause, its fix                      |
 | [Comparisons](comparisons.md)       | what only habit does, and when den, flake-parts, snowfall-lib or blueprint fits better |
 
 ## Examples
 
-Three directories under
+Four directories under
 [`examples/`](https://github.com/dxcently/habit/tree/main/examples), each a
 registry, its dendrites, a host and the call that builds it. The test suite
 calls each one the way a flake would and checks its inventory, its module list
-and real NixOS option values. Every example file quoted in these pages is the
-file the suite evaluates.
+and option values: real NixOS ones, and for `home` those of a stub of Home
+Manager's options. Every example file quoted in these pages is the file the
+suite evaluates.
 
 | example                                                                           | shows                                                        |
 | --------------------------------------------------------------------------------- | ------------------------------------------------------------ |
 | [`minimal`](https://github.com/dxcently/habit/tree/main/examples/minimal)         | one dendrite, one host                                       |
 | [`workstation`](https://github.com/dxcently/habit/tree/main/examples/workstation) | an aggregation, a member switched off, a provider choice, a Home Manager user |
 | [`merged`](https://github.com/dxcently/habit/tree/main/examples/merged)           | two registries merged, a group in one naming a capability in the other |
+| [`home`](https://github.com/dxcently/habit/tree/main/examples/home)               | a standalone Home Manager configuration; a module's system half dropped |
 
 ## Tests
 
 `tests/selection/` holds executable cases over a fixture registry
 (`registry.nix`, `dendrites/`, `aggregations/`, `overrides/`, `users/`,
 `badrecords/`), over host modules (`hosts/`) and the hooks (`hooks/`), over the
-wrapper (`lanes/`) and over the examples. A fixture
+wrapper (`lanes/`), over each class against stub option trees named like
+nix-darwin's and Home Manager's, and over the examples. A fixture
 implementation or aggregation body that throws on import proves that "never
 imported" is a fact, not a claim. `run.sh` evaluates each case on its own; a
 negative case must throw AND carry its expected message.

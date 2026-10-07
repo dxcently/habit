@@ -6,10 +6,40 @@ it returns:
 | name              | does                                                                       |
 | ----------------- | -------------------------------------------------------------------------- |
 | `mkNixosHost`     | `mkNixosModules` handed to `nixpkgs.lib.nixosSystem`                       |
-| `mkNixosModules`  | the platform pass: module list, `specialArgs`, selection, inventory        |
-| `evalSelection`   | `{ registry, host, specialArgs, selectionModules }` -> resolved selection (gate, then select) |
+| `mkDarwinHost`    | `mkModules` for `darwin` handed to `darwin.lib.darwinSystem`               |
+| `mkHome`          | `mkModules` for `home` handed to `home-manager.lib.homeManagerConfiguration` |
+| `mkModules`       | the platform pass for the `class` it is given: module list, `specialArgs`, selection, inventory |
+| `mkNixosModules`  | `mkModules` with its `class` set to `nixos`                                |
+| `evalSelection`   | `{ registry, host, specialArgs, selectionModules, scope }` -> resolved selection (gate, then select) |
 | `inventoryOf`     | `{ hostName, selection }` -> what the host resolved; the review surface    |
 | `implOf`, `overridesFor`, `mkSchema` | the pieces, for callers that assemble differently |
+
+habit reads no input, so a builder takes the evaluator's own flake from the
+caller and calls the evaluator on the module list. One core assembles that list
+for every class; a class changes only what the next section says.
+
+## Classes
+
+| | `nixos` | `darwin` | `home` |
+| --- | --- | --- | --- |
+| builder | `mkNixosHost` | `mkDarwinHost` | `mkHome` |
+| the caller supplies | `nixpkgs` | `darwin` (nix-darwin) | `home-manager`, `pkgs` |
+| evaluator called | `nixpkgs.lib.nixosSystem` | `darwin.lib.darwinSystem` | `home-manager.lib.homeManagerConfiguration` |
+| result | `{ system, selection, inventory }` | `{ system, selection, inventory }` | `{ home, selection, inventory }` |
+| the host module is | a NixOS module | a nix-darwin module | a Home Manager module |
+| scope | `system` | `system` | `home` |
+| system half | applied | applied | dropped, its `imports` with it |
+| home half | a `home-manager.users.<user>` definition for each user it reaches | the same | imported into the configuration itself |
+| `homeManagerModule` | Home Manager's NixOS module | Home Manager's nix-darwin module | refused: the evaluator is Home Manager |
+| `habit.users` | accepted | accepted | refused: a home has no users |
+| `habit.aggregation.<group>` selects | the group's `system` half | the group's `system` half | the group's `home` half |
+| `habit.selected` holds | the host's selection, and each user's in their home | the same | the home's selection |
+| an override record applies | `overlay`, `system`, and `home` to the users it reaches | the same | `overlay` and `home`; its `system` is dropped with the system half |
+
+A darwin host differs from a NixOS one in the module system it is evaluated
+by and nothing else: habit declares nothing that says a module supports
+darwin. A module written for NixOS only fails there as the module system's own
+error, naming the module's file ([Dendrites](dendrites.md#darwin)).
 
 ## The registry
 
@@ -38,14 +68,16 @@ only; nothing is imported at registry time.
 
 ## Arguments
 
-`mkNixosModules` takes:
+`mkModules` takes the arguments below, and `class` besides: `nixos`, `darwin`
+or `home`, anything else being refused. `mkNixosModules` takes them without
+`class`.
 
 | argument            | required | default            | means                                                       |
 | ------------------- | -------- | ------------------ | ----------------------------------------------------------- |
-| `hostName`          | yes      |                    | the host's name; passed on as `host`                        |
+| `hostName`          | yes      |                    | the host's name, or the home's; passed on as `host`         |
 | `registry`          | yes      |                    | the registry above, or the result of `mergeRegistries`      |
 | `host`              | yes      |                    | the host module: a path or a module value ([The host module](host.md)) |
-| `homeManagerModule` | yes      |                    | Home Manager's NixOS module; imported only if a user enables it |
+| `homeManagerModule` | no       | `null`             | Home Manager's module for the system (`nixosModules` or `darwinModules`); imported only if a user enables it, and needed then; refused for a home |
 | `knownHosts`        | no       | `[ hostName ]`     | host names an override record's `hosts` may name            |
 | `specialArgs`       | no       | `{ }`              | extra arguments for every platform and home module          |
 | `overlays`          | no       | `[ ]`              | the caller's package overlays                               |
@@ -56,10 +88,17 @@ only; nothing is imported at registry time.
 
 `mkNixosHost` takes the same plus `nixpkgs`, whose `lib.nixosSystem` it calls,
 and returns `{ system, selection, inventory }`, where `system` is the
-`nixosSystem` result. `mkNixosModules` returns
-`{ modules, specialArgs, selection, inventory }`; `mkNixosHost` adds nothing to
-that list, so a caller that wants the modules for something other than
-`nixosSystem` (a test node, say) takes them from `mkNixosModules`.
+`nixosSystem` result. `mkDarwinHost` takes `darwin` and calls
+`darwin.lib.darwinSystem` the same way. `mkHome` takes `home-manager` and
+`pkgs`, calls `home-manager.lib.homeManagerConfiguration { pkgs; modules;
+extraSpecialArgs; }` with the module list and `specialArgs`, and returns `{
+home, selection, inventory }`. `pkgs` is the one thing habit passes on without
+reading: a home's package set is the caller's.
+
+`mkModules` and `mkNixosModules` return `{ modules, specialArgs, selection,
+inventory }`; a builder adds nothing to that list, so a caller that wants the
+modules for something other than the evaluator (a test node, say) takes them
+from there.
 
 The arguments that need more than a line:
 
@@ -75,12 +114,18 @@ The arguments that need more than a line:
   `modulesPath` in a `habit` key needs it in `specialArgs`.
 - **`specialArgs`** is extended with `system` and `host = hostName` (those two
   win), and the result is what every platform module, every home module and the
-  scan's application of the host receives. The `host` argument a module
+  scan's application of the host receives (a home's is its
+  `extraSpecialArgs`). The `host` argument a module
   receives is the name; the constructor's `host` argument is the module.
 - **`system`** is only that argument. The constructor never sets
   `nixpkgs.hostPlatform`: the host module itself, a selected group's
   `system.module` or an `extraModules` entry sets it, or the host fails to
   evaluate. The examples set it in the host module.
+- **`homeManagerModule`** is Home Manager's `nixosModules.home-manager` for
+  `nixos` and its `darwinModules.home-manager` for `darwin`. A user with
+  `home.enable = true` and none given is an error naming the host, and a `home`
+  that is given one is an error too: Home Manager is its evaluator, and there is
+  nothing to import.
 - **`overlays`**: a selected module's overlay is applied before the caller's,
   so inside it `prev` carries none of the caller's packages and reading one
   aborts with a missing attribute. A module therefore builds what it replaces
@@ -103,7 +148,7 @@ The platform pass assembles one list, in this order:
 ```
  1  { nixpkgs.overlays = overlays; }               if overlays != [ ]
  2  { nixpkgs.overlays = <matched records' overlays>; }   if any
- 3  habit                                          the host's `habit.*` keys, inert; `habit.selected` for the system; the assertion
+ 3  habit                                          the host's `habit.*` keys, inert; `habit.selected` for the scope; the assertion
  4  each user's module, wrapped                    the accounts, and each user's `habit.home`
  5  each selected capability, wrapped              catalogue (name) order, one per capability
  6  Home Manager wiring                            if any user has home.enable
@@ -112,6 +157,13 @@ The platform pass assembles one list, in this order:
  9  each selected group's `system.module`          group name order, one entry per module
 10  host                                           the host module itself
 ```
+
+A home has no users, so items 4 and 6 are empty, and the module list is the
+configuration the evaluator is handed: item 5 imports each capability's home
+half, item 8 is each matched record's `home` module, and item 9 each selected
+group's `home.module`. The home half of a capability is an import of its
+wrapped module, so a list-typed option reads it before the list's other
+entries (`standaloneHomeModulesKeepTheirPosition`).
 
 Position is not priority. A scalar defined twice at the same priority
 conflicts wherever the two sit; `mkDefault`, `mkForce` and plain definitions
@@ -143,8 +195,8 @@ defaults the module list is exactly the one assembled without them.
 - **`selectionModules`**: modules of `habit` itself. They join the scan in both
   steps and the platform evaluation, so an option one declares is `habit.<option>`:
   a key the host can set and the gate step can read, and one the platform
-  evaluation holds too. They receive `lib` and `scope` (`"system"`) as module
-  arguments, and no `pkgs` or NixOS `config`. `dendrites`, `aggregation`,
+  evaluation holds too. They receive `lib` and `scope` (`"system"`, or `"home"`
+  for a home) as module arguments, and no `pkgs` or platform `config`. `dendrites`, `aggregation`,
   `users`, `selected` and `home` are habit's own names under `habit`: a module
   declaring one is refused, naming its file.
 - **`extraModulesFor`**: a function of the resolved selection returning
@@ -168,7 +220,7 @@ The host then writes `habit.role = "laptop";`.
 
 ## The inventory
 
-`inventoryOf`, also `mkNixosModules`'s and `mkNixosHost`'s `inventory`, is what
+`inventoryOf`, also `mkModules`'s and every builder's `inventory`, is what
 a host resolved, derived from its selection and never maintained by hand. For
 the workstation example (paths shortened to the repository root):
 
@@ -198,8 +250,8 @@ the workstation example (paths shortened to the repository root):
 | `host`        | `hostName`                                                              |
 | `aggregation` | the groups the host selected                                            |
 | `dendrites`   | each capability selected for the system: its `provider` and `source`, the catalogue path that answered |
-| `users`       | per user: `definition`, `home` (whether Home Manager is on), its groups and its capabilities |
-| `overrides`   | the override records that matched this host (`mkNixosModules` only; `inventoryOf` alone has no records to match) |
+| `users`       | per user: `definition`, `home` (whether Home Manager is on), its groups and its capabilities; `{ }` for a home |
+| `overrides`   | the override records that matched this host (`mkModules` and the builders only; `inventoryOf` alone has no records to match) |
 
 `printing` is absent: the host switched it off, so it is not part of what the
 host is. The inventory says nothing of a module's halves: whether a module has a
@@ -236,3 +288,49 @@ nixosConfigurations.box = (import ./box { inherit habit nixpkgs home-manager; })
 
 `habit.lib.composition` is unapplied; the consumer applies it with the `lib`
 its own host evaluation uses, so selection runs on the consumer's lib.
+
+### A darwin host
+
+`mkDarwinHost` is `mkNixosHost` with nix-darwin's evaluator and Home Manager's
+darwin module; the host module is a nix-darwin module:
+
+```nix
+darwinConfigurations.mac =
+  (composition.mkDarwinHost {
+    darwin = inputs.nix-darwin;
+    hostName = "mac";
+    registry = import ./registry.nix;
+    host = ./hosts/mac.nix;
+    homeManagerModule = inputs.home-manager.darwinModules.home-manager;
+  }).system;
+```
+
+### A standalone home
+
+`mkHome` builds a Home Manager configuration with no system around it. The
+host module is the home's own module, so it sets `home.username`,
+`home.homeDirectory` and `home.stateVersion` beside its `habit.*` keys
+([The host module](host.md#a-standalone-home)):
+
+```nix
+# examples/home/default.nix — a standalone Home Manager configuration.
+{
+  habit,
+  nixpkgs,
+  home-manager,
+}:
+let
+  composition = habit.lib.composition { inherit (nixpkgs) lib; };
+in
+composition.mkHome {
+  inherit home-manager;
+  pkgs = nixpkgs.legacyPackages.x86_64-linux;
+  hostName = "alice";
+  registry = import ./registry.nix;
+  host = ./hosts/alice.nix;
+}
+```
+
+```nix
+homeConfigurations.alice = (import ./home { inherit habit nixpkgs home-manager; }).home;
+```

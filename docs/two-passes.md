@@ -38,7 +38,7 @@ selection on its own:
 | --------- | -------------------------------------------- | -------------------------- | -------------------------------- |
 | selection | `lib.evalModules` over a small schema         | the registry, the host module's `habit.*` | the resolved selection |
 | platform  | nothing; it assembles a list                  | the resolved selection     | the module list, `specialArgs`, the inventory |
-| NixOS     | `nixosSystem` over that list                  | the module list            | the system                       |
+| evaluator | `nixosSystem`, `darwinSystem` or `homeManagerConfiguration` over that list | the module list | the system, or the home |
 
 The host is one module that NixOS evaluates whole, and the selection pass reads
 the same file. What keeps that from being the circular import is what the scan
@@ -101,7 +101,10 @@ capability once, wrapped ([Dendrites](dendrites.md#a-plain-module)): its system
 half applies in the host's evaluation, and its home half goes to the users it
 was selected for, which is every Home Manager user when the host selected it
 and the one user when a user did. Each user's module is wrapped the same way.
-It is the only place anything from the catalogue is `import`ed.
+A standalone home has no system and no users: the platform pass drops each
+capability's system half and imports its home half into the home itself
+([The constructor](constructor.md#classes)). It is the only place anything from
+the catalogue is `import`ed.
 
 ## The evaluation boundary
 

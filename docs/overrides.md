@@ -60,6 +60,9 @@ record ──► hosts admits this host? ──no──► not applied
 - Its `home` module rides exactly the users the target's home half reaches:
   every user with Home Manager when the host selected the target, the selecting
   user alone when a user did, so the fix travels with the thing it fixes.
+- A standalone home has no users and no system half: a record that matches its
+  own selection applies its `overlay` and its `home` module to the home, and its
+  `system` module to nothing.
 - Records are taken in name order, so the result does not depend on the
   filesystem. Overlays compose the ordinary Nix way, each seeing the one before
   as `prev`; there is no overlap detection beyond that.

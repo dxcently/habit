@@ -227,6 +227,15 @@ let
     };
   };
 
+  # The fixture registry plus the two entries the class cases select: one whose
+  # system half only NixOS declares, one whose only nix-darwin does.
+  registryWithTargets = registry // {
+    catalogue = registry.catalogue // {
+      homebrew = ./dendrites/homebrew;
+      linuxOnly = ./dendrites/linuxOnly;
+    };
+  };
+
   selectionCases = rec {
     # ── A disabled implementation is never imported ────────────────────────────
     # landmine/default.nix throws on import; selecting everything around it and
@@ -1306,7 +1315,27 @@ selectionCases
   # freeform submodules, so a home half lands where Home Manager's would. The
   # closed platform has no freeform piece, so an undeclared option is an error
   # as on a real host; the bare one also has no Home Manager.
+  #
+  # The keys the fixtures write to a home are options that are null until set,
+  # in a user's home and in a home itself: a condition that is false leaves one
+  # null, as it would leave a real option at its default.
   lanes = import ../../lib/lanes.nix { inherit lib; };
+
+  homeKeyNames = [
+    "a"
+    "b"
+    "k"
+  ];
+
+  homeKeys.options = lib.genAttrs homeKeyNames (
+    _:
+    lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+    }
+  );
+
+  setKeys = lib.filterAttrs (n: v: lib.elem n homeKeyNames && v != null);
 
   freeformPiece.freeformType = lib.types.lazyAttrsOf lib.types.anything;
 
@@ -1317,7 +1346,10 @@ selectionCases
 
   homePiece.options.home-manager.users = lib.mkOption {
     type = lib.types.attrsOf (
-      lib.types.submodule { freeformType = lib.types.lazyAttrsOf lib.types.anything; }
+      lib.types.submodule {
+        freeformType = lib.types.lazyAttrsOf lib.types.anything;
+        inherit (homeKeys) options;
+      }
     );
     default = { };
   };
@@ -1343,13 +1375,13 @@ selectionCases
   wrapped =
     {
       file,
-      system ? true,
+      standalone ? false,
       homeFor ? [ ],
     }:
     lanes.wrap {
       name = lib.removeSuffix ".nix" file;
       path = ./lanes + "/${file}";
-      inherit system homeFor;
+      inherit standalone homeFor;
     };
 
   # The module bare, and wrapped with the system half on and no home user:
@@ -1377,14 +1409,13 @@ selectionCases
     {
       file,
       platform ? openPlatform,
-      system ? true,
       homeFor ? [ "alice" ],
       extra ? [ ],
     }:
     let
-      config = evalWith platform ([ (wrapped { inherit file system homeFor; }) ] ++ extra);
+      config = evalWith platform ([ (wrapped { inherit file homeFor; }) ] ++ extra);
     in
-    "sys=${showAttrs config.sys} home=${showAttrs (config.home-manager.users.alice or { })}";
+    "sys=${showAttrs config.sys} home=${showAttrs (setKeys (config.home-manager.users.alice or { }))}";
 
   wrapFunctionModule = differential "function.nix";
   wrapAttrsModule = differential "attrs.nix";
@@ -1413,8 +1444,14 @@ selectionCases
     ];
   };
 
-  splitNeverForcesACondition =
-    (lanes.split "test" (lib.mkIf (throw "the condition was forced") { habit.home = { }; })).home._type;
+  leavesNeverForceACondition =
+    (lib.head (
+      lib.head (
+        lanes.leaves (covers: _: covers) [ ] (
+          lib.mkIf (throw "the condition was forced") { habit.home = { }; }
+        )
+      )
+    ))._type;
 
   splitHabitUnderMkIf = landing { file = "habitIf.nix"; };
   splitUnknownHabitKey = landing { file = "habitTypo.nix"; };
@@ -1445,27 +1482,22 @@ selectionCases
 
   # A dropped system half takes the module's `imports` with it: the import
   # throws, so it is untouched when the system is off and reached when on.
-  wrapSystemOffAppliesNothingOfTheSystem = landing {
-    file = "systemOff.nix";
-    system = false;
-  };
+  wrapSystemOffAppliesNothingOfTheSystem = landingHere { file = "systemOff.nix"; };
 
   wrapSystemOnImports = landing { file = "systemOff.nix"; };
 
   # A system half that does not apply is not emitted, so an option the platform
   # does not declare is no error there; applied, it is.
-  wrapSystemOffEmitsNoSystemOptions = landing {
+  wrapSystemOffEmitsNoSystemOptions = landingHere {
     file = "nonexistent.nix";
     platform = closedPlatform;
-    system = false;
   };
 
   # The module's `freeformType` is the module system's to fold, so it holds with
   # the system half off: another module's undeclared key is still accepted.
-  wrapFreeformTypeSurvivesSystemOff = landing {
+  wrapFreeformTypeSurvivesSystemOff = landingHere {
     file = "freeformOnly.nix";
     platform = closedPlatform;
-    system = false;
     extra = [ { loose.x = "1"; } ];
   };
 
@@ -1487,6 +1519,32 @@ selectionCases
     platform = platformWithoutHomeManager;
   };
 
+  # Each user's home half is a module inside that user's submodule, so a
+  # priority or a condition on one module's half cannot filter another module's
+  # half for the same user: here `a` has priority 10 and `b` the default, and
+  # both reach alice.
+  homeHalvesOfDifferentPrioritiesBothReachTheUser = landing {
+    file = "priorityHome.nix";
+    extra = [
+      (wrapped {
+        file = "plainHome.nix";
+        homeFor = [ "alice" ];
+      })
+    ];
+  };
+
+  homeNotAModuleIsRefusedForAUser = landing { file = "homeNotAModule.nix"; };
+
+  # A path is the module it names.
+  homeHalfMayBeAPath = landing { file = "homePath.nix"; };
+
+  # A condition covers the half's config. Its imports and options are read
+  # before any condition is, so they would apply whatever the condition says:
+  # under one, they are refused.
+  homeImportsApplyWhenNothingCoversThem = landing { file = "homeImports.nix"; };
+  homeImportsUnderAConditionAreRefused = landing { file = "conditionedImports.nix"; };
+  homeOptionsUnderAConditionAreRefused = landing { file = "conditionedOptions.nix"; };
+
   wrapNotAModule = landing { file = "notModule.nix"; };
   wrapUnsupportedTopLevelAttribute = landing { file = "unsupportedAttr.nix"; };
   splitHabitNotAttrs = landing { file = "habitNotAttrs.nix"; };
@@ -1494,6 +1552,405 @@ selectionCases
   # Selection belongs to the host: a dendrite's own `habit.dendrites` is a key
   # habit does not read, and says so naming the file.
   selectionKeyInsideADendriteIsRefused = landing { file = "habitSelects.nix"; };
+
+  # A module imported into the evaluation that is itself the home: nothing
+  # routes it, so its half lands at the top level.
+  landingHere =
+    {
+      file,
+      platform ? openPlatform,
+      extra ? [ ],
+    }:
+    let
+      config = evalWith (platform ++ [ homeKeys ]) (
+        [
+          (wrapped {
+            inherit file;
+            standalone = true;
+          })
+        ]
+        ++ extra
+      );
+    in
+    "sys=${showAttrs config.sys} home=${showAttrs (setKeys config)}";
+
+  directPlain = landingHere { file = "plain.nix"; };
+  directMkIfFalseDropsTheHomeHalf = landingHere { file = "mkifFalse.nix"; };
+  directMkMerge = landingHere { file = "mkmerge.nix"; };
+
+  # The condition covers one part of the merge: the other part stays whole.
+  directMkIfOfMkMerge = landingHere { file = "ifmerge.nix"; };
+
+  # The covers go back on in the order they were found: a condition outside a
+  # priority, which nixpkgs accepts, and not the reverse, which it does not.
+  directMkIfOfMkOverride = landingHere { file = "ifOfOverride.nix"; };
+
+  directMkOverride = landingHere {
+    file = "override.nix";
+    extra = [ { k = "other"; } ];
+  };
+
+  # A function-valued home half is a module that takes its arguments, so the
+  # condition around it gates what it returns.
+  directFunctionUnderMkIf = landingHere { file = "homeFunction.nix"; };
+
+  directFunctionUnderMkIfFalse = landingHere {
+    file = "homeFunction.nix";
+    extra = [ { fn.on = false; } ];
+  };
+
+  directMkIfFalseCoversEveryPartOfAMerge = landingHere { file = "ifmergeFalse.nix"; };
+
+  directHomeValueUnderMkIf = landingHere { file = "homeValueIf.nix"; };
+
+  directHomeNotAModule = landingHere { file = "homeNotAModule.nix"; };
+
+  # The home evaluation is the reader: the half is forced there, not skipped.
+  directHomeIsRead = landingHere { file = "homeThrows.nix"; };
+
+  # ── The classes ────────────────────────────────────────────────────────────
+  # nix-darwin and Home Manager are not inputs of this suite. Each class is
+  # evaluated against a stub option tree that declares what the fixtures write
+  # and the options only that platform has, behind a stub evaluator called the
+  # way the real one is.
+  stubEvaluation =
+    tree:
+    {
+      modules,
+      specialArgs ? { },
+      extraSpecialArgs ? { },
+      ...
+    }:
+    lib.evalModules {
+      specialArgs = {
+        inherit lib;
+      }
+      // specialArgs
+      // extraSpecialArgs;
+      modules = tree ++ modules;
+    };
+
+  darwinTree = [
+    systemFixtures
+    {
+      options.homebrew.casks = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [ ];
+      };
+    }
+  ];
+
+  darwin.lib.darwinSystem = stubEvaluation darwinTree;
+
+  # Home Manager as a standalone configuration declares no `services` and no
+  # accounts; it does declare the home's own identity and `programs`.
+  homeTree = [
+    {
+      options.assertions = assertionsOption;
+      options.fixture.marks = marksOption;
+      options.nixpkgs.overlays = lib.mkOption {
+        type = lib.types.listOf lib.types.anything;
+        default = [ ];
+      };
+      options.home = lib.genAttrs [ "username" "homeDirectory" "stateVersion" ] (
+        _:
+        lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+        }
+      );
+      options.programs.ssh.enable = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+      };
+    }
+  ];
+
+  home-manager.lib.homeManagerConfiguration =
+    { pkgs, ... }@args:
+    stubEvaluation homeTree (
+      args
+      // {
+        extraSpecialArgs = {
+          inherit pkgs;
+        }
+        // args.extraSpecialArgs or { };
+      }
+    );
+
+  darwinHost =
+    {
+      mod ? { },
+      host ? selecting mod,
+      args ? { },
+    }:
+    composition.mkDarwinHost (
+      {
+        inherit darwin host;
+        registry = registryWithTargets;
+        hostName = "mac";
+        homeManagerModule = homeManagerStub;
+      }
+      // args
+    );
+
+  homeHost =
+    {
+      mod ? { },
+      host ? selecting mod,
+      args ? { },
+    }:
+    composition.mkHome (
+      {
+        inherit home-manager host;
+        registry = registryWithTargets;
+        pkgs = { };
+        hostName = "alice";
+      }
+      // args
+    );
+
+  # The home's own configuration, and the module list a home is handed.
+  homeConfigOf = args: (homeHost args).home.config;
+
+  homeModules =
+    {
+      mod ? { },
+      host ? selecting mod,
+      args ? { },
+    }:
+    composition.mkModules (
+      {
+        inherit host;
+        class = "home";
+        registry = registryWithTargets;
+        hostName = "alice";
+      }
+      // args
+    );
+
+  commaSeparated = builtins.concatStringsSep ",";
+
+  # darwin: the system half applies with nix-darwin's own options, and the home
+  # half is a `home-manager.users.<user>` definition, as on NixOS.
+  darwinAppliesTheSystemHalfAndRoutesTheHome =
+    let
+      c =
+        (darwinHost {
+          mod = {
+            dendrites.homebrew.enable = true;
+            dendrites.notifications = dunst;
+            users.alice = homeUser "alice" { };
+          };
+        }).system.config;
+    in
+    "sys=${marksOf c} casks=${commaSeparated c.homebrew.casks} accounts=${commaSeparated (lib.attrNames c.fixture.account)} alice=${commaSeparated (lib.sort lib.lessThan c.home-manager.users.alice.fixture.marks)}";
+
+  # No declaration says a module supports darwin (it is the module's own to
+  # write): one that sets an option darwin does not have fails as the module
+  # system's own error, in the author's file.
+  darwinRefusesAnOptionItDoesNotHave =
+    (darwinHost { mod.dendrites.linuxOnly.enable = true; }).system.config.fixture.marks;
+
+  darwinNamesTheModuleItRefuses = darwinRefusesAnOptionItDoesNotHave;
+
+  # A builder adds the evaluator and nothing else: the evaluator receives the
+  # module list and `specialArgs` the core assembled.
+  mkDarwinHostPassesTheModulesThrough =
+    let
+      mod = {
+        dendrites.systemonly.enable = true;
+      };
+      viaHost = darwinHost {
+        inherit mod;
+        args.darwin.lib.darwinSystem = args: args;
+      };
+      direct = composition.mkModules {
+        class = "darwin";
+        hostName = "mac";
+        registry = registryWithTargets;
+        host = selecting mod;
+        homeManagerModule = homeManagerStub;
+      };
+    in
+    "${if fingerprint viaHost.system.modules == fingerprint direct.modules then "same" else "differ"}:${
+      lib.boolToString (builtins.toJSON viaHost.system.specialArgs == builtins.toJSON direct.specialArgs)
+    }";
+
+  mkHomePassesTheModulesThrough =
+    let
+      mod = {
+        dendrites.homeonly.enable = true;
+      };
+      viaHost = homeHost {
+        inherit mod;
+        args = {
+          home-manager.lib.homeManagerConfiguration = args: args;
+          pkgs = "the caller's pkgs";
+        };
+      };
+      direct = homeModules { inherit mod; };
+    in
+    "${if fingerprint viaHost.home.modules == fingerprint direct.modules then "same" else "differ"}:${
+      lib.boolToString (
+        builtins.toJSON viaHost.home.extraSpecialArgs == builtins.toJSON direct.specialArgs
+      )
+    }:${viaHost.home.pkgs}";
+
+  # home: the system half is dropped, so a module whose system half sets an
+  # option the home does not declare still evaluates, and its home half lands.
+  standaloneHomeDropsTheSystemLane = marksOf (homeConfigOf {
+    mod.dendrites.linuxOnly.enable = true;
+  });
+
+  # `dunst` marks both halves. The home applies the home half, once.
+  standaloneHomeAppliesTheHomeHalfOnly = marksOf (homeConfigOf {
+    mod.dendrites.notifications = dunst;
+  });
+
+  standaloneHomeNeverImportsAnUnselectedModule =
+    let
+      r = homeModules { mod.dendrites.homeonly.enable = true; };
+    in
+    forceEach r.modules (builtins.length r.modules);
+
+  standaloneHomeImportsWhatItSelected =
+    let
+      r = homeModules { mod.dendrites.landmine.enable = true; };
+    in
+    forceEach r.modules (builtins.length r.modules);
+
+  # `habit.selected` is the home's own scope.
+  standaloneHomeSelectedIsItsOwnScope = selectedBy (homeConfigOf {
+    mod.dendrites = {
+      homeonly.enable = true;
+      notifications = {
+        enable = true;
+        provider = "mako";
+      };
+    };
+  });
+
+  standaloneHomeSelectedIsReadOnly =
+    (homeConfigOf {
+      mod.dendrites.homeonly.enable = true;
+      args.extraModules = [ { habit.selected.homeonly.enable = false; } ];
+    }).habit.selected.homeonly.enable;
+
+  # A home has no users: its module is the one home.
+  standaloneHomeSettingUsersIsRefused =
+    (homeModules { host = ./hosts/homeSetsUsers.nix; }).inventory.host;
+
+  # A group selected by a home answers with its home half, members and module.
+  standaloneHomeAggregationSelectsItsHomeHalf = marksOf (homeConfigOf {
+    mod.aggregation.homesettings.enable = true;
+  });
+
+  # Later reading first: the host module, then the group's module, the matched
+  # record's and the selected module's home half.
+  standaloneHomeModulesKeepTheirPosition =
+    builtins.concatStringsSep ","
+      (homeConfigOf {
+        args.registry = registryWithTargets // {
+          overrides.homely = ./overrides/homely.nix;
+        };
+        host = {
+          habit.aggregation.homesettings.enable = true;
+          fixture.marks = [ "host" ];
+        };
+      }).fixture.marks;
+
+  # A record applies its overlay and its `home` module to a home, and its
+  # `system` module to nothing: that half was dropped with the rest.
+  standaloneHomeAppliesItsOverrideRecords =
+    let
+      h = homeHost {
+        args.registry = registryWithTargets // {
+          overrides = {
+            allhosts = ./overrides/allhosts.nix;
+            homely = ./overrides/homely.nix;
+          };
+        };
+        mod.dendrites = {
+          systemonly.enable = true;
+          notifications = dunst;
+        };
+      };
+    in
+    "matched=${commaSeparated h.inventory.overrides} overlays=${toString (builtins.length h.home.config.nixpkgs.overlays)} marks=${commaSeparated (lib.sort lib.lessThan h.home.config.fixture.marks)}";
+
+  # The hook's modules see the scope of the evaluation they run in, in the scan
+  # and in the platform evaluation.
+  standaloneHomeSelectionModulesSeeTheHomeScope =
+    let
+      tag =
+        { scope, ... }:
+        {
+          options.tag = lib.mkOption {
+            type = lib.types.str;
+            default = scope;
+          };
+        };
+      h = homeHost { args.selectionModules = [ tag ]; };
+      r = homeModules { args.selectionModules = [ tag ]; };
+    in
+    "scan=${r.selection.tag} platform=${h.home.config.habit.tag}";
+
+  standaloneHomeFailsTheAssertionForAnImportedSelection = failedAssertions (homeConfigOf {
+    host = ./hosts/homeImportsASelection.nix;
+    args.registry = import ../../examples/minimal/registry.nix;
+  });
+
+  unknownClassIsRefused =
+    (composition.mkModules {
+      class = "frobnicate";
+      hostName = "fixture";
+      inherit registry;
+      host = { };
+    }).inventory.host;
+
+  # Home Manager's module belongs to the systems that route homes into it.
+  homeUserNeedsTheHomeManagerModule =
+    (composition.mkNixosModules {
+      hostName = "fixture";
+      inherit registry;
+      host = selecting { users.alice = homeUser "alice" { }; };
+    }).inventory.host;
+
+  standaloneHomeTakesNoHomeManagerModule =
+    (homeModules { args.homeManagerModule = homeManagerStub; }).inventory.host;
+
+  # ── The example (examples/home) ────────────────────────────────────────────
+  exampleHomeInventory =
+    let
+      inv = (example ../../examples/home).inventory;
+    in
+    "${inv.host}:${
+      builtins.concatStringsSep "," (
+        lib.mapAttrsToList (n: d: "${n}=${baseNameOf d.source}") inv.dendrites
+      )
+    }";
+
+  exampleHomeModules = fingerprint (
+    (import ../../examples/home {
+      inherit habit;
+      home-manager.lib.homeManagerConfiguration = args: args;
+      nixpkgs = {
+        inherit lib;
+        legacyPackages.x86_64-linux = { };
+      };
+    }).home.modules
+  );
+
+  # The system half of `ssh` sets `services.openssh`, which a home does not
+  # have: the home evaluates and carries the home half.
+  exampleHomeConfig =
+    let
+      inherit ((example ../../examples/home).home) config;
+    in
+    "${config.home.username} ssh=${lib.boolToString config.programs.ssh.enable}";
+
+  exampleHomeSelected = selectedBy (example ../../examples/home).home.config;
 
   # ── Merging registries (lib/catalogues.nix) ────────────────────────────────
   # Two sources that share no name merge into the union; one that shares a name
@@ -1804,8 +2261,11 @@ selectionCases
     dir:
     import dir {
       inherit habit home-manager;
-      nixpkgs.lib = lib // {
-        inherit nixosSystem;
+      nixpkgs = {
+        lib = lib // {
+          inherit nixosSystem;
+        };
+        legacyPackages.x86_64-linux = { };
       };
     };
 
