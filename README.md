@@ -12,8 +12,8 @@ before NixOS evaluates anything, in an `evalModules` of its own, and hands
 NixOS only that.
 
 ```
-host record ──► selection pass ──► resolved selection ──► platform pass ──► module list ──► nixosSystem
-                (gate, then select;                       (imports only           │
+host module ──► selection pass ──► resolved selection ──► platform pass ──► module list ──► nixosSystem
+                (its `habit.*` keys;                      (imports only           │
                  knows nothing of NixOS)                   what was kept)         └──► inventory
 ```
 
@@ -30,6 +30,9 @@ host record ──► selection pass ──► resolved selection ──► plat
   by hand.
 - **Loud, not silent.** A name two merged registries both define, a misspelt key
   in a group, a field nothing declared: each is an error naming the culprit.
+- **The host is one module.** NixOS evaluates it whole; habit reads only its
+  `habit.*` keys, and refuses a selection that depends on the configuration it
+  is choosing.
 - **Plain modules, one function.** A capability is an ordinary NixOS module,
   and what belongs in a user's home goes in `habit.home`; habit is a pure
   function of nixpkgs `lib`, with no other input. Call it from a flake, npins or
@@ -51,8 +54,8 @@ inputs.habit.inputs.nixpkgs.follows = "nixpkgs";   # habit's nixpkgs only feeds 
 apply each to your own `lib`.
 
 Without flakes, the library is `lib/composition.nix` and `lib/catalogues.nix`,
-each taking `{ lib }` and nothing else, and `lib/lanes.nix`, which
-`composition.nix` reads from beside itself.
+each taking `{ lib }` and nothing else, and `lib/lanes.nix` and `lib/scan.nix`,
+which `composition.nix` reads from beside itself.
 With [npins](https://github.com/andir/npins) (or `fetchTarball`) providing
 `nixpkgs`, `habit` and `home-manager`:
 
@@ -65,7 +68,7 @@ let
   box = composition.mkNixosModules {
     hostName = "box";
     registry = import ./registry.nix;
-    hostModules = [ ./hosts/box.nix ];
+    host = ./hosts/box.nix;
     homeManagerModule = "${sources.home-manager}/nixos";
   };
 in
@@ -99,19 +102,18 @@ host selects it:
 }
 ```
 
-A host selects from it and keeps its own NixOS settings, deferred:
+A host is one module. Its `habit.*` keys select from the registry; everything
+else in it is the host's own NixOS configuration:
 
 ```nix
 # examples/minimal/hosts/box.nix
 {
-  dendrites.ssh.enable = true;
+  habit.dendrites.ssh.enable = true;
 
-  nixos = {
-    networking.hostName = "box";
-    nixpkgs.hostPlatform = "x86_64-linux";
-    boot.isContainer = true;
-    system.stateVersion = "26.11";
-  };
+  networking.hostName = "box";
+  nixpkgs.hostPlatform = "x86_64-linux";
+  boot.isContainer = true;
+  system.stateVersion = "26.11";
 }
 ```
 
@@ -131,7 +133,7 @@ composition.mkNixosHost {
   inherit nixpkgs;
   hostName = "box";
   registry = import ./registry.nix;
-  hostModules = [ ./hosts/box.nix ];
+  host = ./hosts/box.nix;
   homeManagerModule = home-manager.nixosModules.home-manager;
 }
 ```
@@ -155,7 +157,7 @@ The book: <https://dxcently.github.io/habit/> (the same pages are in
 | [The two passes](docs/two-passes.md) | why selection runs first; gate and select; what is read when |
 | [Dendrites](docs/dendrites.md) | plain modules, `habit.home`, `habit.selected`, several providers |
 | [Aggregations](docs/aggregations.md) | groups, membership by priority, provider choices |
-| [The host record](docs/host-record.md) | every field, users and Home Manager |
+| [The host module](docs/host.md) | the `habit.*` keys, the scan and its limits, users and Home Manager |
 | [Override records](docs/overrides.md) | fixes that belong to a capability |
 | [The constructor](docs/constructor.md) | every argument, the module list, hooks, the inventory |
 | [Merging registries](docs/merging.md) | `mergeRegistries` and its errors |

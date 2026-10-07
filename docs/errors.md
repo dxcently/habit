@@ -9,10 +9,29 @@ them.
 
 | message | cause | fix |
 | ------- | ----- | --- |
-| `dendrite '<name>' is enabled but chose no provider; available providers: <list>` | a provider-bearing capability is enabled and nothing chose a provider | set `dendrites.<name>.provider`, or select it through a group whose body names a default |
+| `dendrite '<name>' is enabled but chose no provider; available providers: <list>` | a provider-bearing capability is enabled and nothing chose a provider | set `habit.dendrites.<name>.provider`, or select it through a group whose body names a default |
 | `dendrite '<name>' has no provider '<p>'; available providers: <list>` | the chosen provider is not in the dendrite's `providers` | choose one from the list |
 | `dendrite '<name>' has a single implementation and takes no provider (got '<p>')` | a provider was set on a dendrite that is a plain module | remove the `provider` |
 | `dendrite '<name>' is selected with different providers (<claimants>); one system takes one implementation` | the host and a user, or two users, selected one capability with different providers; each claimant is `host` or `user '<user>'`, then its provider | make every selector name the same provider |
+
+## The host module
+
+The host is read by the scan before NixOS evaluates anything
+([The host module](host.md#the-scan)). Each message begins `habit: host <file>`,
+where `<file>` is the host's path.
+
+| message continues | cause | fix |
+| ----------------- | ----- | --- |
+| ``reads `<argument>` while selection is being read; selection may not depend on platform configuration`` | a `habit` key reads `config`, `pkgs`, `options` or `osConfig`, directly or through `mkIf`; `<argument>` is that one | write the key as a literal, and keep platform-dependent settings outside `habit` |
+| `takes argument(s) <name> which the scan does not provide; pass them in specialArgs` | a `habit` key reads an argument of the host's head (an input, a username) that the caller's `specialArgs` do not hold; one read only under `imports` is never missed | add it to `specialArgs` |
+| `does not look like a module, got <type>` | the host evaluates to something other than an attrset or a function returning one | write a module |
+
+Two more come from the platform evaluation and the hooks:
+
+| message | cause | fix |
+| ------- | ----- | --- |
+| ``Failed assertions: `habit.<path>` is set in <file> but the host scan never saw it (scans do not follow `imports`)`` | a `habit.*` key written by a file other than the host's (an imported file, an `extraModules` entry), or inline in the host's own `imports` with a value selection does not hold | write the key in the host file itself |
+| ``selection module <file> declares habit.<name>; habit reserves dendrites, aggregation, users, selected, home`` | a `selectionModules` module declares one of habit's own names | rename the option |
 
 ## Users
 
@@ -32,7 +51,7 @@ is the capability or `user:<user>`.
 | `has an unsupported top-level attribute: <names>; put configuration under `config`` | a module with `options` or `config` also has a stray top-level key | move it under `config` |
 | `config must be an attribute set, got <type>` | `config` is a list or other non-attrset | make it an attrset |
 | ``config is a `<type>` value habit cannot split`` | `config` is an `mkOrder` or another module-system value that is not `mkIf`, `mkMerge` or `mkOverride` | write the configuration as an attrset, or wrap it in one of those three |
-| ``unknown habit key(s): <keys>; only `home` is read`` | a key under `habit` other than `home` (`habit.homee`, `habit.selected`) | rename or remove it |
+| ``unknown habit key(s): <keys>; only `home` is read`` | a key under `habit` other than `home` (`habit.homee`, `habit.selected`, a selection such as `habit.dendrites`) | rename or remove it |
 | `` `habit` is a `<type>` value; write habit.home as a plain attribute `` | `habit = mkIf …` or another wrapped `habit`: the wrapper cannot split it without evaluating the condition | write `habit.home` as a plain attribute |
 | `` `habit` must be an attribute set holding `home`, got <type> `` | `habit` is a number, list or other non-attrset | make it an attrset |
 
@@ -81,11 +100,11 @@ was given as a path:
 
 | message | cause |
 | ------- | ----- |
-| ``The option `dendrites.<name>' does not exist.`` | a capability not in the catalogue, or a group member naming one |
-| ``The option `aggregation.<group>' does not exist.`` | a group not in the registry |
-| ``The option `aggregation.<group>.<member>' does not exist.`` | a provider selector the group does not own in that scope |
-| ``The option `<field>' does not exist.`` | a host record field nothing declared; declare it with `selectionModules` |
-| ``The option `dendrites.<name>.provider' has conflicting definition values`` | two selected groups chose different providers for one member |
+| ``The option `habit.dendrites.<name>' does not exist.`` | a capability not in the catalogue, or a group member naming one |
+| ``The option `habit.aggregation.<group>' does not exist.`` | a group not in the registry |
+| ``The option `habit.aggregation.<group>.<member>' does not exist.`` | a provider selector the group does not own in that scope |
+| ``The option `habit.<key>' does not exist.`` | a key under `habit` nothing declared: a misspelt one (`habit.dendrtes`, with the nearest names suggested) or a host field to declare with `selectionModules`; also a `habit.home` written by a file a dendrite imports |
+| ``The option `habit.dendrites.<name>.provider' has conflicting definition values`` | two selected groups chose different providers for one member |
 | ``The option `<key>' does not exist.`` | a key of a dendrite's own configuration that no module declares where its system half is evaluated: a misspelt option, or a set of named lanes (`{ body; nixos; homeManager; }`), which habit reads as an ordinary module |
 | ``The option `<name>' in `<file>' is already declared in `<file>'.`` | a catalogue file that declares options and is selected, and is also imported by hand ([Dendrites](dendrites.md#what-is-not-a-module)) |
 | ``The option `habit.selected' is read-only, but it's set multiple times.`` | something other than the constructor defines `habit.selected`, in the host's evaluation or, as `home-manager.users.<user>.habit.selected`, in a user's home |

@@ -46,8 +46,8 @@ The two halves' `module` land where their scope's own settings do:
 
 | half     | `module` lands                                                                               |
 | -------- | -------------------------------------------------------------------------------------------- |
-| `system` | in the host's evaluation, merged with the host's own `nixos`                                 |
-| `home`   | in each selecting user's home, after the homes of that user's modules and of the matched override records, merged with the user's own `home.config` |
+| `system` | in the host's evaluation, as its own module-list entry just before the host module           |
+| `home`   | in each selecting user's home, after the homes of that user's modules and of the matched override records, just before the user's own `home.config` |
 
 A selected body is validated when it is read, and each failure names the
 aggregation and its file ([Errors](errors.md#aggregation-bodies)):
@@ -62,9 +62,9 @@ aggregation and its file ([Errors](errors.md#aggregation-bodies)):
 A body nobody selected is never read, so it is never validated either.
 
 One body serves both scopes. The host selects it with
-`aggregation.desktop.enable = true` and gets the `system` half; a user selects
-it with `users.<name>.aggregation.desktop.enable = true` and gets the `home`
-half. The two halves reach different evaluators.
+`habit.aggregation.desktop.enable = true` and gets the `system` half; a user
+selects it with `habit.users.<name>.aggregation.desktop.enable = true` and gets
+the `home` half. The two halves reach different evaluators.
 
 ## What every host carries
 
@@ -79,29 +79,29 @@ goes in `extraModules`.
 For each member of a selected half, the group writes:
 
 ```nix
-dendrites.<member>.enable = mkDefault true;
-dendrites.<member>.provider = mkDefault <the group's provider option>;   # provider-bearing members
+habit.dendrites.<member>.enable = mkDefault true;
+habit.dendrites.<member>.provider = mkDefault <the group's provider option>;   # provider-bearing members
 ```
 
 Everything about membership follows from that priority.
 
 | situation                                              | outcome                                                       |
 | ------------------------------------------------------ | ------------------------------------------------------------- |
-| host sets `dendrites.printing.enable = false`          | `false` (priority 100) beats the group's `true` (1000): printing is never imported |
-| a layer above sets `dendrites.printing.enable = mkForce true` | back on: `mkForce` (50) beats the host's `false`        |
+| host sets `habit.dendrites.printing.enable = false`    | `false` (priority 100) beats the group's `true` (1000): printing is never imported |
+| a layer above sets `habit.dendrites.printing.enable = mkForce true` | back on: `mkForce` (50) beats the host's `false`   |
 | two selected groups name the same member, same terms   | they merge into one selection; the module is imported once    |
-| two selected groups choose different providers for it  | error: `dendrites.<member>.provider` has conflicting definition values |
-| host sets `dendrites.notifications.provider = "x"`     | the host's choice beats the group's default                   |
+| two selected groups choose different providers for it  | error: `habit.dendrites.<member>.provider` has conflicting definition values |
+| host sets `habit.dendrites.notifications.provider = "x"` | the host's choice beats the group's default                 |
 
 The workstation example switches a member off:
 
 ```nix
 # examples/workstation/hosts/desk.nix
 {
-  aggregation.desktop.enable = true;
-  dendrites.printing.enable = false;
+  habit.aggregation.desktop.enable = true;
+  habit.dendrites.printing.enable = false;
 
-  users.alice = {
+  habit.users.alice = {
     definition = ../users/alice.nix;
     home.enable = true;
     aggregation.desktop = {
@@ -110,25 +110,23 @@ The workstation example switches a member off:
     };
   };
 
-  nixos = {
-    networking.hostName = "desk";
-    nixpkgs.hostPlatform = "x86_64-linux";
-    boot.isContainer = true;
-    system.stateVersion = "26.11";
-  };
+  networking.hostName = "desk";
+  nixpkgs.hostPlatform = "x86_64-linux";
+  boot.isContainer = true;
+  system.stateVersion = "26.11";
 }
 ```
 
 `desk` gets `bluetooth` and not `printing`; the suite replaces `printing`'s
 body with one that throws on import and the host still builds, then sets
-`dendrites.printing.enable = lib.mkForce true` on top and the throwing body is
-reached. Two groups that disagree on a provider collide instead of letting
+`habit.dendrites.printing.enable = lib.mkForce true` on top, from a
+`selectionModules` module, and the throwing body is reached. Two groups that disagree on a provider collide instead of letting
 import order pick a winner.
 
 ## Choosing a provider
 
 A provider-bearing member gets a selector under the group that owns it, in
-that scope: `aggregation.<group>.<member>.provider`. Its default is the
+that scope: `habit.aggregation.<group>.<member>.provider`. Its default is the
 body's `providers.<member>`. In `desk.nix` above, alice takes `desktop`'s home
 half and picks `dunst` over the body's `mako`. A single-implementation member
 gets no selector at all.
@@ -136,7 +134,7 @@ gets no selector at all.
 The selector is typed only in the select step, once the body is read
 ([The two passes](two-passes.md#selection-gate-then-select)). Before that it is
 accepted untyped, so a selector the group does not own
-(`aggregation.desktop.compositor.provider`) fails in the select step as an
+(`habit.aggregation.desktop.compositor.provider`) fails in the select step as an
 option that does not exist.
 
 ## A group cannot select a group

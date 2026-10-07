@@ -13,8 +13,9 @@ gives it.
 | dendrite        | a capability: one plain module, or a set of providers that are plain modules | [Dendrites](dendrites.md)        |
 | half            | the system half or the home half (`habit.home`) of one module, derived when a selected module is imported | [Dendrites](dendrites.md#a-plain-module) |
 | `habit.selected` | what a scope selected: a read-only option in every evaluation         | [Dendrites](dendrites.md#reading-the-selection) |
+| scan            | how selection reads the host module: its `habit.*` keys only, never the platform's values | [The host module](host.md#the-scan) |
 | aggregation     | a group of dendrites, written as data, selected by name                | [Aggregations](aggregations.md)       |
-| host record     | what one host selects, plus its own deferred `nixos` settings          | [The host record](host-record.md)     |
+| host module     | one module: its `habit.*` keys select, everything else is the host's NixOS configuration | [The host module](host.md) |
 | override record | a fix that belongs to a capability and applies where it was selected   | [Override records](overrides.md)      |
 | nucleus         | by convention, the aggregation of dendrites every host selects         | [Aggregations](aggregations.md#what-every-host-carries) |
 | inventory       | what a host resolved, derived from its selection                       | [The constructor](constructor.md#the-inventory) |
@@ -37,7 +38,7 @@ nothing of NixOS, and builds the import list from the answer.
 
 **Selection is by priority.** A group's membership is written with
 `mkDefault`, so a host switches one member off with a plain
-`dendrites.printing.enable = false`, and anything above that (`mkForce true`)
+`habit.dendrites.printing.enable = false`, and anything above that (`mkForce true`)
 switches it back on. No second group, no exclude list, no `mkIf`: the same
 priorities that settle every other NixOS option settle membership.
 [Aggregations](aggregations.md)
@@ -53,11 +54,19 @@ suite proves it with fixtures that throw when imported. The one weaker
 boundary, override records, is stated where it lives.
 [Override records](overrides.md#the-evaluation-boundary)
 
+**The host is one module, and selection reads part of it.** NixOS evaluates the
+host module whole. Selection reads only its literal `habit.*` keys: the
+platform's own arguments (`config`, `pkgs`) throw if the scan touches them, its
+`imports` are not followed and every other key is never forced. A selection
+that depends on the platform is refused by name; one written in an imported
+file is caught by an assertion in the platform evaluation.
+[The host module](host.md#the-scan)
+
 **A pure function of `lib`.** `lib/composition.nix` and `lib/catalogues.nix`
 each take `{ lib }` and nothing else: no flake inputs, no `pkgs`, no
-environment (`lib/lanes.nix`, which the first reads, is the same). The flake
-exports the two unapplied, so selection runs on the consumer's own `lib`, and
-the library works without flakes at all.
+environment (`lib/lanes.nix` and `lib/scan.nix`, which the first reads, are the
+same). The flake exports the two unapplied, so selection runs on the consumer's
+own `lib`, and the library works without flakes at all.
 
 **Names are unique across merged catalogues.** Two registries merged with `//`
 let one side silently win every name both define. `mergeRegistries` refuses,
@@ -69,9 +78,11 @@ groups, each capability with its provider and the path that answered, its
 users, the fixes that matched) is computed from the selection itself.
 [The constructor](constructor.md#the-inventory)
 
-**The constructor knows no vocabulary.** A new field on the host record comes
-in through a hook (`selectionModules`, `extraModulesFor`), not by teaching the
-constructor a word. [The constructor](constructor.md#the-two-hooks)
+**The constructor knows no consumer's vocabulary.** It knows habit's own words
+(`habit.dendrites`, `habit.aggregation`, `habit.users`, `habit.home`,
+`habit.selected`). A consumer's field comes in through a hook
+(`selectionModules`, `extraModulesFor`), not by teaching the constructor a word.
+[The constructor](constructor.md#the-two-hooks)
 
 **Every error names what failed.** The test suite greps the real message, so a
 vague error is a failing test. [Errors](errors.md)
@@ -83,7 +94,7 @@ vague error is a failing test. [Errors](errors.md)
 | [The two passes](two-passes.md)     | why selection runs first, gate and select, the boundary         |
 | [Dendrites](dendrites.md)           | plain modules, `habit.home`, `habit.selected`, multi-provider capabilities |
 | [Aggregations](aggregations.md)     | group bodies, membership by priority, provider choices           |
-| [The host record](host-record.md)   | every field a host sets, users and Home Manager                  |
+| [The host module](host.md)          | the `habit.*` keys, the scan and its limits, users and Home Manager |
 | [Override records](overrides.md)    | capability-scoped fixes, matching, the weaker boundary           |
 | [The constructor](constructor.md)   | every argument, the module list order, hooks, the inventory      |
 | [Merging registries](merging.md)    | `mergeRegistries`, the source shape, its errors                  |
@@ -109,7 +120,8 @@ file the suite evaluates.
 
 `tests/selection/` holds executable cases over a fixture registry
 (`registry.nix`, `dendrites/`, `aggregations/`, `overrides/`, `users/`,
-`badrecords/`), over the wrapper (`lanes/`) and over the examples. A fixture
+`badrecords/`), over host modules (`hosts/`) and the hooks (`hooks/`), over the
+wrapper (`lanes/`) and over the examples. A fixture
 implementation or aggregation body that throws on import proves that "never
 imported" is a fact, not a claim. `run.sh` evaluates each case on its own; a
 negative case must throw AND carry its expected message.

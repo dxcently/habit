@@ -62,10 +62,12 @@ habit reads it out of the module's top-level configuration, through `mkIf`,
 `mkMerge` and `mkOverride` wrappers without evaluating their conditions, and
 removes it before the module system sees the rest. So:
 
-- only `habit.home` is read; any other `habit` key (`habit.homee`) is an error
-  naming the file, and so is a `habit` that is itself behind `mkIf`;
+- only `habit.home` is read; any other `habit` key (`habit.homee`, or a
+  selection such as `habit.dendrites.kitty.enable`, which only the host makes) is
+  an error naming the file, and so is a `habit` that is itself behind `mkIf`;
 - a module's `imports` belong to the system half; imports for the home half go
-  inside `habit.home`;
+  inside `habit.home`, and a file the module imports that writes `habit.home`
+  fails as an option that does not exist, naming that file;
 - the module's own head (`{ config, lib, ... }:`) is the system's, so reading
   `config` there reads NixOS options; `habit.home = { config, lib, ... }: ...`
   binds Home Manager's own `config` and its `lib`, extended with `lib.hm`;
@@ -105,7 +107,9 @@ was selected without importing it:
 }
 ```
 
-Each entry is `{ enable : bool; provider : null or string; }` for every
+`habit.selected` is one key of the `habit` option, beside the keys the host sets
+under it ([The host module](host.md)), which the platform evaluation declares
+inert. Each entry is `{ enable : bool; provider : null or string; }` for every
 catalogue name; an unselected name is `{ enable = false; provider = null; }`.
 It is written from the resolved selection and never reads configuration, so it
 cannot recurse into the selection. Defining it anywhere else (an
@@ -152,7 +156,7 @@ provider, and a selector that names another is an error naming every claimant
 | enabled, `provider = "nope"`                  | error naming the available providers                       |
 | single implementation, any `provider`         | error: it takes no provider                                |
 
-A provider is chosen with `dendrites.<name>.provider`, or under the
+A provider is chosen with `habit.dendrites.<name>.provider`, or under the
 aggregation that groups it ([Aggregations](aggregations.md#choosing-a-provider)).
 
 ## What is not a module

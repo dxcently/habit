@@ -35,7 +35,7 @@ What the differences mean for you:
   `acc ++ …`, list concatenation (`modules/options.nix`). Once a shared layer
   excludes `kitty`, every layer below it has lost `kitty`, and giving one host
   its member back means reshaping the aspects. In habit removal is a boolean
-  merged by priority: `dendrites.kitty.enable = false` beats the group's
+  merged by priority: `habit.dendrites.kitty.enable = false` beats the group's
   `mkDefault`, and `mkForce true` beats that.
 - **Excluded is not unread.** den does not apply an excluded aspect, but an
   aspect is a definition under `den.aspects`, and den's own template loads every

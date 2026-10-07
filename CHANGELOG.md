@@ -41,6 +41,46 @@ Append-only. Newest first.
   the whole-tree check on `extraModules` is gone, so a catalogue file both
   selected and imported by hand is nixpkgs's `already declared`.
 
+- The host is one module, passed as `host` (a path or a module value) in place of
+  `hostModules`. The typed host record and its deferred `nixos` field are gone:
+  the module goes into the platform's module list as its last entry, and what it
+  sets besides `habit` is the host's own platform configuration. Its selection keys
+  moved under `habit`: `habit.dendrites.<name>.{enable,provider}`,
+  `habit.aggregation.<group>…` and `habit.users.<user>.{definition,home,dendrites,aggregation}`.
+  A caller that still passes `hostModules` fails with Nix's unexpected-argument
+  error, and a host that still writes `dendrites.<name>` at the top level fails as
+  an option that does not exist, naming the file.
+- Selection reads the host through `lib/scan.nix`: the host is applied to the
+  caller's `specialArgs` with `config`, `pkgs`, `options` and `osConfig` replaced
+  by values that throw, its `imports` are dropped and every other key is never
+  forced. A `habit` key that needs one of those four arguments is refused, naming
+  the host file and the argument; an argument the host takes that `specialArgs`
+  does not hold is named when the host reads it, so `modulesPath` used only under
+  `imports` costs nothing; the caller's own `lib` is the host's `lib`; a typo such
+  as `habit.dendrtes` is an option that does not exist, with the nearest names
+  suggested.
+- The platform evaluation declares the host's `habit.*` keys inert (null until
+  written) and fails every key the scan did not see: any `habit` key written by a
+  file other than the host's, and any key written inline in the host's own
+  `imports` whose value selection does not hold. That is how a selection, a hook's
+  key or a user's `home.config` written in a file the host imports, where the scan
+  does not look, is caught: "`habit.dendrites.kitty.enable` is set in <file> but
+  the host scan never saw it (scans do not follow `imports`)".
+- `selectionModules` are modules of `habit`: an option one declares is
+  `habit.<option>`, the host sets it there, the platform evaluation declares it
+  too, and the resolved selection (what `extraModulesFor` receives, and
+  `evalSelection` returns) is the `habit` option's value, so a hook's field is
+  `selection.<option>`. `dendrites`, `aggregation`, `users`, `selected` and `home`
+  are reserved: a module declaring one fails, naming its file. `evalSelection`
+  takes `{ registry, host, specialArgs, selectionModules }`.
+- An aggregation's system `module` is its own module-list entry just before the
+  host module, and a home half's `module` is imported just before the user's
+  `home.config`; both used to merge into a deferred module (`selection.nixos`,
+  `home.config`), and are now read from the body when the list is assembled.
+- Invariants 1 and 5 of `AGENTS.md` are reworded: selection never reads platform
+  values (it reads the host module's literal `habit.*` and nothing else), and the
+  constructor knows no consumer's vocabulary (it knows habit's own words).
+
 ## v1
 
 - Extracted `lib/composition.nix` from Aoide (`1239a83d333cde0b4a3d7bc28e6c8a989093b92d`,

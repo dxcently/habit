@@ -4,10 +4,10 @@ A host is built in two evaluations. The first decides what the host is made
 of; the second imports exactly that and nothing else.
 
 ```
-host record ──► selection pass ──► resolved selection ──► platform pass ──► module list
-                (evalModules,                              (imports only
-                 knows nothing                              what selection
-                 of NixOS)                                  kept)
+host module ──► selection pass ──► resolved selection ──► platform pass ──► module list
+                (evalModules over                          (imports only       and the host
+                 its `habit.*` keys;                        what selection      module itself
+                 knows nothing of NixOS)                    kept)
 ```
 
 ## Why selection cannot live inside NixOS
@@ -36,27 +36,37 @@ selection on its own:
 
 | pass      | evaluates                                    | reads                      | produces                         |
 | --------- | -------------------------------------------- | -------------------------- | -------------------------------- |
-| selection | `lib.evalModules` over a small schema         | the registry, host modules | the resolved selection           |
+| selection | `lib.evalModules` over a small schema         | the registry, the host module's `habit.*` | the resolved selection |
 | platform  | nothing; it assembles a list                  | the resolved selection     | the module list, `specialArgs`, the inventory |
 | NixOS     | `nixosSystem` over that list                  | the module list            | the system                       |
 
-The selection schema (`mkSchema` in `lib/composition.nix`) declares only
-selection options: `dendrites`, `aggregation`, `users`, `nixos` and a
-read-only `catalogue`. No NixOS option is declared there, so a host record
-cannot read one. Platform settings (the host's own `nixos`, a group's
-`system.module` and `home.module`, a user's `home.config`) are `deferredModule`
-options: the selection pass carries them as values and the platform pass hands
-them to the evaluator they are for.
+The host is one module that NixOS evaluates whole, and the selection pass reads
+the same file. What keeps that from being the circular import is what the scan
+(`lib/scan.nix`) lets through: the host's literal `habit.*` attribute paths and
+values. The platform's own arguments (`config`, `pkgs`, `options`, `osConfig`)
+are replaced by values that throw, the host's `imports` are not followed, and
+every other key is never forced ([The host module](host.md#the-scan)). The
+selection schema (`mkSchema` in `lib/composition.nix`) declares only selection
+options, under one typed `habit` option: `dendrites`, `aggregation`, `users` and
+a read-only `catalogue`. No NixOS option is declared there, so a selection
+cannot read one. Platform settings (the host's own, a group's `system.module`
+and `home.module`, a user's `home.config`) are carried as values: the platform
+pass hands them to the evaluator they are for.
+
+The platform evaluation reads the host again, whole. It declares the same
+`habit.*` keys inert and fails any that selection does not hold, which is how a
+selection written in a file the host imports, where the scan does not look, is
+caught.
 
 ## Selection: gate, then select
 
 A host chooses a provider under the aggregation that owns it:
 
 ```nix
-aggregation.desktop.notifications.provider = "dunst";
+habit.aggregation.desktop.notifications.provider = "dunst";
 ```
 
-The option `aggregation.desktop.notifications` exists only because the
+The option `habit.aggregation.desktop.notifications` exists only because the
 `desktop` body says `notifications` is one of its provider-bearing members.
 Its name comes from the body, so the body must be read before the option can
 be declared, and a body must not be read unless the host selected it. The
@@ -76,13 +86,13 @@ host     ──►│ only; the rest is freeform, ignored   │   │ declare th
   the set of aggregations the host, or one of its users, selects.
 - **select**: the selected bodies are imported, declare their real nested
   options, and write their membership. Nothing else is read. A selector the
-  body does not own (`aggregation.desktop.compositor.provider`) now fails as
+  body does not own (`habit.aggregation.desktop.compositor.provider`) now fails as
   an option that does not exist.
 
 An aggregation body is data, so it has no way to enable another aggregation:
 the gate step's answer is the select step's answer. Both steps receive the
-same host modules, plus any `selectionModules` the caller passes
-([The constructor](constructor.md#the-two-hooks)).
+same host module, as the scan reads it, plus any `selectionModules` the caller
+passes ([The constructor](constructor.md#the-two-hooks)).
 
 ## Platform: import what was kept
 
@@ -102,6 +112,7 @@ It is the only place anything from the catalogue is `import`ed.
 | a catalogue entry       | iff a scope enabled that capability (platform pass)             |
 | a provider file         | iff it is the provider chosen for an enabled capability         |
 | a user's definition     | for every user on the host                                      |
+| the host module         | its `habit.*` keys by the scan; the whole file by the platform evaluation; its `imports` by the platform evaluation alone |
 | an override record file | always, on every host (see [Override records](overrides.md#the-evaluation-boundary)) |
 
 Each "iff" is proved in `tests/selection` by a fixture that throws when it is

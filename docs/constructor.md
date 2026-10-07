@@ -7,7 +7,7 @@ it returns:
 | ----------------- | -------------------------------------------------------------------------- |
 | `mkNixosHost`     | `mkNixosModules` handed to `nixpkgs.lib.nixosSystem`                       |
 | `mkNixosModules`  | the platform pass: module list, `specialArgs`, selection, inventory        |
-| `evalSelection`   | `{ registry, modules }` -> resolved selection (gate, then select)          |
+| `evalSelection`   | `{ registry, host, specialArgs, selectionModules }` -> resolved selection (gate, then select) |
 | `inventoryOf`     | `{ hostName, selection }` -> what the host resolved; the review surface    |
 | `implOf`, `overridesFor`, `mkSchema` | the pieces, for callers that assemble differently |
 
@@ -44,13 +44,13 @@ only; nothing is imported at registry time.
 | ------------------- | -------- | ------------------ | ----------------------------------------------------------- |
 | `hostName`          | yes      |                    | the host's name; passed on as `host`                        |
 | `registry`          | yes      |                    | the registry above, or the result of `mergeRegistries`      |
-| `hostModules`       | yes      |                    | the host record's modules ([The host record](host-record.md)) |
+| `host`              | yes      |                    | the host module: a path or a module value ([The host module](host.md)) |
 | `homeManagerModule` | yes      |                    | Home Manager's NixOS module; imported only if a user enables it |
 | `knownHosts`        | no       | `[ hostName ]`     | host names an override record's `hosts` may name            |
 | `specialArgs`       | no       | `{ }`              | extra arguments for every platform and home module          |
 | `overlays`          | no       | `[ ]`              | the caller's package overlays                               |
 | `extraModules`      | no       | `[ ]`              | extra platform modules                                      |
-| `selectionModules`  | no       | `[ ]`              | modules that join the host's in both selection steps        |
+| `selectionModules`  | no       | `[ ]`              | modules of `habit`: they join the scan in both steps and the platform evaluation |
 | `extraModulesFor`   | no       | `_: [ ]`           | resolved selection -> platform modules                      |
 | `system`            | no       | `"x86_64-linux"`   | passed on as the `system` argument only                     |
 
@@ -66,13 +66,21 @@ The arguments that need more than a line:
 - **`knownHosts`**: a record confined to a host not in it fails as "confined to
   unknown host(s)", so a consumer building several hosts passes every host name
   to each.
+- **`host`** goes to the platform evaluation whole, as its last module, and to
+  the scan, which reads its `habit.*` keys only. The scan applies a host that is a
+  function to `specialArgs` (below), `lib` and four arguments that throw; an
+  argument the host takes that none of those provides throws where it is read,
+  naming the host file and the argument ([The host module](host.md#the-scan)).
+  The module system's own arguments are not there: a host that reads
+  `modulesPath` in a `habit` key needs it in `specialArgs`.
 - **`specialArgs`** is extended with `system` and `host = hostName` (those two
-  win), and the result is what every platform module and every home module
-  receives.
+  win), and the result is what every platform module, every home module and the
+  scan's application of the host receives. The `host` argument a module
+  receives is the name; the constructor's `host` argument is the module.
 - **`system`** is only that argument. The constructor never sets
-  `nixpkgs.hostPlatform`: the host's own `nixos`, a selected group's `system.module` or
-  an `extraModules` entry sets it, or the host fails to evaluate. The examples
-  set it in the host's own `nixos`.
+  `nixpkgs.hostPlatform`: the host module itself, a selected group's
+  `system.module` or an `extraModules` entry sets it, or the host fails to
+  evaluate. The examples set it in the host module.
 - **`overlays`**: a selected module's overlay is applied before the caller's,
   so inside it `prev` carries none of the caller's packages and reading one
   aborts with a missing attribute. A module therefore builds what it replaces
@@ -82,7 +90,8 @@ The arguments that need more than a line:
   override record's overlay is applied after the modules' and before the
   caller's.
 - **`extraModules`** land after the selected modules and before the matched
-  records' `system` modules and the host's own `nixos`. A catalogue file listed
+  records' `system` modules, the selected groups' `system.module`s and the host
+  module. A catalogue file listed
   here that the host also selected is two copies of one module, which nixpkgs
   refuses as `already declared`: select it or import it, not both
   ([Dendrites](dendrites.md#what-is-not-a-module)).
@@ -94,13 +103,14 @@ The platform pass assembles one list, in this order:
 ```
  1  { nixpkgs.overlays = overlays; }               if overlays != [ ]
  2  { nixpkgs.overlays = <matched records' overlays>; }   if any
- 3  habit.selected for the system                  the host's own scope
+ 3  habit                                          the host's `habit.*` keys, inert; `habit.selected` for the system; the assertion
  4  each user's module, wrapped                    the accounts, and each user's `habit.home`
  5  each selected capability, wrapped              catalogue (name) order, one per capability
  6  Home Manager wiring                            if any user has home.enable
  7  extraModules ++ extraModulesFor selection
  8  each matched override record's `system`
- 9  selection.nixos                                the host's `nixos`, merged with selected groups' `system.module`
+ 9  each selected group's `system.module`          group name order, one entry per module
+10  host                                           the host module itself
 ```
 
 Position is not priority. A scalar defined twice at the same priority
@@ -109,7 +119,8 @@ decide. Position shows in list-typed options, whose definitions merge in
 reverse list order: the suite pins `nixpkgs.overlays` as the selected modules',
 then the matched records', then the caller's (`overlayOrder`), and an
 `extraModulesFor` module after a selected module and before a matched record's
-`system` module (`extraModulesForKeepsItsPosition`). Overlays apply in that
+`system` module (`extraModulesForKeepsItsPosition`), and a group's `system.module`
+between a matched record's and the host's (`aggregationModuleSitsJustBeforeTheHost`). Overlays apply in that
 order and the last to set an attribute wins, so a record's overlay beats a
 selected module's, and the caller's beats the record's. The host's own overlays come
 first and lose to all of them; a host that must win orders its definition
@@ -118,34 +129,42 @@ later, `nixpkgs.overlays = lib.mkAfter [ … ]`.
 A home half is not in this list: it is a `home-manager.users.<user>`
 definition made by the wrapped module in item 4 or 5, merged by that module's
 position, so it comes before the wiring's own per-user imports
-([The host record](host-record.md#what-a-users-home-is-made-of)).
+([The host module](host.md#what-a-users-home-is-made-of)).
 
-The minimal example's list is three entries: `habit.selected`, the wrapped
-`ssh` module, the host's `nixos`.
+The minimal example's list is three entries: `habit`, the wrapped `ssh`
+module, the host module.
 
 ## The two hooks
 
-Two hooks keep the constructor free of any vocabulary as a host record grows
-fields it has never heard of. Both default to nothing, and at their defaults
-the module list is exactly the one assembled without them.
+Two hooks keep the constructor free of any consumer's vocabulary as a host
+grows keys it has never heard of. Both default to nothing, and at their
+defaults the module list is exactly the one assembled without them.
 
-- **`selectionModules`**: modules that join the host's own in both selection
-  steps, so a field they declare is a field the host record can set and the
-  gate step can read.
+- **`selectionModules`**: modules of `habit` itself. They join the scan in both
+  steps and the platform evaluation, so an option one declares is `habit.<option>`:
+  a key the host can set and the gate step can read, and one the platform
+  evaluation holds too. They receive `lib` and `scope` (`"system"`) as module
+  arguments, and no `pkgs` or NixOS `config`. `dendrites`, `aggregation`,
+  `users`, `selected` and `home` are habit's own names under `habit`: a module
+  declaring one is refused, naming its file.
 - **`extraModulesFor`**: a function of the resolved selection returning
   platform modules, which is how a gate-pass choice becomes an import without a
   gate-pass body import. Its modules sit with `extraModules`. It is handed the
-  whole selection, catalogue values included, so it can `import` a body nothing
-  selected; passing selected paths only is the caller's discipline, and the
-  suite pins that it is possible (`extraModulesForCanReachTheCatalogue`).
+  whole selection (`habit` as the host wrote it and resolved, so
+  `selection.dendrites` and a hook's `selection.<option>`, with `catalogue`
+  beside them), so it can `import` a body nothing selected; passing selected
+  paths only is the caller's discipline, and the suite pins that it is possible
+  (`extraModulesForCanReachTheCatalogue`).
 
 ```nix
-# a field the constructor does not know, and the import it decides
+# a key the constructor does not know, and the import it decides
 selectionModules = [
   { options.role = lib.mkOption { type = lib.types.enum [ "server" "laptop" ]; }; }
 ];
 extraModulesFor = selection: lib.optional (selection.role == "laptop") ./laptop.nix;
 ```
+
+The host then writes `habit.role = "laptop";`.
 
 ## The inventory
 
@@ -204,7 +223,7 @@ composition.mkNixosHost {
   inherit nixpkgs;
   hostName = "box";
   registry = import ./registry.nix;
-  hostModules = [ ./hosts/box.nix ];
+  host = ./hosts/box.nix;
   homeManagerModule = home-manager.nixosModules.home-manager;
 }
 ```

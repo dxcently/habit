@@ -97,10 +97,48 @@ overrideStrayHost                   throws  confined to unknown host(s): gamma
 overrideCarriesNothing              throws  carries nothing to apply
 selectionModuleFieldIsVisible       ok      "sonata"
 selectionModuleFieldIsUnknownWithoutIt throws does not exist
+selectionModuleFieldIsDeclaredInThePlatformEvaluation ok "sonata"
+selectionModuleReservedNameDendrites throws hooks/reservedDendrites.nix declares habit.dendrites; habit reserves dendrites, aggregation, users, selected, home
+selectionModuleReservedNameHome     throws  hooks/reservedHome.nix declares habit.home; habit reserves dendrites, aggregation, users, selected, home
 selectionModuleDrivesTheGatePass    ok      "workstation:notifications,systemonly"
 extraModulesForLandsOnlyWhenSelected ok "1:0"
 extraModulesForCanReachTheCatalogue throws  landmine/default.nix was imported
 extraModulesForKeepsItsPosition     ok      "allhosts,hook,systemonly"
+scanReadsHabitKeysAndNothingElse    ok      "host=notifications/herald,systemonly groups=workstation alice=homeonly"
+topLevelSelectionKeysAreRefusedByThePlatformEvaluation throws The option `dendrites' does not exist
+scanDoesNotFollowImports            ok      "host=systemonly groups= alice="
+platformEvaluationFollowsImports    throws  hosts/importThrows.nix was imported
+scanDropsImportsGuardedByConfig     ok      "host=systemonly groups= alice="
+scanReadsAHostWithAnArgsHead        ok      "host=systemonly groups= alice="
+scanLeavesAGuardWithoutHabitKeysUnforced ok "host=systemonly groups= alice="
+scanTypoIsAnOptionThatDoesNotExist  throws  The option `habit.dendrtes' does not exist
+scanTypoSuggestsTheKeyItMeant       throws  Did you mean `habit.dendrites'
+scanPoisonsAHabitKeyUnderMkIf       throws  hosts/mkIfHabitKey.nix reads `config` while selection is being read; selection may not depend on platform configuration
+scanPoisonsAMkIfAroundConfig        throws  hosts/mkIfConfigKey.nix reads `config` while selection is being read; selection may not depend on platform configuration
+scanPoisonsAMkIfAroundTheHost       throws  hosts/mkIfTopLevel.nix reads `config` while selection is being read; selection may not depend on platform configuration
+scanPoisonsHabitItselfUnderMkIf     throws  hosts/mkIfHabit.nix reads `config` while selection is being read; selection may not depend on platform configuration
+scanPoisonsPkgs                     throws  hosts/usesPkgs.nix reads `pkgs` while selection is being read; selection may not depend on platform configuration
+scanPoisonsOptions                  throws  hosts/usesOptions.nix reads `options` while selection is being read; selection may not depend on platform configuration
+scanPoisonsOsConfig                 throws  hosts/usesOsConfig.nix reads `osConfig` while selection is being read; selection may not depend on platform configuration
+scanDropsRequire                    ok      "host=systemonly groups= alice="
+scanNamesAMissingHostArgument       throws  hosts/usesMissingArg.nix takes argument(s) username which the scan does not provide; pass them in specialArgs
+scanDropsImportsThatNeedAnArgumentItLacks ok "host=systemonly groups= alice="
+scanTakesTheCallersSpecialArgs      ok      "carol"
+scanTakesTheCallersLib              ok      "caller"
+platformHoldsWhatTheScanRead        ok      "none"
+selectionInAnImportedFileFailsAnAssertion throws hosts/selectsInImport.nix but the host scan never saw it (scans do not follow `imports`)
+selectionInAnImportedFileIsNamed    throws  `habit.dendrites.systemonly.enable` is set in
+providerInAnImportedFileFailsAnAssertion throws `habit.aggregation.workstation.notifications.provider` is set in
+userInAnImportedFileFailsAnAssertion throws `habit.users.carol.definition` is set in
+hookKeyInAnImportedFileFailsAnAssertion throws `habit.tag` is set in
+homeConfigInAnImportedFileFailsAnAssertion throws `habit.users.alice.home.config.fixture.marks` is set in
+aKeyAnImportedFileRepeatsIsStillRefused throws hosts/selectsInImport.nix but the host scan never saw it (scans do not follow `imports`)
+inlineImportIsCaughtByItsValue      throws  hosts/importsInline.nix but the host scan never saw it (scans do not follow `imports`)
+hostWithItsOwnFileIsClean           ok      "none"
+hostFunctionWithItsOwnFileIsClean   ok      "none"
+importedFileWithoutHabitKeysIsQuiet ok      "none:imported+systemonly"
+hostIsTheLastModule                 ok      "true"
+aggregationModuleSitsJustBeforeTheHost ok   "host+aggregation+allhosts+systemonly"
 hookDefaultsChangeNothing           ok      "same:true"
 mkHostPassesTheModulesThrough       ok      "same:true"
 wrapFunctionModule                  ok      "same:true:fn,home-manager,out,sys"
@@ -133,6 +171,8 @@ wrapHomeUserNeedsHomeManager        throws  The option `home-manager' does not e
 wrapNotAModule                      throws  lanes/notModule.nix (habit module 'notModule'): does not look like a module, got string
 wrapUnsupportedTopLevelAttribute    throws  lanes/unsupportedAttr.nix (habit module 'unsupportedAttr'): has an unsupported top-level attribute: bogus; put configuration under `config`
 splitHabitNotAttrs                  throws  lanes/habitNotAttrs.nix (habit module 'habitNotAttrs'): `habit` must be an attribute set holding `home`, got int
+selectionKeyInsideADendriteIsRefused throws lanes/habitSelects.nix (habit module 'habitSelects'): unknown habit key(s): dendrites; only `home` is read
+nestedImportedHabitHomeIsRefused    throws  The option `habit.home' does not exist
 mergeRegistriesCatalogueUnion       ok      "homeonly,landmine,notifications,systemonly"
 mergeRegistriesKeepsEveryValue      ok      "true"
 mergeRegistriesIsOrderFree          ok      "true"
@@ -154,16 +194,18 @@ overlayOrder                        ok      "dendrite,dendrite,record,caller"
 recordOverlayBeatsDendrite          ok      "record"
 callerOverlayBeatsRecord            ok      "caller"
 exampleMinimalInventory             ok      "box:ssh=ssh.nix"
-exampleMinimalModules               ok      ["set{_file,config,options}","set{_class,_file,config,disabledModules,imports,key,options}","set{imports}"]
+exampleMinimalModules               ok      ["lambda","set{_class,_file,config,disabledModules,imports,key,options}","path"]
 exampleMinimalConfig                ok      "box ssh=true"
+exampleMinimalAssertionsHold        ok      "none"
+realSystemFailsTheAssertionForAnImportedSelection throws hosts/selectsSshInImport.nix but the host scan never saw it (scans do not follow `imports`)
 exampleWorkstationInventory         ok      "bluetooth alice=notifications/dunst"
-exampleWorkstationModules           ok      ["set{_file,config,options}","set{_class,_file,config,disabledModules,imports,key,options}","set{_class,_file,config,disabledModules,imports,key,options}","set{_class,_file,config,disabledModules,imports,key,options}","set{home-manager,imports}","set{imports}"]
+exampleWorkstationModules           ok      ["lambda","set{_class,_file,config,disabledModules,imports,key,options}","set{_class,_file,config,disabledModules,imports,key,options}","set{_class,_file,config,disabledModules,imports,key,options}","set{home-manager,imports}","set{services}","path"]
 exampleWorkstationConfig            ok      "desk bluetooth=true printing=false layout=de alice=true dunst=true mako=false"
 exampleWorkstationSelected          ok      "sys=bluetooth alice=notifications/dunst"
-exampleWorkstationSwitchedOffIsNeverImported ok 6
+exampleWorkstationSwitchedOffIsNeverImported ok 7
 exampleWorkstationSwitchedBackOnIsImported throws landmine/default.nix was imported
 exampleMergedInventory              ok      "dev:git,ssh,tmux"
-exampleMergedModules                ok      ["set{_file,config,options}","set{_class,_file,config,disabledModules,imports,key,options}","set{_class,_file,config,disabledModules,imports,key,options}","set{_class,_file,config,disabledModules,imports,key,options}","set{imports}"]
+exampleMergedModules                ok      ["lambda","set{_class,_file,config,disabledModules,imports,key,options}","set{_class,_file,config,disabledModules,imports,key,options}","set{_class,_file,config,disabledModules,imports,key,options}","path"]
 exampleMergedConfig                 ok      "git=true ssh=true tmux=true"
 exampleMergedClash                  throws  catalogue names defined by more than one source: 'ssh' by shared and upstream
 EOF

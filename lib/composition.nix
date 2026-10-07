@@ -6,10 +6,14 @@
 # schema that knows nothing about NixOS, and the platform import list is
 # assembled from the result.
 #
+# The host is one module, and the platform evaluates it whole. Selection reads
+# only its `habit.*` keys (lib/scan.nix): the platform's own arguments are
+# poisoned, its `imports` are not followed and every other key is never forced.
+#
 # Selection itself runs in two steps, because the host interface nests provider
 # choices under the aggregation that owns them
-# (`aggregation.shell.compositor.provider`) and those option names come from
-# the aggregation's own body:
+# (`habit.aggregation.shell.compositor.provider`) and those option names come
+# from the aggregation's own body:
 #
 #   gate   — every discovered aggregation declares only `enable`; the rest of
 #            its attrset is freeform and ignored. This step answers one
@@ -24,16 +28,18 @@
 # provider file are imported only in the platform pass, iff selection kept them.
 #
 # A selection option may never read the NixOS/Home Manager configuration it is
-# deciding — that is the circular import this split exists to prevent. Platform
-# settings therefore ride `deferredModule` options and are evaluated only in
-# the evaluation they were written for.
+# deciding — that is the circular import this split exists to prevent. The
+# platform evaluation declares the same `habit.*` options inert (a key nobody
+# wrote is null) and one assertion fails a key the scan could not have seen: one
+# set in a file the host imports.
 #
-# Nothing here knows any vocabulary. Two hooks keep it that way as a host record
-# grows fields the constructor has never heard of:
+# Nothing here knows any consumer's vocabulary. Two hooks keep it that way as a
+# host grows fields the constructor has never heard of:
 #
-#   selectionModules — modules that join the host's own in BOTH selection steps,
-#                      so a field they declare is a field the host record can
-#                      set and the gate step can read.
+#   selectionModules — modules of `habit` itself, joining the scan in BOTH
+#                      steps and the platform evaluation, so an option they
+#                      declare is `habit.<option>`, a key the host can set and
+#                      the gate step can read.
 #   extraModulesFor  — a function of the resolved selection returning platform
 #                      modules, which is how a gate-pass choice becomes an
 #                      import without a gate-pass body import. Its argument is
@@ -55,23 +61,43 @@ let
     ;
 
   lanes = import ./lanes.nix { inherit lib; };
+  scan = import ./scan.nix { inherit lib; };
+
+  # A flag the host writes. The scan reads it as a bool that is false until
+  # written; the platform evaluation declares the same key inert, null until
+  # written, so a value written in a file the scan never read is told from none.
+  flag =
+    inert: description:
+    mkOption (
+      {
+        inherit description;
+      }
+      // (
+        if inert then
+          {
+            type = types.nullOr types.bool;
+            default = null;
+          }
+        else
+          {
+            type = types.bool;
+            default = false;
+          }
+      )
+    );
 
   # One selection scope: for each catalogued capability, whether it is selected
   # here and which implementation answers. Generated per catalogue name, so an
   # unknown dendrite fails as an option that does not exist, naming the file
   # that asked for it.
   selectionScope =
-    catalogue:
+    { catalogue, inert }:
     lib.mapAttrs (
       name: _:
       mkOption {
         type = types.submodule {
           options = {
-            enable = mkOption {
-              type = types.bool;
-              default = false;
-              description = "Select ${name} in this scope.";
-            };
+            enable = flag inert "Select ${name} in this scope.";
             provider = mkOption {
               type = types.nullOr types.str;
               default = null;
@@ -142,6 +168,7 @@ let
       aggregations,
       bodies,
       scope,
+      inert,
     }:
     lib.mapAttrs (
       name: _:
@@ -153,15 +180,12 @@ let
         type = types.submodule (
           {
             options = {
-              enable = mkOption {
-                type = types.bool;
-                default = false;
-                description =
-                  if body == null then
-                    "Select the ${name} aggregation in this scope."
-                  else
-                    body.description or "Select the ${name} aggregation in this scope.";
-              };
+              enable = flag inert (
+                if body == null then
+                  "Select the ${name} aggregation in this scope."
+                else
+                  body.description or "Select the ${name} aggregation in this scope."
+              );
             }
             // lib.mapAttrs (member: default: {
               provider = mkOption {
@@ -173,7 +197,8 @@ let
           }
           # Gate step: the nested selectors are not declared yet, because the
           # body that names them has not been read. Accept and ignore them; the
-          # select step is where they are typed.
+          # select step is where they are typed. The platform evaluation never
+          # reads a body and keeps them as written.
           // lib.optionalAttrs (bodies == null) {
             freeformType = types.attrsOf types.anything;
           }
@@ -183,22 +208,18 @@ let
       }
     ) aggregations;
 
-  # What one selected aggregation contributes to one scope. Membership is
-  # `mkDefault`, so an ordinary selection outranks it, two aggregations naming
-  # the same member merge, and two that choose different providers for it
-  # collide on `dendrites.<name>.provider` rather than letting import order
-  # pick a winner. The body carries no gate of its own: it is data, and this is
-  # the only place it is wrapped.
-  #
-  # A half's `module` rides where its scope's own settings are carried: the
-  # host's `nixos` for the system half, the user's `home.config` for the home
-  # half. `slot` names that place.
+  # What one selected aggregation contributes to one scope: its membership.
+  # Membership is `mkDefault`, so an ordinary selection outranks it, two
+  # aggregations naming the same member merge, and two that choose different
+  # providers for it collide on `dendrites.<name>.provider` rather than letting
+  # import order pick a winner. The body carries no gate of its own: it is data,
+  # and this is the only place it is wrapped. A half's `module` is data too, and
+  # the platform pass places it (`aggregationModules`).
   aggregationConfig =
     {
       bodies,
       scope,
       root,
-      slot,
     }:
     lib.mapAttrsToList (
       name: body:
@@ -206,112 +227,153 @@ let
         half = halfOf body scope;
         cfg = root.aggregation.${name};
       in
-      mkIf cfg.enable (
-        {
-          dendrites =
-            lib.genAttrs (half.members or [ ]) (_: {
-              enable = mkDefault true;
-            })
-            // lib.mapAttrs (member: _: {
-              enable = mkDefault true;
-              provider = mkDefault cfg.${member}.provider;
-            }) (half.providers or { });
-        }
-        // lib.optionalAttrs (half ? module) (slot half.module)
-      )
+      mkIf cfg.enable {
+        dendrites =
+          lib.genAttrs (half.members or [ ]) (_: {
+            enable = mkDefault true;
+          })
+          // lib.mapAttrs (member: _: {
+            enable = mkDefault true;
+            provider = mkDefault cfg.${member}.provider;
+          }) (half.providers or { });
+      }
     ) bodies;
 
+  knownBodies = bodies: if bodies == null then { } else bodies;
+
+  # The keys a host writes under `habit`. `inert` declares the same ones for the
+  # platform evaluation, where nothing reads a body and a key nobody wrote is
+  # null.
+  habitOptions =
+    {
+      catalogue,
+      aggregations,
+      bodies,
+      inert,
+    }:
+    {
+      dendrites = selectionScope { inherit catalogue inert; };
+
+      aggregation = aggregationScope {
+        inherit aggregations bodies inert;
+        scope = "system";
+      };
+
+      users = mkOption {
+        default = { };
+        description = "Users attached to this host, and what each selects for its own home.";
+        type = types.attrsOf (
+          types.submoduleWith {
+            shorthandOnlyDefinesConfig = true;
+            specialArgs = {
+              inherit lib;
+              scope = "home";
+            };
+            modules = [
+              (
+                { config, ... }:
+                {
+                  options = {
+                    definition = mkOption (
+                      {
+                        description = "The user's module: its own settings are the account, its `habit.home` is the user's home.";
+                      }
+                      // (
+                        if inert then
+                          {
+                            type = types.nullOr types.path;
+                            default = null;
+                          }
+                        else
+                          { type = types.path; }
+                      )
+                    );
+                    home.enable = flag inert "Give this user a Home Manager configuration. Off means no Home Manager module is imported for them at all.";
+                    home.config = mkOption {
+                      type = types.deferredModule;
+                      default = { };
+                      description = "Extra home settings for this user, evaluated only in their Home Manager configuration.";
+                    };
+                    dendrites = selectionScope { inherit catalogue inert; };
+                    aggregation = aggregationScope {
+                      inherit aggregations bodies inert;
+                      scope = "home";
+                    };
+                  };
+
+                  config = mkMerge (aggregationConfig {
+                    bodies = knownBodies bodies;
+                    scope = "home";
+                    root = config;
+                  });
+                }
+              )
+            ];
+          }
+        );
+      };
+    };
+
+  # `habit` is one submodule, so a key beside the ones it declares
+  # (`habit.dendrtes`) is an option that does not exist, naming the host file,
+  # and never reaches the freeform sink that swallows the host's platform
+  # settings. The hooks' modules are modules of it.
+  habitType =
+    scope: modules:
+    types.submoduleWith {
+      shorthandOnlyDefinesConfig = true;
+      specialArgs = { inherit lib scope; };
+      inherit modules;
+    };
+
   # The schema one selection step evaluates. `bodies = null` is the gate step.
+  # Everything the host module sets besides `habit` lands in the freeform sink
+  # and is never read.
   mkSchema =
     {
       catalogue,
       aggregations,
       bodies ? null,
+      selectionModules ? [ ],
     }:
-    { config, ... }:
-    let
-      known = if bodies == null then { } else bodies;
-    in
     {
-      options = {
-        catalogue = mkOption {
-          type = types.attrsOf types.path;
-          readOnly = true;
-          description = "Named path per capability. The constructor reads it back in the platform pass.";
-        };
+      freeformType = types.lazyAttrsOf types.raw;
 
-        dendrites = selectionScope catalogue;
-
-        aggregation = aggregationScope {
-          inherit aggregations bodies;
-          scope = "system";
-        };
-
-        users = mkOption {
-          default = { };
-          description = "Users attached to this host, and what each selects for its own home.";
-          type = types.attrsOf (
-            types.submoduleWith {
-              shorthandOnlyDefinesConfig = true;
-              specialArgs = {
-                inherit lib;
-                scope = "home";
-              };
-              modules = [
-                (
-                  { config, ... }:
-                  {
-                    options = {
-                      definition = mkOption {
-                        type = types.path;
-                        description = "The user's module: its own settings are the account, its `habit.home` is the user's home.";
-                      };
-                      home.enable = mkOption {
-                        type = types.bool;
-                        default = false;
-                        description = "Give this user a Home Manager configuration. Off means no Home Manager module is imported for them at all.";
-                      };
-                      home.config = mkOption {
-                        type = types.deferredModule;
-                        default = { };
-                        description = "Extra home settings for this user, evaluated only in their Home Manager configuration.";
-                      };
-                      dendrites = selectionScope catalogue;
-                      aggregation = aggregationScope {
-                        inherit aggregations bodies;
-                        scope = "home";
-                      };
-                    };
-
-                    config = mkMerge (aggregationConfig {
-                      bodies = known;
-                      scope = "home";
-                      root = config;
-                      slot = module: { home.config = module; };
-                    });
+      options.habit = mkOption {
+        type = habitType "system" (
+          [
+            (
+              { config, ... }:
+              {
+                options =
+                  habitOptions {
+                    inherit catalogue aggregations bodies;
+                    inert = false;
                   }
-                )
-              ];
-            }
-          );
-        };
+                  // {
+                    catalogue = mkOption {
+                      type = types.attrsOf types.path;
+                      readOnly = true;
+                      description = "Named path per capability. The constructor reads it back in the platform pass.";
+                    };
+                  };
 
-        nixos = mkOption {
-          type = types.deferredModule;
-          default = { };
-          description = "This host's own NixOS settings and hardware, deferred until selection is complete.";
-        };
+                config = mkMerge (
+                  [ { inherit catalogue; } ]
+                  ++ aggregationConfig {
+                    bodies = knownBodies bodies;
+                    scope = "system";
+                    root = config;
+                  }
+                );
+              }
+            )
+          ]
+          ++ selectionModules
+        );
+        default = { };
+        description = "What this host selects.";
       };
-
-      config = mkMerge (
-        [ { inherit catalogue; } ]
-        ++ aggregationConfig {
-          bodies = known;
-          scope = "system";
-          root = config;
-          slot = module: { nixos = module; };
-        }
-      );
     };
 
   # ── The platform pass ──────────────────────────────────────────────────────
@@ -348,9 +410,9 @@ let
   # `habit.selected`: what one scope resolved, a read-only option in the
   # evaluation that scope's modules run in. It is written from selection data
   # and never reads configuration, so it cannot recurse into the selection.
-  selectedModule = scope: {
+  selectedModule = selected: {
     _file = toString ./composition.nix;
-    options.habit.selected = mkOption {
+    options.selected = mkOption {
       type = types.attrsOf (
         types.submodule {
           options = {
@@ -362,8 +424,107 @@ let
       readOnly = true;
       description = "Which capabilities this scope selected, and the provider that answers each.";
     };
-    config.habit.selected = lib.mapAttrs (_: d: { inherit (d) enable provider; }) scope;
+    config.selected = lib.mapAttrs (_: d: { inherit (d) enable provider; }) selected;
   };
+
+  # `habit` in an evaluation the platform runs. `selected` is the scope's own;
+  # `modules` add the rest of what that evaluation declares under `habit`.
+  habitOption =
+    scope: selected: modules:
+    mkOption {
+      type = habitType scope ([ (selectedModule selected) ] ++ modules);
+      default = { };
+      description = "habit's own keys in this evaluation.";
+    };
+
+  # The paths under `written` whose value `held` does not have. A null is a key
+  # nobody wrote.
+  unseen =
+    prefix: written: held:
+    lib.concatLists (
+      lib.mapAttrsToList (
+        name: value:
+        let
+          path = "${prefix}.${name}";
+          heldValue = held.${name} or null;
+        in
+        if value == null then
+          [ ]
+        else if lib.isAttrs value then
+          unseen path value (if lib.isAttrs heldValue then heldValue else { })
+        else
+          lib.optional (value != heldValue) path
+      ) (removeAttrs written [ "_module" ])
+    );
+
+  # The attribute paths a definition writes, without forcing a value: a wrapped
+  # value (`mkIf`, a module) is one key.
+  writtenPaths =
+    prefix: value:
+    if lib.isAttrs value && !(value ? _type) then
+      lib.concatLists (lib.mapAttrsToList (name: v: writtenPaths "${prefix}.${name}" v) value)
+    else
+      [ prefix ];
+
+  # The host module is the platform's own, so the platform evaluation sees every
+  # `habit.*` key written anywhere, including the files the host imports, which
+  # the scan never reads. The keys are declared here inert and one assertion
+  # fails each the scan did not see: without it an imported file's `enable =
+  # true` would be absorbed and select nothing. A key written by a file other
+  # than the host's is one. A module written inline in the host's own `imports`
+  # shares its file, so only its value, which selection does not hold, gives it
+  # away; `habit.users.<user>.home.config` has no value to compare, and a file
+  # of its own is the only way to catch it.
+  platformHabit =
+    {
+      selection,
+      registry,
+      hostFile,
+      selectionModules,
+    }:
+    {
+      config,
+      options,
+      ...
+    }:
+    let
+      fromFiles = lib.concatMap (
+        d:
+        map (path: {
+          inherit path;
+          file = d.file;
+        }) (writtenPaths "habit" d.value)
+      ) (lib.filter (d: d.file != hostFile) options.habit.definitionsWithLocations);
+      unseenKeys = unseen "habit" {
+        inherit (config.habit) dendrites aggregation;
+        users = lib.mapAttrs (_: u: u // { home = removeAttrs u.home [ "config" ]; }) config.habit.users;
+      } { inherit (selection) dendrites aggregation users; };
+      inline = map (path: {
+        inherit path;
+        file = hostFile;
+      }) (lib.subtractLists (map (key: key.path) fromFiles) unseenKeys);
+    in
+    {
+      _file = toString ./composition.nix;
+
+      options.habit = habitOption "system" selection.dendrites (
+        [
+          {
+            options = habitOptions {
+              inherit (registry) catalogue aggregations;
+              bodies = null;
+              inert = true;
+            };
+          }
+        ]
+        ++ selectionModules
+      );
+
+      config.assertions = map (key: {
+        assertion = false;
+        message = "`${key.path}` is set in ${key.file} but the host scan never saw it (scans do not follow `imports`)";
+      }) (fromFiles ++ inline);
+    };
 
   enabledNames = selected: lib.attrNames (lib.filterAttrs (_: d: d.enable) selected);
 
@@ -486,6 +647,40 @@ let
       ) selection.users;
       matched = map (r: r.name) forHost;
     };
+
+  # A selection module is a module of `habit`, so what it declares is
+  # `habit.<name>`. These are habit's own, and a hook declaring one would
+  # shadow it or be shadowed by it. The refusal names the file that declared it.
+  reservedNames = [
+    "dendrites"
+    "aggregation"
+    "users"
+    "selected"
+    "home"
+  ];
+
+  refuseReservedNames =
+    hooks: result:
+    let
+      declared =
+        removeAttrs
+          (lib.evalModules {
+            modules = hooks ++ [ { _module.check = false; } ];
+            specialArgs = {
+              inherit lib;
+              scope = "system";
+            };
+          }).options
+          [ "_module" ];
+      clashing = lib.intersectLists reservedNames (lib.attrNames declared);
+      name = lib.head clashing;
+    in
+    if clashing != [ ] then
+      throw "selection module ${
+        lib.head declared.${name}.declarations
+      } declares habit.${name}; habit reserves ${lib.concatStringsSep ", " reservedNames}"
+    else
+      result;
 in
 rec {
   inherit
@@ -495,28 +690,40 @@ rec {
     ;
 
   # Gate, then select. Ordinary lib.evalModules both times — no NixOS, no
-  # package set, nothing that could depend on the result.
+  # package set, nothing that could depend on the result. The host module goes in
+  # as the scan reads it (lib/scan.nix), beside the schema and the hooks'
+  # modules. The result is what the host wrote under `habit`, resolved.
   #
-  # An aggregation body is DATA (`members`, `providers`, `nixos`), so it has no
+  # An aggregation body is DATA (`members`, `providers`, `module`), so it has no
   # way to enable another aggregation: the gate step's answer is the select
   # step's answer, and no recursion machinery is needed to say so.
   evalSelection =
-    { registry, modules }:
+    {
+      registry,
+      host,
+      specialArgs ? { },
+      selectionModules ? [ ],
+    }:
     let
       inherit (registry) catalogue aggregations;
+
+      hostModule = scan.scanModule { inherit host specialArgs; };
 
       eval =
         bodies:
         (lib.evalModules {
           modules = [
-            (mkSchema { inherit catalogue aggregations bodies; })
-          ]
-          ++ modules;
-          specialArgs = {
-            inherit lib;
-            scope = "system";
-          };
-        }).config;
+            (mkSchema {
+              inherit
+                catalogue
+                aggregations
+                bodies
+                selectionModules
+                ;
+            })
+            hostModule
+          ];
+        }).config.habit;
 
       gate = eval null;
 
@@ -526,7 +733,9 @@ rec {
         chosen gate.aggregation ++ lib.concatMap (u: chosen u.aggregation) (lib.attrValues gate.users)
       );
     in
-    eval (lib.genAttrs selected (name: readBody name aggregations.${name}));
+    refuseReservedNames selectionModules (
+      eval (lib.genAttrs selected (name: readBody name aggregations.${name}))
+    );
 
   # A host's resolved shape: what it selected and from where, for the system and
   # for each user. Generated from the selection, never maintained by hand.
@@ -565,7 +774,7 @@ rec {
       hostName,
       knownHosts ? [ hostName ],
       registry,
-      hostModules,
+      host,
       homeManagerModule,
       specialArgs ? { },
       extraModules ? [ ],
@@ -585,10 +794,24 @@ rec {
       system ? "x86_64-linux",
     }:
     let
-      selection = evalSelection {
-        inherit registry;
-        modules = hostModules ++ selectionModules;
+      # What every platform module and every home module receives, and what the
+      # scan applies the host to.
+      args = specialArgs // {
+        inherit system;
+        host = hostName;
       };
+
+      selection = evalSelection {
+        inherit registry host selectionModules;
+        specialArgs = args;
+      };
+
+      # What the module system files the host's definitions under.
+      hostFile =
+        (scan.scanModule {
+          inherit host;
+          specialArgs = args;
+        })._file;
       inherit (selection) catalogue;
 
       # `extraModules` and the gate-pass hook's answer, in that order: a module
@@ -610,11 +833,6 @@ rec {
       # Home Manager is wired only where a user actually asked for it; a host
       # with no home user never imports it. Asking for a home dendrite with the
       # user's home switched off is a configuration error, not a quiet no-op.
-      args = specialArgs // {
-        inherit system;
-        host = hostName;
-      };
-
       hmUsers = lib.filterAttrs (_: u: u.home.enable) selection.users;
       strandedHome = lib.concatMap (
         userName:
@@ -683,11 +901,25 @@ rec {
         }
       ) selection.users;
 
+      # The `module` of each selected aggregation's half, in aggregation name
+      # order. A body is read again here: the read is cached, and a selected body
+      # has already been validated.
+      aggregationModules =
+        scope: aggregation:
+        lib.concatMap (
+          name:
+          let
+            half = halfOf (readBody name registry.aggregations.${name}) scope;
+          in
+          lib.optional (half ? module) half.module
+        ) (enabledNames aggregation);
+
       userHome = userName: u: {
         imports = [
-          (selectedModule u.dendrites)
+          { options.habit = habitOption "home" u.dendrites [ ]; }
         ]
         ++ (overrides.home.${userName} or [ ])
+        ++ aggregationModules "home" u.aggregation
         ++ [ u.home.config ];
       };
 
@@ -711,15 +943,26 @@ rec {
       # applied first and lose to all of them unless the host orders them later
       # with `lib.mkAfter`.
       ++ lib.optional (overrides.overlays != [ ]) { nixpkgs.overlays = overrides.overlays; }
-      ++ [ (selectedModule selection.dendrites) ]
+      ++ [
+        (platformHabit {
+          inherit
+            selection
+            registry
+            hostFile
+            selectionModules
+            ;
+        })
+      ]
       ++ userModules
       ++ dendriteModules
       ++ lib.optional (hmUsers != { }) homeWiring
       ++ extra
       # A record outranks everything the constructor imported on its behalf; the
-      # host's own module still outranks the record.
+      # selected aggregations' system modules come next, and the host's own
+      # module outranks them all.
       ++ overrides.system
-      ++ [ selection.nixos ];
+      ++ aggregationModules "system" selection.aggregation
+      ++ [ host ];
     in
     if strandedHome != [ ] then
       throw "host '${hostName}': ${lib.concatStringsSep "; " strandedHome}"

@@ -1,0 +1,3 @@
+{
+  habit.tag = "imported";
+}

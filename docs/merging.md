@@ -69,7 +69,7 @@ composition.mkNixosHost {
     (import ./shared/registry.nix // { name = "shared"; })
     (import ./personal/registry.nix // { name = "personal"; })
   ];
-  hostModules = [ ./hosts/box.nix ];
+  host = ./hosts/box.nix;
   homeManagerModule = home-manager.nixosModules.home-manager;
 }
 ```

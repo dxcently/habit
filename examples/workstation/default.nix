@@ -11,6 +11,6 @@ composition.mkNixosHost {
   inherit nixpkgs;
   hostName = "desk";
   registry = import ./registry.nix;
-  hostModules = [ ./hosts/desk.nix ];
+  host = ./hosts/desk.nix;
   homeManagerModule = home-manager.nixosModules.home-manager;
 }

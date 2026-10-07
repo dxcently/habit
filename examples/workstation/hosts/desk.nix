@@ -1,9 +1,9 @@
 # examples/workstation/hosts/desk.nix
 {
-  aggregation.desktop.enable = true;
-  dendrites.printing.enable = false;
+  habit.aggregation.desktop.enable = true;
+  habit.dendrites.printing.enable = false;
 
-  users.alice = {
+  habit.users.alice = {
     definition = ../users/alice.nix;
     home.enable = true;
     aggregation.desktop = {
@@ -12,10 +12,8 @@
     };
   };
 
-  nixos = {
-    networking.hostName = "desk";
-    nixpkgs.hostPlatform = "x86_64-linux";
-    boot.isContainer = true;
-    system.stateVersion = "26.11";
-  };
+  networking.hostName = "desk";
+  nixpkgs.hostPlatform = "x86_64-linux";
+  boot.isContainer = true;
+  system.stateVersion = "26.11";
 }

@@ -6,11 +6,16 @@ let
   composition = import ../../lib/composition.nix { inherit lib; };
   registry = import ./registry.nix;
 
+  # A host module that selects what `selects` says and sets nothing else: the
+  # cases write the keys under `habit`, and this is the module they are the
+  # keys of.
+  selecting = selects: { habit = selects; };
+
   select =
     mod:
     composition.evalSelection {
       inherit registry;
-      modules = [ mod ];
+      host = selecting mod;
     };
 
   # Force every element of a module list, then answer `result`. A wrapped module
@@ -24,7 +29,7 @@ let
   resolve =
     mod:
     let
-      r = mkModules { hostModules = [ mod ]; };
+      r = mkModules { host = selecting mod; };
     in
     builtins.deepSeq (builtins.toJSON r.inventory) (
       forceEach r.modules {
@@ -58,20 +63,21 @@ let
       {
         hostName = "fixture";
         inherit registry;
-        hostModules = [ { } ];
+        host = { };
         homeManagerModule = { };
       }
       // args
     );
 
-  # A field on the host record that the CONSTRUCTOR does not know about,
-  # declared the way a capability that needs one supplies it, so the fixture
-  # keeps the constructor's vocabulary out of it.
+  # A key under `habit` that the CONSTRUCTOR does not know about, declared the
+  # way a capability that needs one supplies it, so the fixture keeps the
+  # constructor's vocabulary out of it. A selection module is a module of
+  # `habit`, so this option is `habit.tag`.
   declareTag = {
-    options.hostRecord.tag = lib.mkOption {
+    options.tag = lib.mkOption {
       type = lib.types.str;
       default = "unset";
-      description = "A host-record field declared outside the constructor.";
+      description = "A habit key declared outside the constructor.";
     };
   };
 
@@ -86,7 +92,15 @@ let
     default = [ ];
   };
 
+  # NixOS, nix-darwin and Home Manager all declare `assertions`; the constructor
+  # adds to it.
+  assertionsOption = lib.mkOption {
+    type = lib.types.listOf lib.types.anything;
+    default = [ ];
+  };
+
   systemFixtures = {
+    options.assertions = assertionsOption;
     options.fixture.marks = marksOption;
     options.fixture.account = lib.mkOption {
       type = lib.types.attrsOf lib.types.bool;
@@ -123,28 +137,47 @@ let
   };
 
   # The configuration the constructor's module list evaluates to on a stub
-  # platform. `args` reach `mkNixosModules` beside the host `mod`.
+  # platform, with the arguments `nixosSystem` would give every module. `args`
+  # reach `mkNixosModules` beside the host, which is `host` or else the module
+  # that selects `mod`.
   evalAssembled =
     {
       mod ? { },
+      host ? selecting mod,
       args ? { },
       platform ? [
         systemFixtures
         anyKey
       ],
     }:
+    let
+      resolved = mkModules (
+        {
+          inherit host;
+          homeManagerModule = homeManagerStub;
+        }
+        // args
+      );
+    in
     (lib.evalModules {
-      specialArgs = { inherit lib; };
-      modules =
-        platform
-        ++ (mkModules (
-          {
-            hostModules = [ mod ];
-            homeManagerModule = homeManagerStub;
-          }
-          // args
-        )).modules;
+      specialArgs = {
+        inherit lib;
+      }
+      // resolved.specialArgs;
+      modules = platform ++ resolved.modules;
     }).config;
+
+  # What NixOS does with `assertions`: a failed one aborts the build, naming
+  # each message.
+  failedAssertions =
+    c:
+    let
+      failed = lib.filter (a: !a.assertion) c.assertions;
+    in
+    if failed == [ ] then
+      "none"
+    else
+      throw "Failed assertions:\n${lib.concatMapStrings (a: "- ${a.message}\n") failed}";
 
   marksOf = c: builtins.concatStringsSep "+" c.fixture.marks;
 
@@ -172,14 +205,17 @@ let
     provider = "dunst";
   };
 
-  # What one scope selected, as `habit.selected` reports it.
-  selectedBy =
-    c:
+  # The names one scope selected, each with its provider when it has one.
+  enabledIn =
+    selected:
     builtins.concatStringsSep "," (
       lib.mapAttrsToList (n: s: if s.provider == null then n else "${n}/${s.provider}") (
-        lib.filterAttrs (_: s: s.enable) c.habit.selected
+        lib.filterAttrs (_: s: s.enable) selected
       )
     );
+
+  # What one scope selected, as `habit.selected` reports it.
+  selectedBy = c: enabledIn c.habit.selected;
 
   # The fixture registry plus the entries only the module-system cases use.
   registryWithModules = registry // {
@@ -187,6 +223,7 @@ let
       declares = ./dendrites/declares;
       homeThrows = ./dendrites/homeThrows;
       laneRecord = ./dendrites/laneRecord;
+      nestedHome = ./dendrites/nestedHome;
     };
   };
 
@@ -333,20 +370,7 @@ let
     # A preference that rides along reaches the platform pass as a module, not as
     # something the selection pass evaluated.
     aggregationRidesPlatformSettings =
-      let
-        r = resolve { aggregation.workstation.enable = true; };
-      in
-      (lib.evalModules {
-        modules = [
-          {
-            options.networking.hostName = lib.mkOption {
-              type = lib.types.str;
-              default = "";
-            };
-          }
-          r.selection.nixos
-        ];
-      }).config.networking.hostName;
+      (evalAssembled { mod.aggregation.workstation.enable = true; }).networking.hostName;
 
     # ── A backend-specific aggregation is not dragged in by its sibling ───────
     # An aggregation can hold the members only one provider of a provider-bearing
@@ -649,7 +673,7 @@ let
         };
         hostName = "fixture";
         inherit registry;
-        hostModules = [ mod ];
+        host = selecting mod;
         homeManagerModule = { };
       }).inventory.host;
   };
@@ -683,7 +707,7 @@ let
           ${name} = ./badaggregations + "/${name}";
         };
       };
-      modules = [ { aggregation.${enabled}.enable = true; } ];
+      host = selecting { aggregation.${enabled}.enable = true; };
     }).aggregation.${enabled}.enable;
 
   # The constructor's registry plus one record that matches a selected target,
@@ -929,20 +953,45 @@ selectionCases
   };
 
   # ── The two constructor hooks ─────────────────────────────────────────────
-  # A `selectionModules` module joins the host's own modules in BOTH selection
-  # steps, so a field it declares is a field the host record can set — the
-  # constructor never heard of it.
+  # A `selectionModules` module is a module of `habit` and joins the scan in
+  # BOTH selection steps, so an option it declares is a key the host can set —
+  # the constructor never heard of it.
   selectionModuleFieldIsVisible =
     (mkModules {
-      hostModules = [ { hostRecord.tag = "sonata"; } ];
+      host = {
+        habit.tag = "sonata";
+      };
       selectionModules = [ declareTag ];
-    }).selection.hostRecord.tag;
+    }).selection.tag;
 
-  # The same host module without the hook: not an option, so the record cannot
-  # carry the field. This is the complement — the hook is what declares it, and
-  # a host is not silently allowed to invent one.
+  # The same host module without the hook: not an option, so the host cannot
+  # carry the key. This is the complement — the hook is what declares it, and a
+  # host is not silently allowed to invent one.
   selectionModuleFieldIsUnknownWithoutIt =
-    (mkModules { hostModules = [ { hostRecord.tag = "sonata"; } ]; }).selection.hostRecord.tag;
+    (mkModules {
+      host = {
+        habit.tag = "sonata";
+      };
+    }).selection.tag;
+
+  # The platform evaluation reads the same host module, so it declares the hook's
+  # option too: the key the scan read is a key the platform evaluation holds.
+  selectionModuleFieldIsDeclaredInThePlatformEvaluation =
+    (evalAssembled {
+      host = {
+        habit.tag = "sonata";
+      };
+      args.selectionModules = [ declareTag ];
+    }).habit.tag;
+
+  # A hook that declares a name habit keeps for itself is refused, naming the
+  # hook's file. `dendrites` is declared by the selection schema; `home` is
+  # declared nowhere, which is why a name list is checked rather than a clash.
+  selectionModuleReservedNameDendrites =
+    (mkModules { selectionModules = [ ./hooks/reservedDendrites.nix ]; }).inventory.host;
+
+  selectionModuleReservedNameHome =
+    (mkModules { selectionModules = [ ./hooks/reservedHome.nix ]; }).inventory.host;
 
   # The gate step is what decides which aggregation BODIES the select step
   # imports. A hook module that enables an aggregation is therefore observable
@@ -953,7 +1002,13 @@ selectionCases
   # `aggregations/workstation` writes into the selection.
   selectionModuleDrivesTheGatePass =
     let
-      r = mkModules { selectionModules = [ { aggregation.workstation.enable = true; } ]; };
+      r = mkModules {
+        selectionModules = [
+          {
+            aggregation.workstation.enable = true;
+          }
+        ];
+      };
     in
     "${builtins.concatStringsSep "," r.inventory.aggregation}:${builtins.concatStringsSep "," (builtins.attrNames r.inventory.dendrites)}";
 
@@ -972,11 +1027,11 @@ selectionCases
           builtins.filter (m: builtins.isAttrs m && m ? fixtureMarker) (mkModules args).modules
         );
       selected = markerCount {
-        hostModules = [ { dendrites.systemonly.enable = true; } ];
+        host = selecting { dendrites.systemonly.enable = true; };
         extraModulesFor = wantsSystemonly;
       };
       unselected = markerCount {
-        hostModules = [ { } ];
+        host = { };
         extraModulesFor = wantsSystemonly;
       };
     in
@@ -1007,6 +1062,7 @@ selectionCases
       # The platform vocabulary the fixture modules write into. A real caller's
       # own modules declare it; the constructor knows none of it.
       vocabulary = {
+        options.assertions = assertionsOption;
         options.fixture.marks = lib.mkOption {
           type = lib.types.listOf lib.types.str;
           default = [ ];
@@ -1021,12 +1077,183 @@ selectionCases
       };
       r = mkModules {
         registry = registryWithOverrides;
-        hostModules = [ { dendrites.systemonly.enable = true; } ];
+        host = selecting { dendrites.systemonly.enable = true; };
         extraModules = [ vocabulary ];
         extraModulesFor = _: [ hook ];
       };
     in
     builtins.concatStringsSep "," (lib.evalModules { inherit (r) modules; }).config.fixture.marks;
+
+  # `habit.home` is read from a module's own top level only, and is declared
+  # nowhere: a nested imported file's is an option that does not exist, naming
+  # that file.
+  nestedImportedHabitHomeIsRefused = failedAssertions (evalAssembled {
+    platform = [ systemFixtures ];
+    args.registry = registryWithModules;
+    mod.dendrites.nestedHome.enable = true;
+  });
+
+  # ── The scan (lib/scan.nix) ─────────────────────────────────────────────────
+  # The host is one module the platform evaluates whole. Selection reads only
+  # its `habit.*` keys: the fixtures under hosts/ put platform settings that
+  # throw, and imports that throw, beside them.
+  scanOf =
+    host: args:
+    composition.evalSelection (
+      {
+        inherit registry host;
+      }
+      // args
+    );
+
+  scanSummary =
+    sel:
+    "host=${enabledIn sel.dendrites} groups=${
+      builtins.concatStringsSep "," (lib.attrNames (lib.filterAttrs (_: a: a.enable) sel.aggregation))
+    } alice=${enabledIn (sel.users.alice or { dendrites = { }; }).dendrites}";
+
+  scanReadsHabitKeysAndNothingElse = scanSummary (scanOf ./hosts/scanned.nix { });
+
+  # importThrows.nix sits in the host's `imports`: the scan reads the host
+  # without it, and the platform evaluation, which does follow it, reaches it.
+  # Selection keys written at the top level of the host rather than under
+  # `habit` select nothing in the scan and are the platform's problem: they are
+  # options that do not exist there.
+  topLevelSelectionKeysAreRefusedByThePlatformEvaluation =
+    (evalAssembled {
+      platform = [ systemFixtures ];
+      host = {
+        dendrites.systemonly.enable = true;
+      };
+    }).fixture.marks;
+
+  scanDoesNotFollowImports = scanSummary (scanOf ./hosts/importsLandmine.nix { });
+
+  platformEvaluationFollowsImports =
+    (evalAssembled { host = ./hosts/importsLandmine.nix; }).habit.selected.systemonly.enable;
+
+  scanDropsImportsGuardedByConfig = scanSummary (scanOf ./hosts/guardedImports.nix { });
+
+  # A head with no named formals gets every argument, so the poison reaches it.
+  scanReadsAHostWithAnArgsHead = scanSummary (scanOf ./hosts/argsHead.nix { });
+
+  scanLeavesAGuardWithoutHabitKeysUnforced = scanSummary (scanOf ./hosts/mkMergeGuarded.nix { });
+
+  scanTypoIsAnOptionThatDoesNotExist = scanSummary (scanOf ./hosts/typo.nix { });
+
+  scanTypoSuggestsTheKeyItMeant = scanSummary (scanOf ./hosts/typo.nix { });
+
+  # A `habit` key that depends on platform configuration is refused by name, in
+  # every shape the condition can take.
+  scanPoisonsAHabitKeyUnderMkIf = scanSummary (scanOf ./hosts/mkIfHabitKey.nix { });
+  scanPoisonsAMkIfAroundConfig = scanSummary (scanOf ./hosts/mkIfConfigKey.nix { });
+  scanPoisonsAMkIfAroundTheHost = scanSummary (scanOf ./hosts/mkIfTopLevel.nix { });
+  scanPoisonsHabitItselfUnderMkIf = scanSummary (scanOf ./hosts/mkIfHabit.nix { });
+  scanPoisonsPkgs = scanSummary (scanOf ./hosts/usesPkgs.nix { });
+
+  scanPoisonsOptions = scanSummary (scanOf ./hosts/usesOptions.nix { });
+  scanPoisonsOsConfig = scanSummary (scanOf ./hosts/usesOsConfig.nix { });
+
+  # `require` is `imports` by its old name.
+  scanDropsRequire = scanSummary (scanOf ./hosts/requires.nix { });
+
+  # An argument nothing provides throws where it is read: used in a `habit` key
+  # it is named, used only in `imports` it is never missed.
+  scanNamesAMissingHostArgument = scanSummary (scanOf ./hosts/usesMissingArg.nix { });
+  scanDropsImportsThatNeedAnArgumentItLacks = scanSummary (scanOf ./hosts/missingArg.nix { });
+
+  # The caller's `specialArgs` reach the host unpoisoned, and its `lib` is the
+  # host's `lib`.
+  scanTakesTheCallersSpecialArgs = builtins.concatStringsSep "," (
+    lib.attrNames
+      (scanOf ./hosts/takesSpecialArgs.nix {
+        specialArgs.username = "carol";
+      }).users
+  );
+
+  scanTakesTheCallersLib = builtins.concatStringsSep "," (
+    lib.attrNames
+      (scanOf ./hosts/readsLib.nix {
+        specialArgs.lib = lib // {
+          marker = "caller";
+        };
+      }).users
+  );
+
+  # The platform evaluation declares every key the host wrote, and none of them
+  # is flagged: each holds what the scan read.
+  platformHoldsWhatTheScanRead = failedAssertions (evalAssembled {
+    host = ./hosts/setsEveryKey.nix;
+  });
+
+  # A key a file the host imports sets is invisible to the scan; the platform
+  # evaluation sees it and one assertion names it.
+  selectionInAnImportedFileFailsAnAssertion = failedAssertions (evalAssembled {
+    host = ./hosts/importsSelection.nix;
+  });
+
+  selectionInAnImportedFileIsNamed = failedAssertions (evalAssembled {
+    host = ./hosts/importsSelection.nix;
+  });
+
+  providerInAnImportedFileFailsAnAssertion = failedAssertions (evalAssembled {
+    host = ./hosts/importsProvider.nix;
+  });
+
+  userInAnImportedFileFailsAnAssertion = failedAssertions (evalAssembled {
+    host = ./hosts/importsUser.nix;
+  });
+
+  # Every `habit` key a file other than the host's writes is refused, whatever
+  # it holds: a hook's key, a user's `home.config` (a module, with no value to
+  # compare), and a key the host selects itself.
+  hookKeyInAnImportedFileFailsAnAssertion = failedAssertions (evalAssembled {
+    host = ./hosts/importsHookKey.nix;
+    args.selectionModules = [ declareTag ];
+  });
+
+  homeConfigInAnImportedFileFailsAnAssertion = failedAssertions (evalAssembled {
+    host = ./hosts/importsHomeConfig.nix;
+  });
+
+  aKeyAnImportedFileRepeatsIsStillRefused = failedAssertions (evalAssembled {
+    host = ./hosts/importsWhatTheHostSelects.nix;
+  });
+
+  # A module written inline in `imports` has the host's file name, so the value
+  # is what catches it.
+  inlineImportIsCaughtByItsValue = failedAssertions (evalAssembled {
+    host = ./hosts/importsInline.nix;
+  });
+
+  # A host that sets its own `_file`, in the module or in what its function
+  # returns, is filed under that name; its keys are still the host's.
+  hostWithItsOwnFileIsClean = failedAssertions (evalAssembled { host = ./hosts/ownFile.nix; });
+
+  hostFunctionWithItsOwnFileIsClean = failedAssertions (evalAssembled {
+    host = ./hosts/ownFileFromAFunction.nix;
+  });
+
+  # An imported file with no `habit` key is ordinary platform configuration.
+  importedFileWithoutHabitKeysIsQuiet =
+    let
+      c = evalAssembled { host = ./hosts/importsPlain.nix; };
+    in
+    "${failedAssertions c}:${marksOf c}";
+
+  hostIsTheLastModule = lib.boolToString (
+    lib.hasSuffix "hosts/importsPlain.nix" (
+      toString (lib.last (mkModules { host = ./hosts/importsPlain.nix; }).modules)
+    )
+  );
+
+  # The module list's tail, read through a list option: a later module's
+  # definition reads first, so this is the host, the selected aggregation's
+  # module, the matched record's `system` module, then the selected capability.
+  aggregationModuleSitsJustBeforeTheHost = marksOf (evalAssembled {
+    host = ./hosts/marksItself.nix;
+    args.registry = registryWithOverrides;
+  });
 
   # With both hooks left out, the module list and the resolved inventory are the
   # ones the constructor assembles without hooks — which is what
@@ -1038,9 +1265,9 @@ selectionCases
       mod = {
         dendrites.systemonly.enable = true;
       };
-      base = mkModules { hostModules = [ mod ]; };
+      base = mkModules { host = selecting mod; };
       spelled = mkModules {
-        hostModules = [ mod ];
+        host = selecting mod;
         selectionModules = [ ];
         extraModulesFor = _: [ ];
       };
@@ -1064,10 +1291,10 @@ selectionCases
         };
         hostName = "fixture";
         inherit registry;
-        hostModules = [ mod ];
+        host = selecting mod;
         homeManagerModule = { };
       };
-      direct = mkModules { hostModules = [ mod ]; };
+      direct = mkModules { host = selecting mod; };
     in
     "${if fingerprint viaHost.system.modules == fingerprint direct.modules then "same" else "differ"}:${
       lib.boolToString (builtins.toJSON viaHost.system.specialArgs == builtins.toJSON direct.specialArgs)
@@ -1264,6 +1491,10 @@ selectionCases
   wrapUnsupportedTopLevelAttribute = landing { file = "unsupportedAttr.nix"; };
   splitHabitNotAttrs = landing { file = "habitNotAttrs.nix"; };
 
+  # Selection belongs to the host: a dendrite's own `habit.dendrites` is a key
+  # habit does not read, and says so naming the file.
+  selectionKeyInsideADendriteIsRefused = landing { file = "habitSelects.nix"; };
+
   # ── Merging registries (lib/catalogues.nix) ────────────────────────────────
   # Two sources that share no name merge into the union; one that shares a name
   # is refused naming the name and every source that defines it, so neither
@@ -1412,11 +1643,9 @@ selectionCases
           sourceA
           sourceB
         ];
-        modules = [
-          {
-            dendrites.systemonly.enable = true;
-          }
-        ];
+        host = selecting {
+          dendrites.systemonly.enable = true;
+        };
       };
     in
     lib.boolToString (
@@ -1491,15 +1720,14 @@ selectionCases
           aggregations = { };
           overrides.overlaytag = ./overrides/overlaytag.nix;
         };
-        hostModules = [
-          {
-            dendrites.overlayone.enable = true;
-            dendrites.overlaytwo.enable = true;
-          }
-        ];
+        host = selecting {
+          dendrites.overlayone.enable = true;
+          dendrites.overlaytwo.enable = true;
+        };
         overlays = tagged "caller";
         extraModules = [
           {
+            options.assertions = assertionsOption;
             options.nixpkgs.overlays = lib.mkOption {
               type = lib.types.listOf lib.types.anything;
               default = [ ];
@@ -1594,9 +1822,9 @@ selectionCases
   # The example's own registry and host with one catalogue entry swapped for a
   # body that throws on import, and the module list forced element by element:
   # a wrapped module is a lazy list element, so a length alone would never reach
-  # it.
+  # it. `selectionModules` join the scan beside the host.
   workstationWithLandmine =
-    extraHostModules:
+    selectionModules:
     let
       own = import ../../examples/workstation/registry.nix;
       resolved = composition.mkNixosModules {
@@ -1606,7 +1834,8 @@ selectionCases
             printing = ./dendrites/landmine;
           };
         };
-        hostModules = [ ../../examples/workstation/hosts/desk.nix ] ++ extraHostModules;
+        host = ../../examples/workstation/hosts/desk.nix;
+        inherit selectionModules;
         homeManagerModule = home-manager.nixosModules.home-manager;
       };
     in
@@ -1622,6 +1851,33 @@ selectionCases
     }";
 
   exampleMinimalModules = fingerprint (exampleModules ../../examples/minimal);
+
+  # habit's own entries of a real NixOS evaluation's `assertions`: NixOS's
+  # others are not forced, since some need a store to answer.
+  habitAssertionsOf =
+    system:
+    failedAssertions {
+      assertions = lib.concatMap (d: d.value) (
+        lib.filter (
+          d: d.file == toString ../../lib/composition.nix
+        ) system.options.assertions.definitionsWithLocations
+      );
+    };
+
+  exampleMinimalAssertionsHold = habitAssertionsOf (example ../../examples/minimal).system;
+
+  # One fails for a host whose selection sits in a file it imports.
+  realSystemFailsTheAssertionForAnImportedSelection =
+    habitAssertionsOf
+      (composition.mkNixosHost {
+        nixpkgs.lib = lib // {
+          inherit nixosSystem;
+        };
+        hostName = "box";
+        registry = import ../../examples/minimal/registry.nix;
+        host = ./hosts/importsSshOnARealSystem.nix;
+        homeManagerModule = home-manager.nixosModules.home-manager;
+      }).system;
 
   exampleMinimalConfig =
     let
