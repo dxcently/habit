@@ -12,6 +12,5 @@ composition.mkNixosHost {
   hostName = "desk";
   registry = import ./registry.nix;
   hostModules = [ ./hosts/desk.nix ];
-  nucleus = ./nucleus.nix;
   homeManagerModule = home-manager.nixosModules.home-manager;
 }

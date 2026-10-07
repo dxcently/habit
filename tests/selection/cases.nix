@@ -69,7 +69,6 @@ let
         hostName = "fixture";
         inherit registry;
         hostModules = [ { } ];
-        nucleus = { };
         homeManagerModule = { };
       }
       // args
@@ -372,7 +371,6 @@ let
         hostName = "fixture";
         inherit registry;
         hostModules = [ mod ];
-        nucleus = { };
         homeManagerModule = { };
       }).inventory.host;
   };
@@ -732,7 +730,6 @@ selectionCases
         hostName = "fixture";
         inherit registry;
         hostModules = [ mod ];
-        nucleus = { };
         homeManagerModule = { };
       };
       direct = mkModules { hostModules = [ mod ]; };
@@ -974,7 +971,7 @@ selectionCases
 
   # The platform pass's `nixpkgs.overlays`, in application order, for a host
   # selecting two lanes and one override record whose overlay sets the same
-  # attribute (`tag`) as the lanes', the caller's and the nucleus's.
+  # attribute (`tag`) as the lanes' and the caller's.
   overlaysApplied =
     let
       tagged = tag: [ (_: _: { inherit tag; }) ];
@@ -993,9 +990,6 @@ selectionCases
             dendrites.lanetwo.enable = true;
           }
         ];
-        nucleus = {
-          nixpkgs.overlays = tagged "nucleus";
-        };
         overlays = tagged "caller";
         extraModules = [
           {
@@ -1009,10 +1003,9 @@ selectionCases
     in
     (lib.evalModules { inherit (r) modules; }).config.nixpkgs.overlays;
 
-  # The caller's `overlays` land after every lane's, and the nucleus after
-  # both, in the list a platform evaluator concatenates. The lane overlays are
-  # thereby applied before the caller's, so a lane's `prev` carries none of the
-  # caller's packages. A matched override record's overlay lands between the
+  # The caller's `overlays` land after every lane's, in the list a platform
+  # evaluator concatenates. The lane overlays are thereby applied before the
+  # caller's, so a lane's `prev` carries none of the caller's packages. A matched override record's overlay lands between the
   # lanes' and the caller's.
   overlayOrder = builtins.concatStringsSep "," (
     map (
@@ -1108,7 +1101,6 @@ selectionCases
           };
         };
         hostModules = [ ../../examples/workstation/hosts/desk.nix ] ++ extraHostModules;
-        nucleus = ../../examples/workstation/nucleus.nix;
         homeManagerModule = home-manager.nixosModules.home-manager;
       };
     in

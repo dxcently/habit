@@ -15,7 +15,7 @@ gives it.
 | aggregation     | a group of dendrites, written as data, selected by name                | [Aggregations](aggregations.md)       |
 | host record     | what one host selects, plus its own deferred `nixos` settings          | [The host record](host-record.md)     |
 | override record | a fix that belongs to a capability and applies where it was selected   | [Override records](overrides.md)      |
-| nucleus         | the one module every host imports unconditionally                      | [The constructor](constructor.md)     |
+| nucleus         | by convention, the aggregation of dendrites every host selects         | [Aggregations](aggregations.md#what-every-host-carries) |
 | inventory       | what a host resolved, derived from its selection                       | [The constructor](constructor.md#the-inventory) |
 
 ```

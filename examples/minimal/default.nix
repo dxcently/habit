@@ -12,6 +12,5 @@ composition.mkNixosHost {
   hostName = "box";
   registry = import ./registry.nix;
   hostModules = [ ./hosts/box.nix ];
-  nucleus = ./nucleus.nix;
   homeManagerModule = home-manager.nixosModules.home-manager;
 }

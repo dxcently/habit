@@ -63,7 +63,6 @@ let
     hostName = "box";
     registry = import ./registry.nix;
     hostModules = [ ./hosts/box.nix ];
-    nucleus = ./nucleus.nix;
     homeManagerModule = "${sources.home-manager}/nixos";
   };
 in
@@ -108,6 +107,9 @@ A host selects from it and keeps its own NixOS settings, deferred:
 
   nixos = {
     networking.hostName = "box";
+    nixpkgs.hostPlatform = "x86_64-linux";
+    boot.isContainer = true;
+    system.stateVersion = "26.11";
   };
 }
 ```
@@ -129,7 +131,6 @@ composition.mkNixosHost {
   hostName = "box";
   registry = import ./registry.nix;
   hostModules = [ ./hosts/box.nix ];
-  nucleus = ./nucleus.nix;
   homeManagerModule = home-manager.nixosModules.home-manager;
 }
 ```

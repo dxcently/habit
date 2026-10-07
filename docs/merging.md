@@ -70,7 +70,6 @@ composition.mkNixosHost {
     (import ./personal/registry.nix // { name = "personal"; })
   ];
   hostModules = [ ./hosts/box.nix ];
-  nucleus = ./nucleus.nix;
   homeManagerModule = home-manager.nixosModules.home-manager;
 }
 ```

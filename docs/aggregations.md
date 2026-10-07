@@ -63,6 +63,14 @@ One body serves both scopes. The host selects it with
 it with `users.<name>.aggregation.desktop.enable = true` and gets the `home`
 half. The two halves reach different evaluators.
 
+## What every host carries
+
+The constructor has no slot for what every host carries. By convention it is
+an aggregation named `nucleus`, whose members are the dendrites every host
+selects; each host selects it, and any host can deselect a member like any
+other group's. A module that must reach a host even when it selects nothing
+goes in `extraModules`.
+
 ## Membership is mkDefault
 
 For each member of a selected half, the group writes:
@@ -101,6 +109,9 @@ The workstation example switches a member off:
 
   nixos = {
     networking.hostName = "desk";
+    nixpkgs.hostPlatform = "x86_64-linux";
+    boot.isContainer = true;
+    system.stateVersion = "26.11";
   };
 }
 ```

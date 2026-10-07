@@ -101,19 +101,19 @@ mergeSourceWithoutName              throws  registry source at position 2 has no
 mergeSourcesShareAName              throws  registry sources share a name: alpha
 mergeSourceUnknownField             throws  registry source 'typo' has unknown field(s): aggregation; a source takes only name, catalogue, aggregations, overrides
 mergeFieldNotAnAttrset              throws  registry source 'nulled': `catalogue` must be an attrset, got null
-overlayOrder                        ok      "lane,lane,record,caller,nucleus"
+overlayOrder                        ok      "lane,lane,record,caller"
 recordOverlayBeatsLane              ok      "record"
 callerOverlayBeatsRecord            ok      "caller"
 exampleMinimalInventory             ok      "box:ssh=ssh.nix"
-exampleMinimalModules               ok      ["path","set{services}","set{imports}"]
+exampleMinimalModules               ok      ["set{services}","set{imports}"]
 exampleMinimalConfig                ok      "box ssh=true"
 exampleWorkstationInventory         ok      "bluetooth alice=notifications/dunst"
-exampleWorkstationModules           ok      ["path","set{users}","set{hardware}","set{home-manager,imports}","set{imports}"]
+exampleWorkstationModules           ok      ["set{users}","set{hardware}","set{home-manager,imports}","set{imports}"]
 exampleWorkstationConfig            ok      "desk bluetooth=true printing=false layout=de alice=true dunst=true mako=false"
-exampleWorkstationSwitchedOffIsNeverImported ok 5
+exampleWorkstationSwitchedOffIsNeverImported ok 4
 exampleWorkstationSwitchedBackOnIsImported throws landmine/default.nix was imported
 exampleMergedInventory              ok      "dev:git,ssh,tmux"
-exampleMergedModules                ok      ["path","set{programs}","set{services}","set{programs}","set{imports}"]
+exampleMergedModules                ok      ["set{programs}","set{services}","set{programs}","set{imports}"]
 exampleMergedConfig                 ok      "git=true ssh=true tmux=true"
 exampleMergedClash                  throws  catalogue names defined by more than one source: 'ssh' by shared and upstream
 EOF

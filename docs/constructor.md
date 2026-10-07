@@ -45,7 +45,6 @@ only; nothing is imported at registry time.
 | `hostName`          | yes      |                    | the host's name; passed on as `host`                        |
 | `registry`          | yes      |                    | the registry above, or the result of `mergeRegistries`      |
 | `hostModules`       | yes      |                    | the host record's modules ([The host record](host-record.md)) |
-| `nucleus`           | yes      |                    | the module every host imports unconditionally               |
 | `homeManagerModule` | yes      |                    | Home Manager's NixOS module; imported only if a user enables it |
 | `knownHosts`        | no       | `[ hostName ]`     | host names an override record's `hosts` may name            |
 | `specialArgs`       | no       | `{ }`              | extra arguments for every platform and home module          |
@@ -71,8 +70,9 @@ The arguments that need more than a line:
   win), and the result is what every platform module and every home module
   receives.
 - **`system`** is only that argument. The constructor never sets
-  `nixpkgs.hostPlatform`: the `nucleus` or the host's own `nixos` sets it, or
-  the host fails to evaluate. The examples set it in their nucleus.
+  `nixpkgs.hostPlatform`: the host's own `nixos`, a selected group's `nixos` or
+  an `extraModules` entry sets it, or the host fails to evaluate. The examples
+  set it in the host's own `nixos`.
 - **`overlays`**: a lane's overlay is applied before the caller's, so inside a
   lane's overlay `prev` carries none of the caller's packages and reading one
   aborts with a missing attribute. A lane therefore builds what it replaces with
@@ -97,31 +97,29 @@ and select nothing, or select through the catalogue and drop the aggregate.
 The platform pass assembles one list, in this order:
 
 ```
- 1  nucleus
- 2  { nixpkgs.overlays = overlays; }               if overlays != [ ]
- 3  { nixpkgs.overlays = <matched records' overlays>; }   if any
- 4  each user definition's `nixos` lane            the accounts
- 5  each selected capability's `nixos` lane        catalogue (name) order
- 6  Home Manager wiring                            if any user has homeManager.enable
- 7  extraModules ++ extraModulesFor selection
- 8  each matched override record's `nixos`
- 9  selection.nixos                                the host's `nixos`, merged with selected groups' `nixos`
+ 1  { nixpkgs.overlays = overlays; }               if overlays != [ ]
+ 2  { nixpkgs.overlays = <matched records' overlays>; }   if any
+ 3  each user definition's `nixos` lane            the accounts
+ 4  each selected capability's `nixos` lane        catalogue (name) order
+ 5  Home Manager wiring                            if any user has homeManager.enable
+ 6  extraModules ++ extraModulesFor selection
+ 7  each matched override record's `nixos`
+ 8  selection.nixos                                the host's `nixos`, merged with selected groups' `nixos`
 ```
 
 Position is not priority. A scalar defined twice at the same priority
 conflicts wherever the two sit; `mkDefault`, `mkForce` and plain definitions
 decide. Position shows in list-typed options, whose definitions merge in
 reverse list order: the suite pins `nixpkgs.overlays` as lane, then the matched
-records', then the caller's, then the nucleus's (`overlayOrder`), and an
+records', then the caller's (`overlayOrder`), and an
 `extraModulesFor` module after a matched record's `nixos`
 (`extraModulesForKeepsItsPosition`). Overlays apply in that order and the last
 to set an attribute wins, so a record's overlay beats a lane's, and the
-caller's and the nucleus's beat the record's. The host's own overlays come
+caller's beats the record's. The host's own overlays come
 first and lose to all of them; a host that must win orders its definition
 later, `nixpkgs.overlays = lib.mkAfter [ … ]`.
 
-The minimal example's list is three entries: the nucleus, the `ssh` lane, the
-host's `nixos`.
+The minimal example's list is two entries: the `ssh` lane, the host's `nixos`.
 
 ## The two hooks
 
@@ -204,7 +202,6 @@ composition.mkNixosHost {
   hostName = "box";
   registry = import ./registry.nix;
   hostModules = [ ./hosts/box.nix ];
-  nucleus = ./nucleus.nix;
   homeManagerModule = home-manager.nixosModules.home-manager;
 }
 ```

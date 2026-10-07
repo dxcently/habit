@@ -2,6 +2,14 @@
 
 Append-only. Newest first.
 
+## v2
+
+- Removed the constructor's `nucleus` argument. An unconditional module goes in
+  `extraModules`; the dendrites every host carries are, by convention, the members
+  of an aggregation named `nucleus` that each host selects and may deselect
+  from. A caller that still passes `nucleus` now fails with Nix's
+  unexpected-argument error.
+
 ## v1
 
 - Extracted `lib/composition.nix` from Aoide (`1239a83d333cde0b4a3d7bc28e6c8a989093b92d`,

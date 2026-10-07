@@ -591,7 +591,6 @@ rec {
       knownHosts ? [ hostName ],
       registry,
       hostModules,
-      nucleus,
       homeManagerModule,
       specialArgs ? { },
       extraModules ? [ ],
@@ -716,16 +715,14 @@ rec {
         };
       };
 
-      modules = [
-        nucleus
-      ]
-      ++ lib.optional (overlays != [ ]) { nixpkgs.overlays = overlays; }
+      modules =
+        lib.optional (overlays != [ ]) { nixpkgs.overlays = overlays; }
       # A list option's definitions merge in reverse list order, so a module
       # placed here is applied after the lanes' overlays and before the
-      # caller's and the nucleus's: a record's fix wins over a lane's, and the
-      # consumer's own overlays keep the last word. The host's own overlays are
-      # applied first and lose to all of them unless the host orders them later
-      # with `lib.mkAfter`.
+      # caller's: a record's fix wins over a lane's, and the consumer's own
+      # overlays keep the last word. The host's own overlays are applied first
+      # and lose to all of them unless the host orders them later with
+      # `lib.mkAfter`.
       ++ lib.optional (overrides.overlays != [ ]) { nixpkgs.overlays = overrides.overlays; }
       ++ accountLanes
       ++ systemLanes

@@ -62,9 +62,9 @@ record ──► hosts admits this host? ──no──► not applied
 - Records are taken in name order, so the result does not depend on the
   filesystem. Overlays compose the ordinary Nix way, each seeing the one before
   as `prev`; there is no overlap detection beyond that.
-- A record's overlays are applied after the lanes' and before the caller's and
-  the nucleus's. On an attribute they share, the record's wins over a lane's
-  and the caller's or nucleus's wins over the record's, so the consumer's own
+- A record's overlays are applied after the lanes' and before the caller's. On
+  an attribute they share, the record's wins over a lane's and the caller's
+  wins over the record's, so the consumer's own
   overlays keep the last word (`overlayOrder`, `recordOverlayBeatsLane`,
   `callerOverlayBeatsRecord`). The host's own overlays are applied first and
   lose to all of these ([the module list](constructor.md#the-module-list)).
