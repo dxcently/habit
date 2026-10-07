@@ -757,6 +757,197 @@ selectionCases
     }
   ).modules;
 
+  # ── The wrapper (lib/lanes.nix) ────────────────────────────────────────────
+  # Stub platforms assembled from three pieces: a freeform system that accepts
+  # any key, a declared `sys` option, and a `home-manager.users` whose users are
+  # freeform submodules, so a home half lands where Home Manager's would. The
+  # closed platform has no freeform piece, so an undeclared option is an error
+  # as on a real host; the bare one also has no Home Manager.
+  lanes = import ../../lib/lanes.nix { inherit lib; };
+
+  freeformPiece.freeformType = lib.types.lazyAttrsOf lib.types.anything;
+
+  sysPiece.options.sys = lib.mkOption {
+    type = lib.types.attrsOf lib.types.str;
+    default = { };
+  };
+
+  homePiece.options.home-manager.users = lib.mkOption {
+    type = lib.types.attrsOf (
+      lib.types.submodule { freeformType = lib.types.lazyAttrsOf lib.types.anything; }
+    );
+    default = { };
+  };
+
+  openPlatform = [
+    freeformPiece
+    sysPiece
+    homePiece
+  ];
+  closedPlatform = [
+    sysPiece
+    homePiece
+  ];
+  platformWithoutHomeManager = [ sysPiece ];
+
+  evalWith =
+    platform: modules:
+    (lib.evalModules {
+      specialArgs = { inherit lib; };
+      modules = platform ++ modules;
+    }).config;
+
+  wrapped =
+    {
+      file,
+      system ? true,
+      homeFor ? [ ],
+    }:
+    lanes.wrap {
+      name = lib.removeSuffix ".nix" file;
+      path = ./lanes + "/${file}";
+      inherit system homeFor;
+    };
+
+  # The module bare, and wrapped with the system half on and no home user:
+  # both must yield one system configuration.
+  differentialOn =
+    platform: file:
+    let
+      bare = removeAttrs (evalWith platform [ (./lanes + "/${file}") ]) [ "_module" ];
+      through = removeAttrs (evalWith platform [ (wrapped { inherit file; }) ]) [ "_module" ];
+    in
+    if bare == through then
+      "same:true:${builtins.concatStringsSep "," (builtins.attrNames bare)}"
+    else
+      throw "${file}: the wrapped module configures differently from the bare one";
+
+  differential = differentialOn openPlatform;
+
+  showAttrs =
+    attrs:
+    builtins.concatStringsSep "," (
+      lib.mapAttrsToList (n: v: "${n}:${v}") (removeAttrs attrs [ "_module" ])
+    );
+
+  landing =
+    {
+      file,
+      platform ? openPlatform,
+      system ? true,
+      homeFor ? [ "alice" ],
+      extra ? [ ],
+    }:
+    let
+      config = evalWith platform ([ (wrapped { inherit file system homeFor; }) ] ++ extra);
+    in
+    "sys=${showAttrs config.sys} home=${showAttrs (config.home-manager.users.alice or { })}";
+
+  wrapFunctionModule = differential "function.nix";
+  wrapAttrsModule = differential "attrs.nix";
+  wrapOptionsAndConfigModule = differential "optionsConfig.nix";
+  wrapShorthandModule = differential "shorthand.nix";
+
+  # `freeformType` is what lets the closed platform accept `free`, and `meta`
+  # rides along: both must reach the module system as the author wrote them.
+  wrapFreeformTypeAndMeta = differentialOn closedPlatform "freeformMeta.nix";
+
+  splitPlain = landing { file = "plain.nix"; };
+  splitMkIf = landing { file = "mkif.nix"; };
+  splitMkIfFalseDropsBothHalves = landing { file = "mkifFalse.nix"; };
+  splitMkMerge = landing { file = "mkmerge.nix"; };
+  splitMkIfOfMkMerge = landing { file = "ifmerge.nix"; };
+
+  # Two definitions of one freeform value would conflict at equal priority; the
+  # override beats the plain one only if both halves carry its priority.
+  splitMkOverride = landing {
+    file = "override.nix";
+    extra = [
+      {
+        sys.k = "other";
+        home-manager.users.alice.k = "other";
+      }
+    ];
+  };
+
+  splitNeverForcesACondition =
+    (lanes.split "test" (lib.mkIf (throw "the condition was forced") { habit.home = { }; })).home._type;
+
+  splitHabitUnderMkIf = landing { file = "habitIf.nix"; };
+  splitUnknownHabitKey = landing { file = "habitTypo.nix"; };
+  splitConfigNotAttrs = landing { file = "nonAttrsConfig.nix"; };
+  splitUnsplittableType = landing { file = "orderConfig.nix"; };
+
+  wrapKeyIsTheNameAndFileIsTheAuthors =
+    let
+      m = wrapped { file = "ownFile.nix"; };
+    in
+    "${m.key} ${m._file}";
+
+  # `needsArg` takes an argument only `_module.args` supplies: the module
+  # system finds it by the wrapper's formals, which are the module's own.
+  wrapKeepsTheModulesFormals = landing {
+    file = "needsArg.nix";
+    extra = [ { _module.args.extraThing = "supplied"; } ];
+  };
+
+  # No user receives the home half, so nobody reads it: the throw is never
+  # reached. With a user the same module reaches it.
+  wrapHomeWithoutAReaderIsNeverRead = landing {
+    file = "homeThrows.nix";
+    homeFor = [ ];
+  };
+
+  wrapHomeWithAReaderIsRead = landing { file = "homeThrows.nix"; };
+
+  # A dropped system half takes the module's `imports` with it: the import
+  # throws, so it is untouched when the system is off and reached when on.
+  wrapSystemOffAppliesNothingOfTheSystem = landing {
+    file = "systemOff.nix";
+    system = false;
+  };
+
+  wrapSystemOnImports = landing { file = "systemOff.nix"; };
+
+  # A system half that does not apply is not emitted, so an option the platform
+  # does not declare is no error there; applied, it is.
+  wrapSystemOffEmitsNoSystemOptions = landing {
+    file = "nonexistent.nix";
+    platform = closedPlatform;
+    system = false;
+  };
+
+  # The module's `freeformType` is the module system's to fold, so it holds with
+  # the system half off: another module's undeclared key is still accepted.
+  wrapFreeformTypeSurvivesSystemOff = landing {
+    file = "freeformOnly.nix";
+    platform = closedPlatform;
+    system = false;
+    extra = [ { loose.x = "1"; } ];
+  };
+
+  wrapSystemOnRefusesAnUndeclaredOption = landing {
+    file = "nonexistent.nix";
+    platform = closedPlatform;
+  };
+
+  # With no home user nothing is emitted under `home-manager`, so a platform
+  # without Home Manager evaluates; a home user there is the error it guards.
+  wrapNoHomeUserEmitsNothingWithoutHomeManager = landing {
+    file = "plain.nix";
+    platform = platformWithoutHomeManager;
+    homeFor = [ ];
+  };
+
+  wrapHomeUserNeedsHomeManager = landing {
+    file = "plain.nix";
+    platform = platformWithoutHomeManager;
+  };
+
+  wrapNotAModule = landing { file = "notModule.nix"; };
+  wrapUnsupportedTopLevelAttribute = landing { file = "unsupportedAttr.nix"; };
+  splitHabitNotAttrs = landing { file = "habitNotAttrs.nix"; };
+
   # ── Merging registries (lib/catalogues.nix) ────────────────────────────────
   # Two sources that share no name merge into the union; one that shares a name
   # is refused naming the name and every source that defines it, so neither

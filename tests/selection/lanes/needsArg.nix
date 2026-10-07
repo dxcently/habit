@@ -1,0 +1,4 @@
+{ extraThing, ... }:
+{
+  sys.k = extraThing;
+}

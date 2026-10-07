@@ -84,6 +84,36 @@ hookDefaultsChangeNothing           ok      "same:true"
 mkHostPassesTheModulesThrough       ok      "same:true"
 extraModulesTakesTheWholeTree       throws  is the whole dendrite tree, which imports every dendrite's body
 extraModulesForTakesTheWholeTree    throws  is the whole dendrite tree, which imports every dendrite's body
+wrapFunctionModule                  ok      "same:true:fn,home-manager,out,sys"
+wrapAttrsModule                     ok      "same:true:home-manager,out,sys"
+wrapOptionsAndConfigModule          ok      "same:true:home-manager,opt,out,sys"
+wrapShorthandModule                 ok      "same:true:environment,home-manager,out,sys"
+wrapFreeformTypeAndMeta             ok      "same:true:free,home-manager,meta,sys"
+splitPlain                          ok      "sys=k:s home=k:h"
+splitMkIf                           ok      "sys=k:s home=k:h"
+splitMkIfFalseDropsBothHalves       ok      "sys= home="
+splitMkMerge                        ok      "sys=a:1,b:2 home=a:x,b:y"
+splitMkIfOfMkMerge                  ok      "sys=a:1,b:2 home=a:x"
+splitMkOverride                     ok      "sys=k:s home=k:h"
+splitNeverForcesACondition          ok      "if"
+splitHabitUnderMkIf                 throws  lanes/habitIf.nix (habit module 'habitIf'): `habit` is a `if` value; write habit.home as a plain attribute
+splitUnknownHabitKey                throws  lanes/habitTypo.nix (habit module 'habitTypo'): unknown habit key(s): homee; only `home` is read
+splitConfigNotAttrs                 throws  lanes/nonAttrsConfig.nix (habit module 'nonAttrsConfig'): config must be an attribute set, got list
+splitUnsplittableType               throws  lanes/orderConfig.nix (habit module 'orderConfig'): config is a `order` value habit cannot split
+wrapKeyIsTheNameAndFileIsTheAuthors ok      "habit:ownFile authors/own-file.nix"
+wrapKeepsTheModulesFormals          ok      "sys=k:supplied home="
+wrapHomeWithoutAReaderIsNeverRead   ok      "sys=k:s home="
+wrapHomeWithAReaderIsRead           throws  habit.home was read
+wrapSystemOffAppliesNothingOfTheSystem ok   "sys= home=k:h"
+wrapSystemOnImports                 throws  landmine/default.nix was imported
+wrapSystemOffEmitsNoSystemOptions   ok      "sys= home=k:h"
+wrapFreeformTypeSurvivesSystemOff   ok      "sys= home=k:h"
+wrapSystemOnRefusesAnUndeclaredOption throws The option `nonexistent' does not exist
+wrapNoHomeUserEmitsNothingWithoutHomeManager ok "sys=k:s home="
+wrapHomeUserNeedsHomeManager        throws  The option `home-manager' does not exist
+wrapNotAModule                      throws  lanes/notModule.nix (habit module 'notModule'): does not look like a module, got string
+wrapUnsupportedTopLevelAttribute    throws  lanes/unsupportedAttr.nix (habit module 'unsupportedAttr'): has an unsupported top-level attribute: bogus; put configuration under `config`
+splitHabitNotAttrs                  throws  lanes/habitNotAttrs.nix (habit module 'habitNotAttrs'): `habit` must be an attribute set holding `home`, got int
 mergeRegistriesCatalogueUnion       ok      "homeonly,landmine,notifications,systemonly"
 mergeRegistriesKeepsEveryValue      ok      "true"
 mergeRegistriesIsOrderFree          ok      "true"

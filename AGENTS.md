@@ -17,7 +17,9 @@ suite evaluates. This file holds the invariants to keep while editing them.
    uncalled) and is stated as such.
 3. **A pure function of `lib`.** `lib/*.nix` take `{ lib }` and nothing else:
    no flake inputs, no `pkgs`, no `builtins.getFlake`, no environment. The flake
-   exports them unapplied. `nixpkgs` in `flake.nix` is for `checks` only.
+   exports the public ones unapplied; `lib/lanes.nix` is internal, exported by
+   nothing and applied to the same `lib` by whoever imports it. `nixpkgs` in
+   `flake.nix` is for `checks` only.
 4. **Names are unique across merged catalogues.** Merging registries goes
    through `mergeRegistries` in `lib/catalogues.nix`, never `//`. A clash
    throws naming the name and every source defining it.
