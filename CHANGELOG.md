@@ -118,6 +118,27 @@ Append-only. Newest first.
 - Added `examples/home`: a standalone home selecting a module whose system half
   a home drops.
 
+- Added `tests/flake.nix` with its own `flake.lock`, run as
+  `nix flake check ./tests`: Home Manager and nix-darwin are its inputs alone, so
+  the root flake and its lock still hold nixpkgs only and a consumer's lock gains
+  neither. Its cases (`tests/real/`) evaluate the real thing from
+  `x86_64-linux` and each is a value read from the evaluation and the value it must
+  equal: a NixOS host with two Home Manager users (host selection reaches both, a
+  user's reaches that user alone, a plain and a `mkOverride` home half both
+  arrive, a function-valued `habit.home` takes `lib.hm`, `habit.selected` holds
+  each scope, the toplevel derivation evaluates), a standalone home through
+  `homeManagerConfiguration` and `examples/home` (the system half is dropped, the
+  caller's and a record's overlays apply, `system`, `host` and the caller's
+  `specialArgs` reach modules, the activation package evaluates) and a
+  nix-darwin host for `aarch64-darwin` (the system half applies, Home Manager's
+  darwin module routes the home half and takes the home directory from the user
+  module's `users.users.<user>.home`, the toplevel derivation evaluates, a
+  Linux-only option fails and the module's file is the one the module system
+  names). Nothing is built.
+- A catalogue entry that is a directory is filed as the `default.nix` inside it,
+  so an error that names the module, habit's own or the module system's (a
+  NixOS-only option on nix-darwin), names that file and not the directory.
+
 ## v1
 
 - Extracted `lib/composition.nix` from Aoide (`1239a83d333cde0b4a3d7bc28e6c8a989093b92d`,

@@ -51,8 +51,9 @@ Two more come from the platform evaluation and the hooks:
 ## Modules
 
 A selected dendrite, provider file or user module is wrapped when it is
-imported. Each message begins `<path> (habit module '<name>')`, where `<name>`
-is the capability or `user:<user>`.
+imported. Each message begins `<path> (habit module '<name>')`, where `<path>`
+is the module's file (the `default.nix` for a catalogue entry that is a
+directory) and `<name>` is the capability or `user:<user>`.
 
 | message continues | cause | fix |
 | ----------------- | ----- | --- |

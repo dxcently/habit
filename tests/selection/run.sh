@@ -157,6 +157,8 @@ splitHabitUnderMkIf                 throws  lanes/habitIf.nix (habit module 'hab
 splitUnknownHabitKey                throws  lanes/habitTypo.nix (habit module 'habitTypo'): unknown habit key(s): homee; only `home` is read
 splitConfigNotAttrs                 throws  lanes/nonAttrsConfig.nix (habit module 'nonAttrsConfig'): config must be an attribute set, got list
 splitUnsplittableType               throws  lanes/orderConfig.nix (habit module 'orderConfig'): config is a `order` value habit cannot split
+splitErrorNamesTheFileOfADirectoryEntry throws lanes/directoryEntry/default.nix (habit module 'directoryEntry'): unknown habit key(s): homee
+wrapFileOfADirectoryEntryIsItsDefaultNix ok "/lanes/directoryEntry/default.nix"
 wrapKeyIsTheNameAndFileIsTheAuthors ok      "habit:ownFile authors/own-file.nix"
 wrapKeepsTheModulesFormals          ok      "sys=k:supplied home="
 wrapHomeWithoutAReaderIsNeverRead   ok      "sys=k:s home="
@@ -193,7 +195,7 @@ directHomeNotAModule                throws  lanes/homeNotAModule.nix (habit modu
 directHomeIsRead                    throws  habit.home was read
 darwinAppliesTheSystemHalfAndRoutesTheHome ok "sys=dunst casks=kitty accounts=alice alice=dunst,homebrew"
 darwinRefusesAnOptionItDoesNotHave  throws  The option `services' does not exist
-darwinNamesTheModuleItRefuses       throws  dendrites/linuxOnly'
+darwinNamesTheModuleItRefuses       throws  dendrites/linuxOnly/default.nix'
 mkDarwinHostPassesTheModulesThrough ok      "same:true"
 mkHomePassesTheModulesThrough       ok      "same:true:the caller's pkgs"
 standaloneHomeDropsTheSystemLane    ok      "linuxOnly"

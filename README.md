@@ -156,6 +156,25 @@ The same registry builds for nix-darwin with `mkDarwinHost` and as a standalone
 Home Manager configuration with `mkHome`, each taking its evaluator from you ([The constructor](docs/constructor.md#classes),
 [`examples/home`](examples/home)).
 
+## Targets and how they are checked
+
+| target | builder | evaluated by the checks |
+|---|---|---|
+| NixOS, with Home Manager's NixOS module | `mkNixosHost` | the real `nixosSystem`, down to `system.build.toplevel.drvPath` |
+| nix-darwin, with Home Manager's darwin module | `mkDarwinHost` | the real `darwinSystem` for `aarch64-darwin`, from Linux, down to `system.build.toplevel.drvPath` |
+| standalone Home Manager | `mkHome` | the real `homeManagerConfiguration`, down to `home.activationPackage.drvPath` |
+
+```
+./tests/selection/run.sh      # the selection cases; stubs stand in for nix-darwin and Home Manager
+nix flake check ./tests       # the real NixOS, Home Manager and nix-darwin; fetches them
+nix flake check               # the selection suite, sandboxed, and the book
+```
+
+`tests/flake.nix` has its own lock: Home Manager and nix-darwin are inputs of
+that flake alone, so this repository's root lock holds nixpkgs and a consumer's
+lock gains neither. The checks evaluate; nothing is built on a Mac
+([Tests](docs/README.md#tests)).
+
 ## Documentation
 
 The book: <https://dxcently.github.io/habit/> (the same pages are in

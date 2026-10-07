@@ -113,8 +113,8 @@ Four directories under
 registry, its dendrites, a host and the call that builds it. The test suite
 calls each one the way a flake would and checks its inventory, its module list
 and option values: real NixOS ones, and for `home` those of a stub of Home
-Manager's options. Every example file quoted in these pages is the file the
-suite evaluates.
+Manager's options (the real ones are in `tests/real/`, below). Every example file
+quoted in these pages is the file the suite evaluates.
 
 | example                                                                           | shows                                                        |
 | --------------------------------------------------------------------------------- | ------------------------------------------------------------ |
@@ -137,7 +137,24 @@ negative case must throw AND carry its expected message.
 ```
 ./tests/selection/run.sh [case]     # needs nix and jq
 nix flake check                     # the same suite, sandboxed, and this book
+nix flake check ./tests             # real NixOS, Home Manager and nix-darwin; fetches them
 ```
+
+The selection suite has no input but nixpkgs, so a stub stands in for
+nix-darwin and Home Manager there. `tests/flake.nix` has its own lock file and
+pins Home Manager and nix-darwin to revisions that evaluate against the
+nixpkgs the root flake pins; the root flake and its lock hold nixpkgs alone, so
+a consumer's lock never gains either. Each case in `tests/real/` is a value read
+from a real evaluation and the value it must equal, and the command evaluates
+from `x86_64-linux`:
+
+| target | evaluated | what the cases pin |
+| ------ | --------- | ------------------ |
+| NixOS with Home Manager's NixOS module (`mkNixosHost`) | `nixosSystem`, down to `system.build.toplevel.drvPath` | a host's selection reaches every user and a user's reaches that user alone; a plain home half and one under `mkOverride` both reach the user; a function-valued `habit.home` takes `lib.hm`; `habit.selected` holds each scope; the builder's arguments reach every module |
+| nix-darwin with Home Manager's darwin module (`mkDarwinHost`) | `darwinSystem` for `aarch64-darwin`, down to `system.build.toplevel.drvPath` | the system half applies; the home half routes through Home Manager, whose home directory comes from the user module's `users.users.<user>.home`; a Linux-only option fails, as a file entry and as a directory entry, and the module system names the module's file in both |
+| standalone Home Manager (`mkHome`) | `homeManagerConfiguration`, down to `home.activationPackage.drvPath`, and `examples/home` | the system half is dropped and the home half lands; `habit.selected` is the home's; the caller's and a record's overlays both apply; `extraSpecialArgs` reach modules |
+
+Nothing there is built: a darwin builder is not needed to evaluate.
 
 `checks.x86_64-linux.docs` builds this book with mdBook after
 `tests/docs/quotes.sh` confirms that every quoted example file matches the file

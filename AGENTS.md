@@ -25,7 +25,9 @@ suite evaluates. This file holds the invariants to keep while editing them.
    no flake inputs, no `pkgs`, no `builtins.getFlake`, no environment. The flake
    exports the public ones unapplied; `lib/lanes.nix` and `lib/scan.nix` are
    internal, exported by nothing and imported by `lib/composition.nix`, which
-   applies them to its own `lib`. `nixpkgs` in `flake.nix` is for `checks` only.
+   applies them to its own `lib`. `nixpkgs` in `flake.nix` is for `checks` only, and
+   it is the root flake's only input: Home Manager and nix-darwin are inputs of
+   `tests/flake.nix` alone, so a consumer's lock never gains them.
 4. **Names are unique across merged catalogues.** Merging registries goes
    through `mergeRegistries` in `lib/catalogues.nix`, never `//`. A clash
    throws naming the name and every source defining it.
@@ -45,9 +47,18 @@ suite evaluates. This file holds the invariants to keep while editing them.
   one (a host under `hosts/`). A positive case alone does not prove "never
   imported": pair it with a fixture that throws on import.
 - A new class of target: its scope in `scopeOf` and a builder beside
-  `mkNixosHost` in `lib/composition.nix`, and cases in the classes section of
-  `tests/selection/cases.nix` against a stub option tree, since the library
-  takes no input to evaluate the real one.
+  `mkNixosHost` in `lib/composition.nix`, cases in the classes section of
+  `tests/selection/cases.nix` against a stub option tree (the library takes no
+  input to evaluate the real one), and cases in `tests/real/` against the real
+  platform.
+- A case against the real NixOS, Home Manager or nix-darwin: `{ got; want; }` in
+  `tests/real/{nixos,home,darwin}.nix`, `got` read from the real evaluation, with
+  its fixtures beside them. Run it as `nix flake check ./tests`, a command apart
+  from `nix flake check` that fetches Home Manager and nix-darwin. A change to a
+  builder, to the routing or to the wrapper is not done until it passes. Both are
+  pinned by revision in `tests/flake.nix` to ones that evaluate against the root's
+  nixpkgs; nix-darwin refuses a nixpkgs of another release, so the three move
+  together.
 - A new registry field to merge: `lib/catalogues.nix`, a line in `mergeRegistries`
   through `mergeField`.
 - A new example: a directory under `examples/` whose `default.nix` takes

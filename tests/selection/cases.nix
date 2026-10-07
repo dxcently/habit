@@ -1458,6 +1458,14 @@ selectionCases
   splitConfigNotAttrs = landing { file = "nonAttrsConfig.nix"; };
   splitUnsplittableType = landing { file = "orderConfig.nix"; };
 
+  # A catalogue entry that is a directory is the `default.nix` inside it: that
+  # file is what an error names and what the module system files its settings
+  # under.
+  splitErrorNamesTheFileOfADirectoryEntry = landing { file = "directoryEntry"; };
+
+  wrapFileOfADirectoryEntryIsItsDefaultNix =
+    lib.removePrefix (toString ./.) (wrapped { file = "directoryEntry"; })._file;
+
   wrapKeyIsTheNameAndFileIsTheAuthors =
     let
       m = wrapped { file = "ownFile.nix"; };
@@ -1748,7 +1756,7 @@ selectionCases
 
   # No declaration says a module supports darwin (it is the module's own to
   # write): one that sets an option darwin does not have fails as the module
-  # system's own error, in the author's file.
+  # system's own error, naming the file the catalogue entry imports.
   darwinRefusesAnOptionItDoesNotHave =
     (darwinHost { mod.dendrites.linuxOnly.enable = true; }).system.config.fixture.marks;
 

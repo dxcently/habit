@@ -292,13 +292,16 @@ its own host evaluation uses, so selection runs on the consumer's lib.
 ### A darwin host
 
 `mkDarwinHost` is `mkNixosHost` with nix-darwin's evaluator and Home Manager's
-darwin module; the host module is a nix-darwin module:
+darwin module; the host module is a nix-darwin module. `system` defaults to
+`"x86_64-linux"` and becomes the `system` module argument, so a darwin host
+passes its own:
 
 ```nix
 darwinConfigurations.mac =
   (composition.mkDarwinHost {
     darwin = inputs.nix-darwin;
     hostName = "mac";
+    system = "aarch64-darwin";
     registry = import ./registry.nix;
     host = ./hosts/mac.nix;
     homeManagerModule = inputs.home-manager.darwinModules.home-manager;

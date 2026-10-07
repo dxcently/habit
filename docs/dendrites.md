@@ -113,11 +113,12 @@ habit has no declaration of which platforms a module supports. A module is
 written the way nixpkgs teaches (guard a Linux-only setting with `mkIf
 pkgs.stdenv.isLinux`, or keep the file Linux-only), and one that reaches a
 nix-darwin host with an option nix-darwin does not have fails as the module
-system's own error, naming the module's file:
+system's own error, naming the module's file (a catalogue entry that is a
+directory is the `default.nix` inside it):
 
 ```
 error: The option `services' does not exist. Definition values:
-- In `/path/to/dendrites/linuxOnly':
+- In `/path/to/dendrites/linuxOnly/default.nix':
 ```
 
 The message says the option does not exist, not that the module has no darwin

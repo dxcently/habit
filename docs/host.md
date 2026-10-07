@@ -207,11 +207,16 @@ a standalone home has no users at all (below).
 
 A darwin host is a nix-darwin module with the same `habit.*` keys and the same
 users, and `mkDarwinHost` takes Home Manager's `darwinModules.home-manager` as
-`homeManagerModule`. Home Manager takes a user's home directory from
-`users.users.<user>.home` there, so a user module on darwin sets it. habit has
-no declaration for whether a module supports darwin; a module that sets an
-option nix-darwin does not have fails as the module system's own error
-([Dendrites](dendrites.md#darwin)).
+`homeManagerModule`. It takes `system = "aarch64-darwin"` too: `system` defaults
+to `"x86_64-linux"` and becomes the `system` module argument. Home Manager takes
+a user's home directory from `users.users.<user>.home` there, so a user module
+on darwin sets it. habit has no declaration for whether a module supports darwin;
+a module that sets an option nix-darwin does not have fails as the module
+system's own error ([Dendrites](dendrites.md#darwin)).
+
+The suite evaluates a darwin host for `aarch64-darwin` from Linux against the
+real nix-darwin and Home Manager, down to `system.build.toplevel.drvPath` (the
+overview's Tests section). It builds nothing on a Mac.
 
 ## A standalone home
 

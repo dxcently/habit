@@ -160,7 +160,7 @@ let
       homeFor,
     }:
     let
-      file = toString path;
+      file = toString (if lib.pathIsDirectory path then path + "/default.nix" else path);
       where = "${file} (habit module '${name}')";
       raw = import path;
       build =
