@@ -150,6 +150,13 @@ splitPlain                          ok      "sys=k:s home=k:h"
 splitMkIf                           ok      "sys=k:s home=k:h"
 splitMkIfFalseDropsBothHalves       ok      "sys= home="
 splitMkMerge                        ok      "sys=a:1,b:2 home=a:x,b:y"
+splitMkIfFalseNeverDefinesAnUndeclaredOption ok "sys= home="
+splitMkIfOfMkMergeFalseNeverDefinesAnUndeclaredOption ok "sys= home="
+splitMkIfOnTheHomeValueFalseNeverDefinesAnUndeclaredOption ok "sys= home="
+splitMkIfOfMkOverrideFalseNeverDefinesAnUndeclaredOption ok "sys= home="
+splitMkIfTrueAppliesOnAStrictPlatform ok    "sys=k:s home=k:h"
+splitMkIfOfMkOverrideKeepsThePriority ok    "sys= home=k:h"
+splitMkIfFalseWithADeclaredOptionAppliesNothing ok "sys= home="
 splitMkIfOfMkMerge                  ok      "sys=a:1,b:2 home=a:x"
 splitMkOverride                     ok      "sys=k:s home=k:h"
 leavesNeverForceACondition          ok      "if"
@@ -175,6 +182,8 @@ homeHalvesOfDifferentPrioritiesBothReachTheUser ok "sys= home=a:1,b:2"
 homeNotAModuleIsRefusedForAUser     throws  lanes/homeNotAModule.nix (habit module 'homeNotAModule') `habit.home`: does not look like a module, got int
 homeHalfMayBeAPath                  ok      "sys= home=k:p"
 homeImportsApplyWhenNothingCoversThem ok    "sys= home=k:i"
+homeImportsUnderAConditionApplyForAUser ok  "sys= home=k:i"
+homeOptionsUnderAConditionAreDeclaredForAUser ok "x"
 homeImportsUnderAConditionAreRefused throws lanes/conditionedImports.nix (habit module 'conditionedImports') `habit.home`: carries `imports` or `options` under a condition; a condition covers only what the half sets, so move them out of it
 homeOptionsUnderAConditionAreRefused throws lanes/conditionedOptions.nix (habit module 'conditionedOptions') `habit.home`: carries `imports` or `options` under a condition; a condition covers only what the half sets, so move them out of it
 wrapUnsupportedTopLevelAttribute    throws  lanes/unsupportedAttr.nix (habit module 'unsupportedAttr'): has an unsupported top-level attribute: bogus; put configuration under `config`
@@ -183,6 +192,7 @@ selectionKeyInsideADendriteIsRefused throws lanes/habitSelects.nix (habit module
 nestedImportedHabitHomeIsRefused    throws  The option `habit.home' does not exist
 directPlain                         ok      "sys= home=k:h"
 directMkIfFalseDropsTheHomeHalf     ok      "sys= home="
+directMkIfFalseStillDefinesAnUndeclaredOption throws The option `undeclared' does not exist
 directMkIfFalseCoversEveryPartOfAMerge ok   "sys= home="
 directMkMerge                       ok      "sys= home=a:x,b:y"
 directMkIfOfMkMerge                 ok      "sys= home=a:x"

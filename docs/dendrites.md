@@ -73,20 +73,27 @@ removes it before the module system sees the rest. So:
   binds Home Manager's own `config` and its `lib`, extended with `lib.hm`;
 - the home half is a module defined for `home-manager.users.<user>`, emitted
   only for users it reaches, so a host without a Home Manager user never
-  mentions `home-manager` at all. A `mkIf`, `mkMerge` or `mkOverride` around
-  `habit.home`, or around the module's configuration, is carried down to what
-  the half sets, in every class: the definition of the user is always a plain
-  module, so one module's priority never filters another's home half for the
-  same user. A condition covers what the half sets and no more: it cannot cover
-  the half's `imports` or option declarations, which are read before any
-  condition is, so a half under a condition that carries either is refused,
-  naming the module, and they go in a `habit.home` no condition covers. Write
-  `mkIf` outside `mkOverride` (`mkIf c (mkOverride p x)`), as nixpkgs itself
-  requires: the other order fails in the module system. In a standalone home
-  there is no `home-manager.users`: the half is imported into the home itself,
-  and the module's own head is then Home Manager's, so a module meant for both
-  reads only its own options and `habit.selected` there, never another module's
-  system option.
+  mentions `home-manager` at all. A `mkIf` around `habit.home`, or around the
+  module's configuration, at any depth, is emitted outside the user's module as
+  `home-manager.users.<user> = mkIf c <module>`: the platform discharges it for
+  that definition, as it does a `mkIf` on any option of `attrsOf` type, so a
+  false condition defines nothing in the user's Home Manager. `mkIf false {
+  habit.home.stylix.enable = true; }` is safe where Home Manager does not
+  declare `stylix`, and a condition may cover the half's `imports` and option
+  declarations too, since the whole module is withheld. A `mkOverride` is
+  carried down to what the half sets instead: the definition of the user holds
+  no priority, so one module's priority never filters another's home half for
+  the same user. Write `mkIf` outside `mkOverride` (`mkIf c (mkOverride p x)`),
+  as nixpkgs itself requires: the other order fails in the module system. In a
+  standalone home there is no `home-manager.users`: the half is imported into
+  the home itself, and a `mkIf` and a `mkOverride` are both carried down to what
+  the half sets, as in any Home Manager module, so a false `mkIf` still defines
+  what it covers and an option Home Manager does not declare is an error there.
+  A condition cannot cover the `imports` or option declarations of a half in a
+  standalone home, which are read before any condition is, so a half under one
+  that carries either is refused, naming the module. The module's own head is
+  then Home Manager's, so a module meant for both reads only its own options and
+  `habit.selected` there, never another module's system option.
 
 ## Halves and scopes
 

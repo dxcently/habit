@@ -1354,6 +1354,18 @@ selectionCases
     default = { };
   };
 
+  # Home Manager as it is when a module it would declare an option from is not
+  # imported: a user's submodule holds `homeKeys` and nothing else, so a
+  # definition of any other key is an option that does not exist.
+  strictHomePiece.options.home-manager.users = lib.mkOption {
+    type = lib.types.attrsOf (
+      lib.types.submodule {
+        inherit (homeKeys) options;
+      }
+    );
+    default = { };
+  };
+
   openPlatform = [
     freeformPiece
     sysPiece
@@ -1364,6 +1376,10 @@ selectionCases
     homePiece
   ];
   platformWithoutHomeManager = [ sysPiece ];
+  strictPlatform = [
+    sysPiece
+    strictHomePiece
+  ];
 
   evalWith =
     platform: modules:
@@ -1431,6 +1447,46 @@ selectionCases
   splitMkIfFalseDropsBothHalves = landing { file = "mkifFalse.nix"; };
   splitMkMerge = landing { file = "mkmerge.nix"; };
   splitMkIfOfMkMerge = landing { file = "ifmerge.nix"; };
+
+  # A condition around a home half is discharged by the platform, per user
+  # definition, so a false one never defines the option it covers: on a
+  # platform that does not declare that option the definition would be an
+  # error. A true one applies, and a priority inside it still wins.
+  splitMkIfFalseNeverDefinesAnUndeclaredOption = landing {
+    file = "ifUndeclared.nix";
+    platform = strictPlatform;
+  };
+
+  splitMkIfOfMkMergeFalseNeverDefinesAnUndeclaredOption = landing {
+    file = "ifmergeUndeclared.nix";
+    platform = strictPlatform;
+  };
+
+  splitMkIfOnTheHomeValueFalseNeverDefinesAnUndeclaredOption = landing {
+    file = "homeValueIfUndeclared.nix";
+    platform = strictPlatform;
+  };
+
+  splitMkIfOfMkOverrideFalseNeverDefinesAnUndeclaredOption = landing {
+    file = "ifOfOverrideUndeclared.nix";
+    platform = strictPlatform;
+  };
+
+  splitMkIfTrueAppliesOnAStrictPlatform = landing {
+    file = "mkif.nix";
+    platform = strictPlatform;
+  };
+
+  splitMkIfOfMkOverrideKeepsThePriority = landing {
+    file = "ifOfOverride.nix";
+    platform = strictPlatform;
+    extra = [ { home-manager.users.alice.k = "other"; } ];
+  };
+
+  splitMkIfFalseWithADeclaredOptionAppliesNothing = landing {
+    file = "mkifFalse.nix";
+    platform = strictPlatform;
+  };
 
   # Two definitions of one freeform value would conflict at equal priority; the
   # override beats the plain one only if both halves carry its priority.
@@ -1546,12 +1602,23 @@ selectionCases
   # A path is the module it names.
   homeHalfMayBeAPath = landing { file = "homePath.nix"; };
 
-  # A condition covers the half's config. Its imports and options are read
-  # before any condition is, so they would apply whatever the condition says:
-  # under one, they are refused.
+  # For a user the platform discharges a condition around the half whole, its
+  # imports and options with it. In a home that is itself the evaluation, a
+  # condition covers the half's config only, and imports and options are read
+  # before any condition is: under one, they are refused.
   homeImportsApplyWhenNothingCoversThem = landing { file = "homeImports.nix"; };
-  homeImportsUnderAConditionAreRefused = landing { file = "conditionedImports.nix"; };
-  homeOptionsUnderAConditionAreRefused = landing { file = "conditionedOptions.nix"; };
+  homeImportsUnderAConditionApplyForAUser = landing { file = "conditionedImports.nix"; };
+
+  homeOptionsUnderAConditionAreDeclaredForAUser =
+    (evalWith openPlatform [
+      (wrapped {
+        file = "conditionedOptions.nix";
+        homeFor = [ "alice" ];
+      })
+    ]).home-manager.users.alice.x;
+
+  homeImportsUnderAConditionAreRefused = landingHere { file = "conditionedImports.nix"; };
+  homeOptionsUnderAConditionAreRefused = landingHere { file = "conditionedOptions.nix"; };
 
   wrapNotAModule = landing { file = "notModule.nix"; };
   wrapUnsupportedTopLevelAttribute = landing { file = "unsupportedAttr.nix"; };
@@ -1605,6 +1672,13 @@ selectionCases
   directFunctionUnderMkIfFalse = landingHere {
     file = "homeFunction.nix";
     extra = [ { fn.on = false; } ];
+  };
+
+  # The condition stays inside the home, as in Home Manager's own modules: a
+  # false one still defines what it covers, an error for an undeclared option.
+  directMkIfFalseStillDefinesAnUndeclaredOption = landingHere {
+    file = "ifUndeclared.nix";
+    platform = closedPlatform;
   };
 
   directMkIfFalseCoversEveryPartOfAMerge = landingHere { file = "ifmergeFalse.nix"; };

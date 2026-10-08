@@ -8,6 +8,7 @@
     activation.enable = true;
     selected.enable = true;
     args.enable = true;
+    gated.enable = true;
   };
 
   habit.users.alice = {

@@ -99,6 +99,8 @@ let
       c: inner: if c._type == "if" then mkIf c.condition inner else mkOverride c.priority inner
     ) value covers;
 
+  isCondition = c: c._type == "if";
+
   # One plain config: what the system gets, and the `habit.home` value.
   configLeaf =
     where: covers: c:
@@ -124,8 +126,9 @@ let
       };
 
   # One module of a home half, covered at its `config`. `imports` and `options`
-  # are read before any condition is, so a condition cannot cover them: a module
-  # that has them under one is refused. A path is the module it names.
+  # are read before any condition is, so a condition carried here cannot cover
+  # them: a module that has them under one is refused. A user's conditions are
+  # not carried here (see `wrap`). A path is the module it names.
   homeLeaf =
     where: file: covers: home:
     let
@@ -136,7 +139,7 @@ let
         let
           u = unify where (if isModuleFile then toString home else file) m;
         in
-        if any (c: c._type == "if") covers && (u.imports != [ ] || u.options != { }) then
+        if any isCondition covers && (u.imports != [ ] || u.options != { }) then
           throw "${where}: carries `imports` or `options` under a condition; a condition covers only what the half sets, so move them out of it"
         else
           u // { config = cover covers u.config; };
@@ -147,11 +150,19 @@ let
       covered module;
 
   # `standalone`: the evaluation is itself the home, so the system half is
-  # dropped, its `imports` with it, and the home half is imported. Otherwise the
+  # dropped, its `imports` with it, and the home half is imported, each
+  # condition and priority carried to the leaves of its config. Otherwise the
   # system half applies and the home half goes to the users in `homeFor`. A half
   # that does not apply is not emitted at all, never gated by `mkIf`: `mkIf
   # false` still defines its options, an error for one the platform does not
   # declare (every option under `home-manager` without Home Manager's module).
+  #
+  # For a user, a condition around the home half is emitted outside the user's
+  # home module, as `home-manager.users.<user> = mkIf c <module>`: the platform
+  # discharges it per definition, and a false one defines nothing in the user's
+  # Home Manager, whichever options its modules declare. A priority is carried
+  # inside, to the leaves of the config: on the definition of the user it would
+  # filter every other module's home half for that user away.
   wrap =
     {
       name,
@@ -170,13 +181,26 @@ let
           cs = leaves (configLeaf where) [ ] m.config;
           sys = mkMerge (map (c: cover c.covers c.sys) cs);
 
-          # Never a conditional definition: a priority on a user's definition
-          # would filter every other module's home half for that user away. A
-          # function, so a submodule type that reads an attribute set as
+          homeWhere = "${where} `habit.home`";
+
+          # A function, so a submodule type that reads an attribute set as
           # `config` alone does not take its `imports` for an option.
           home = _: {
-            imports = concatMap (c: leaves (homeLeaf "${where} `habit.home`" file) c.covers c.home) cs;
+            imports = concatMap (c: leaves (homeLeaf homeWhere file) c.covers c.home) cs;
           };
+
+          perUser = concatMap (
+            c:
+            leaves (
+              covers: value:
+              let
+                split = lib.partition isCondition covers;
+              in
+              lib.foldr (cond: inner: mkIf cond.condition inner) (_: {
+                imports = [ (homeLeaf homeWhere file split.wrong value) ];
+              }) split.right
+            ) c.covers c.home
+          ) cs;
         in
         m
         // {
@@ -185,7 +209,7 @@ let
           config = mkMerge [
             (optionalAttrs (!standalone) sys)
             (optionalAttrs (homeFor != [ ]) {
-              home-manager.users = genAttrs homeFor (_: home);
+              home-manager.users = genAttrs homeFor (_: mkMerge perUser);
             })
           ];
         };

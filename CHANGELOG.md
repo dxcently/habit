@@ -4,6 +4,17 @@ Append-only. Newest first.
 
 ## v2
 
+- A `mkIf` around a home half, at any depth above `habit.home`, is emitted
+  outside the user's home module, as `home-manager.users.<user> = mkIf c <module>`,
+  so the platform discharges it per definition: a false condition defines
+  nothing in the user's Home Manager, and `mkIf false { habit.home.stylix = …; }`
+  no longer fails as an option that does not exist where Home Manager has not
+  declared `stylix`. A `mkOverride` is still carried to the leaves of the half's
+  config inside the module. A condition may now cover a user's home half whole,
+  its `imports` and option declarations too; in a standalone home, where there is
+  no `home-manager.users`, conditions stay inside the home as in any Home Manager
+  module and a half under one that carries `imports` or `options` is still
+  refused.
 - Removed the constructor's `nucleus` argument. An unconditional module goes in
   `extraModules`; the dendrites every host carries are, by convention, the members
   of an aggregation named `nucleus` that each host selects and may deselect

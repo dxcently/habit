@@ -59,7 +59,7 @@ directory) and `<name>` is the capability or `user:<user>`.
 | ----------------- | ----- | --- |
 | `does not look like a module, got <type>` | the file evaluates to something other than an attrset or a function returning one | write a module |
 | `` `habit.home`: does not look like a module, got <type> `` | `habit.home` is a number, list or other non-module | write `habit.home` as an attrset, a function or a path |
-| `` `habit.home`: carries `imports` or `options` under a condition; a condition covers only what the half sets, so move them out of it `` | `habit.home`, or the module's config, is under `mkIf` and the half has `imports` or `options` | put them in a `habit.home` that no `mkIf` covers |
+| `` `habit.home`: carries `imports` or `options` under a condition; a condition covers only what the half sets, so move them out of it `` | in a standalone home, `habit.home`, or the module's config, is under `mkIf` and the half has `imports` or `options` | put them in a `habit.home` that no `mkIf` covers; for a user the `mkIf` covers them |
 | `has an unsupported top-level attribute: <names>; put configuration under `config`` | a module with `options` or `config` also has a stray top-level key | move it under `config` |
 | `config must be an attribute set, got <type>` | `config` is a list or other non-attrset | make it an attrset |
 | ``config is a `<type>` value habit cannot split`` | `config` is an `mkOrder` or another module-system value that is not `mkIf`, `mkMerge` or `mkOverride` | write the configuration as an attrset, or wrap it in one of those three |

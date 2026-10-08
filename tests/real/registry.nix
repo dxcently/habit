@@ -11,6 +11,7 @@
     activation = ./dendrites/activation.nix;
     selected = ./dendrites/selected.nix;
     args = ./dendrites/args.nix;
+    gated = ./dendrites/gated.nix;
     bluetooth = ./dendrites/bluetooth;
     udev = ./dendrites/udev.nix;
   };

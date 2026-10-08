@@ -99,6 +99,28 @@ in
     };
   };
 
+  nixosFalseConditionOverAnUndeclaredHomeOptionDefinesNothing = {
+    got = {
+      alice = alice ? fixtureUndeclared;
+      bob = bob ? fixtureUndeclared;
+    };
+    want = {
+      alice = false;
+      bob = false;
+    };
+  };
+
+  nixosTrueConditionAroundAHomeHalfApplies = {
+    got = {
+      alice = alice.home.sessionVariables.GATED;
+      bob = bob.home.sessionVariables.GATED;
+    };
+    want = {
+      alice = "on";
+      bob = "on";
+    };
+  };
+
   nixosFunctionHomeHalfTakesHomeManagersLib = {
     got = alice.home.activation.habitFixture.after;
     want = [ "writeBoundary" ];
@@ -115,6 +137,7 @@ in
         "activation"
         "args"
         "forced"
+        "gated"
         "plain"
         "selected"
         "zsh"
