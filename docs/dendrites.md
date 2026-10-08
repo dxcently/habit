@@ -99,20 +99,54 @@ removes it before the module system sees the rest. So:
 
 Who selected a module decides where its halves go:
 
-| selected by       | system half | home half goes to                              |
-| ----------------- | ----------- | ---------------------------------------------- |
-| the host          | applied     | every user with `home.enable = true`           |
-| user `U`          | applied     | `U` only                                       |
-| the host and `U`  | applied once | `U` once                                      |
-| a standalone home | dropped, `imports` with it | the home itself                 |
+| selected by                       | system half                | home half goes to                              |
+| --------------------------------- | -------------------------- | ---------------------------------------------- |
+| the host                          | applied                    | every user with `home.enable = true`           |
+| the host, `system = false`        | not applied                | every user with `home.enable = true`           |
+| user `U`                          | applied                    | `U` only                                       |
+| user `U`, `system = false`        | not applied                | `U` only                                       |
+| the host and `U`                  | applied once               | `U` once                                       |
+| the host and `U`, both `system = false` | not applied          | `U` once                                       |
+| the host, `system = false`, and `U` | applied once             | `U` once                                       |
+| a standalone home                 | dropped, `imports` with it | the home itself                                |
 
-A user's selection applies the system half as well, because some modules need
-both sides (a screen locker's PAM service). A module reached by several
-selections is wrapped once, so its system half is applied once however many
-users chose it, and each user's home gets the half once.
-A user with `home.enable = false` receives no home half; selecting a module
-for that user's home is an error
-([Errors](errors.md#users)).
+A selection's `system` (a bool, default `true`) says whether it asks for the
+module's system half. The system half is applied iff at least one enabled
+selection of the module, the host's or any user's, has `system = true`; where
+the home half goes does not depend on it. A user's selection applies the system
+half by default because some modules need both sides (a screen locker's PAM
+service). A module reached by several selections is wrapped once, so its system
+half is applied once however many users chose it, and each user's home gets the
+half once. A user with `home.enable = false` receives no home half; selecting a
+module for that user's home is an error ([Errors](errors.md#users)).
+
+`system = false` is written beside `enable` in either scope:
+
+```nix
+habit.dendrites.kitty = { enable = true; system = false; };
+habit.users.alice.dendrites.kitty = { enable = true; system = false; };
+```
+
+It is accepted in a standalone home and changes nothing, since a home never
+applies the system half. A group's members write only `enable` and `provider`
+(at `mkDefault`), so a host switches a member to its home half with
+`habit.dendrites.<member>.system = false`. An override record's `system` module
+follows its target's system half: it is not applied for a target every one of
+whose selections has `system = false`. Its `overlay` and `home` module do not
+depend on it ([Override records](overrides.md#matching)).
+
+Two refusals keep `system = false` honest ([Errors](errors.md#modules)): a
+module with no `habit.home` has no home half to select, whichever scope or
+provider asked; and the host's own `system = false`, on a host where no user has
+`home.enable = true`, has no home to receive the half.
+
+A home half configures `$HOME`. A bare package belongs in the system half
+(`environment.systemPackages`), and a capability meant for "the system or the
+home" is written with both halves and selected with `system = false` where only
+the home is wanted. Take care with a module whose home half needs its system
+half: a screen locker whose PAM service lives in the system half is broken
+by `system = false`, since the home half configures the program and the system
+half is what lets it authenticate.
 
 ## Darwin
 

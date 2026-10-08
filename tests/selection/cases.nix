@@ -182,10 +182,15 @@ let
   marksOf = c: builtins.concatStringsSep "+" c.fixture.marks;
 
   # What landed where: the system's marks, then each Home Manager user's.
-  assembled =
-    mod:
+  assembled = assembledIn registry;
+
+  assembledIn =
+    registry: mod:
     let
-      c = evalAssembled { inherit mod; };
+      c = evalAssembled {
+        inherit mod;
+        args = { inherit registry; };
+      };
     in
     builtins.concatStringsSep " " (
       [ "sys=${marksOf c}" ]
@@ -224,6 +229,8 @@ let
       homeThrows = ./dendrites/homeThrows;
       laneRecord = ./dendrites/laneRecord;
       nestedHome = ./dendrites/nestedHome;
+      splitLandmine = ./dendrites/splitLandmine;
+      choice = ./dendrites/choice;
     };
   };
 
@@ -486,6 +493,175 @@ let
       users.alice = homeUser "alice" { dendrites.notifications = dunst; };
       users.bob = homeUser "bob" { dendrites.notifications = dunst; };
     };
+
+    # ── A home-only selection ──────────────────────────────────────────────────
+    # `system = false` asks for the home half alone. The system half applies iff
+    # some enabled selection of the capability, the host's or a user's, has
+    # `system = true`; where the home half goes does not change.
+    hostSystemOffReachesEveryHomeUserAndAppliesNoSystemHalf = assembled {
+      dendrites.notifications = dunst // {
+        system = false;
+      };
+      users.alice = homeUser "alice" { };
+      users.bob = homeUser "bob" { };
+    };
+
+    userSystemOffReachesThatUserAndAppliesNoSystemHalf = assembled {
+      users.alice = homeUser "alice" {
+        dendrites.notifications = dunst // {
+          system = false;
+        };
+      };
+      users.bob = homeUser "bob" { };
+    };
+
+    hostSystemOffAndAUserSystemOnApplyTheSystemHalfOnce = assembled {
+      dendrites.notifications = dunst // {
+        system = false;
+      };
+      users.alice = homeUser "alice" { dendrites.notifications = dunst; };
+      users.bob = homeUser "bob" { };
+    };
+
+    userSystemOffAndAnotherUserSystemOnApplyTheSystemHalfOnce = assembled {
+      users.alice = homeUser "alice" {
+        dendrites.notifications = dunst // {
+          system = false;
+        };
+      };
+      users.bob = homeUser "bob" { dendrites.notifications = dunst; };
+    };
+
+    everySelectionSystemOffAppliesNoSystemHalfAndTheHomeHalfOnce = assembled {
+      dendrites.notifications = dunst // {
+        system = false;
+      };
+      users.alice = homeUser "alice" {
+        dendrites.notifications = dunst // {
+          system = false;
+        };
+      };
+      users.bob = homeUser "bob" { };
+    };
+
+    # A selection that is not enabled asks for nothing, whatever its `system`.
+    systemOffOfADisabledSelectionChangesNothing = assembled {
+      dendrites.notifications = dunst;
+      users.alice = homeUser "alice" {
+        dendrites.notifications = {
+          provider = "dunst";
+          system = false;
+        };
+      };
+    };
+
+    # The system half's imports are not evaluated when it does not apply, and
+    # are when one selection asks for it.
+    systemOffEverywhereNeverImportsTheSystemHalf = assembledIn registryWithModules {
+      dendrites.splitLandmine = {
+        enable = true;
+        system = false;
+      };
+      users.alice = homeUser "alice" {
+        dendrites.splitLandmine = {
+          enable = true;
+          system = false;
+        };
+      };
+    };
+
+    systemOnByOneSelectionImportsTheSystemHalf = assembledIn registryWithModules {
+      dendrites.splitLandmine = {
+        enable = true;
+        system = false;
+      };
+      users.alice = homeUser "alice" { dendrites.splitLandmine.enable = true; };
+    };
+
+    # A member of an aggregation is switched to the home half alone by the host,
+    # as it is switched off: the group writes `enable` and `provider` at default
+    # priority and no more.
+    aggregationMemberSystemOffByTheHost = assembled {
+      aggregation.workstation.enable = true;
+      dendrites.notifications.system = false;
+      users.alice = homeUser "alice" { };
+    };
+
+    userAggregationMemberSystemOffByTheUser = assembled {
+      users.alice = homeUser "alice" {
+        aggregation.desk.enable = true;
+        dendrites.notifications.system = false;
+      };
+    };
+
+    # A capability with no home half has nothing for a home-only selection to
+    # select, whoever selects it and whichever provider answers.
+    systemOffByTheHostOnAModuleWithoutAHomeHalfIsRefused = assembled {
+      dendrites.systemonly = {
+        enable = true;
+        system = false;
+      };
+      users.alice = homeUser "alice" { };
+    };
+
+    systemOffByAUserOnAModuleWithoutAHomeHalfIsRefused = assembled {
+      users.alice = homeUser "alice" {
+        dendrites.systemonly = {
+          enable = true;
+          system = false;
+        };
+      };
+    };
+
+    systemOffOnAProviderWithoutAHomeHalfIsRefused = assembledIn registryWithModules {
+      dendrites.choice = {
+        enable = true;
+        provider = "systemonly";
+        system = false;
+      };
+      users.alice = homeUser "alice" { };
+    };
+
+    systemOffOnAProviderWithAHomeHalfIsApplied = assembledIn registryWithModules {
+      dendrites.choice = {
+        enable = true;
+        provider = "homeonly";
+        system = false;
+      };
+      users.alice = homeUser "alice" { };
+    };
+
+    # A selection by the host that asks for the home half alone, with no user
+    # to receive it.
+    hostSystemOffWithoutHomeUsersIsRefused = assembled {
+      dendrites.notifications = dunst // {
+        system = false;
+      };
+    };
+
+    hostSystemOffWithOnlyUsersWithoutHomeManagerIsRefused = assembled {
+      dendrites.notifications = dunst // {
+        system = false;
+      };
+      users.alice = homeUser "alice" { home.enable = false; };
+    };
+
+    # The inventory shows each selection's `system`.
+    inventoryShowsEachSelectionsSystem =
+      let
+        inv = composition.inventoryOf {
+          hostName = "fixture";
+          selection = select {
+            dendrites.notifications = dunst // {
+              system = false;
+            };
+            users.alice = homeUser "alice" { dendrites.notifications = dunst; };
+          };
+        };
+      in
+      "host=${lib.boolToString inv.dendrites.notifications.system} alice=${
+        lib.boolToString inv.users.alice.dendrites.notifications.system
+      }";
 
     # One system takes one implementation of a capability: selectors that name
     # different providers are refused, naming every claimant, whether the
@@ -781,6 +957,50 @@ selectionCases
     name = "misspeltHalf";
     enabled = "workstation";
   };
+
+  # The record `dual` against a selection: how many of its system modules and
+  # overlays the host gets, and how many of its home modules alice does.
+  recordsOf =
+    host: users:
+    let
+      r = applyOverrides {
+        mod = host // users;
+        records = overrides // {
+          dual = ./overrides/dual.nix;
+        };
+      };
+      count = x: toString (builtins.length x);
+      marked = mark: builtins.filter (m: (m { }).fixture.marks == [ mark ]);
+      dualOverlays = builtins.filter (o: (o { } { }) ? fixture-dual) r.overlays;
+    in
+    "system=${count (marked "dualsystem" r.system)} overlays=${count dualOverlays} alice=${count (marked "dualhome" r.home.alice)}";
+
+    # An override record's `system` module follows its target's system half; its
+    # overlay and its home module do not, since a home draws from the host's
+    # package set and the home half still goes to its users.
+    overrideSystemModuleAppliesWhenTheTargetsSystemHalfDoes =
+      recordsOf { dendrites.notifications = dunst; }
+        { users.alice = homeUser "alice" { }; };
+
+    overrideSystemModuleIsWithheldFromATargetSelectedAsHomeOnly =
+      recordsOf
+        {
+          dendrites.notifications = dunst // {
+            system = false;
+          };
+        }
+        { users.alice = homeUser "alice" { }; };
+
+    overrideSystemModuleAppliesWhenOneSelectionOfTheTargetAsksForTheSystemHalf =
+      recordsOf
+        {
+          dendrites.notifications = dunst // {
+            system = false;
+          };
+        }
+        {
+          users.alice = homeUser "alice" { dendrites.notifications = dunst; };
+        };
 
   # A record with no `hosts` reaches every host that selected a target — and
   # nothing else: `confined` is beta-only, `homely` and `tripwire` target
@@ -1235,6 +1455,14 @@ selectionCases
     host = ./hosts/importsInline.nix;
   });
 
+  systemInAnImportedFileFailsAnAssertion = failedAssertions (evalAssembled {
+    host = ./hosts/importsSystemOff.nix;
+  });
+
+  systemInAnInlineImportIsCaughtByItsValue = failedAssertions (evalAssembled {
+    host = ./hosts/importsInlineSystemOff.nix;
+  });
+
   # A host that sets its own `_file`, in the module or in what its function
   # returns, is filed under that name; its keys are still the host's.
   hostWithItsOwnFileIsClean = failedAssertions (evalAssembled { host = ./hosts/ownFile.nix; });
@@ -1393,11 +1621,18 @@ selectionCases
       file,
       standalone ? false,
       homeFor ? [ ],
+      system ? true,
+      homeOnlyBy ? [ ],
     }:
     lanes.wrap {
       name = lib.removeSuffix ".nix" file;
       path = ./lanes + "/${file}";
-      inherit standalone homeFor;
+      inherit
+        standalone
+        homeFor
+        system
+        homeOnlyBy
+        ;
     };
 
   # The module bare, and wrapped with the system half on and no home user:
@@ -1543,6 +1778,39 @@ selectionCases
   };
 
   wrapHomeWithAReaderIsRead = landing { file = "homeThrows.nix"; };
+
+  # `system = false` drops the system half and keeps the home half. Asking for
+  # the home half alone of a module that has none is refused, and finding out
+  # reads neither the home half nor a condition.
+  landingHomeOnly =
+    {
+      file,
+      homeFor ? [ "alice" ],
+    }:
+    let
+      config = evalWith openPlatform [
+        (wrapped {
+          inherit file homeFor;
+          system = false;
+          homeOnlyBy = [ "the host" ];
+        })
+      ];
+    in
+    "sys=${showAttrs config.sys} home=${showAttrs (setKeys (config.home-manager.users.alice or { }))}";
+
+  wrapSystemOffAppliesTheHomeHalfAlone = landingHomeOnly { file = "plain.nix"; };
+
+  wrapSystemOffWithoutAHomeHalfIsRefused = landingHomeOnly { file = "systemOnly.nix"; };
+
+  wrapSystemOffNeverReadsTheHomeHalfItChecks = landingHomeOnly {
+    file = "homeThrows.nix";
+    homeFor = [ ];
+  };
+
+  wrapSystemOffNeverForcesAConditionItChecks = landingHomeOnly {
+    file = "ifThrows.nix";
+    homeFor = [ ];
+  };
 
   # A dropped system half takes the module's `imports` with it: the import
   # throws, so it is untouched when the system is off and reached when on.
@@ -1888,6 +2156,21 @@ selectionCases
   # `dunst` marks both halves. The home applies the home half, once.
   standaloneHomeAppliesTheHomeHalfOnly = marksOf (homeConfigOf {
     mod.dendrites.notifications = dunst;
+  });
+
+  # `system = false` is accepted in a home and changes nothing: the system half
+  # is always dropped, and a module with no home half is no error.
+  standaloneHomeAcceptsSystemOff = marksOf (homeConfigOf {
+    mod.dendrites.notifications = dunst // {
+      system = false;
+    };
+  });
+
+  standaloneHomeAcceptsSystemOffOnAModuleWithoutAHomeHalf = marksOf (homeConfigOf {
+    mod.dendrites.systemonly = {
+      enable = true;
+      system = false;
+    };
   });
 
   standaloneHomeNeverImportsAnUnselectedModule =

@@ -41,7 +41,8 @@ host module ──► selection pass ──► resolved selection ──► plat
 - **One module, three targets.** The same capability serves a NixOS host, a
   nix-darwin host and a standalone Home Manager configuration: the builder
   (`mkNixosHost`, `mkDarwinHost`, `mkHome`) takes the evaluator from you, and a
-  home drops the module's system half and keeps its home half.
+  home drops the module's system half and keeps its home half. A selection can
+  ask for the home half alone with `system = false`.
 
 How habit differs from den, flake-parts, snowfall-lib and blueprint:
 [Comparisons](docs/comparisons.md).

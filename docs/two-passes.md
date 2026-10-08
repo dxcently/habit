@@ -98,8 +98,8 @@ passes ([The constructor](constructor.md#the-two-hooks)).
 
 The platform pass walks the resolved selection and imports each selected
 capability once, wrapped ([Dendrites](dendrites.md#a-plain-module)): its system
-half applies in the host's evaluation, and its home half goes to the users it
-was selected for, which is every Home Manager user when the host selected it
+half applies in the host's evaluation unless every selection of it has
+`system = false`, and its home half goes to the users it was selected for, which is every Home Manager user when the host selected it
 and the one user when a user did. Each user's module is wrapped the same way.
 A standalone home has no system and no users: the platform pass drops each
 capability's system half and imports its home half into the home itself

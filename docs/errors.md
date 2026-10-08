@@ -38,6 +38,7 @@ Two more come from the platform evaluation and the hooks:
 | message | cause | fix |
 | ------- | ----- | --- |
 | `host '<host>': user '<user>' has home.enable = false but selects home dendrites: <list>` | a user selects home capabilities with their home off | set `home.enable = true`, or drop the selections |
+| ``host '<host>': `habit.dendrites.<name>.system = false` selects only the home half of '<name>' but no user has home.enable`` | the host selects only the home half of a capability and no user has Home Manager on to receive it; several are joined by `;` | give a user `home.enable = true`, or drop `system = false` |
 | ``host '<host>': user(s) <users> have home.enable = true but no `homeManagerModule` was given`` | a user has Home Manager on and the caller gave none to import | pass Home Manager's `nixosModules.home-manager` or `darwinModules.home-manager` as `homeManagerModule` |
 
 ## Classes
@@ -58,6 +59,7 @@ directory) and `<name>` is the capability or `user:<user>`.
 | message continues | cause | fix |
 | ----------------- | ----- | --- |
 | `does not look like a module, got <type>` | the file evaluates to something other than an attrset or a function returning one | write a module |
+| ``host '<host>' `habit.dendrites.<name>.system = false` selects only the home half of '<name>', which has none`` (a user's reads ``user '<user>' of host '<host>' `habit.users.<user>.dendrites.<name>.system = false` ``, then the same) | a selection asks for the home half alone of a module, or of the provider that answers it, with no `habit.home` | drop `system = false`, or give the module a `habit.home` |
 | `` `habit.home`: does not look like a module, got <type> `` | `habit.home` is a number, list or other non-module | write `habit.home` as an attrset, a function or a path |
 | `` `habit.home`: carries `imports` or `options` under a condition; a condition covers only what the half sets, so move them out of it `` | in a standalone home, `habit.home`, or the module's config, is under `mkIf` and the half has `imports` or `options` | put them in a `habit.home` that no `mkIf` covers; for a user the `mkIf` covers them |
 | `has an unsupported top-level attribute: <names>; put configuration under `config`` | a module with `options` or `config` also has a stray top-level key | move it under `config` |

@@ -55,6 +55,30 @@ hostSelectionReachesEveryHomeUser   ok      "sys=dunst alice=dunst bob=dunst"
 userSelectionReachesThatUserOnly    ok      "sys=dunst alice=dunst bob="
 hostAndUserSelectionApplyOnce       ok      "sys=dunst alice=dunst bob=dunst"
 usersSelectingOneModuleApplyItsSystemHalfOnce ok "sys=dunst alice=dunst bob=dunst"
+hostSystemOffReachesEveryHomeUserAndAppliesNoSystemHalf ok "sys= alice=dunst bob=dunst"
+userSystemOffReachesThatUserAndAppliesNoSystemHalf ok "sys= alice=dunst bob="
+hostSystemOffAndAUserSystemOnApplyTheSystemHalfOnce ok "sys=dunst alice=dunst bob=dunst"
+userSystemOffAndAnotherUserSystemOnApplyTheSystemHalfOnce ok "sys=dunst alice=dunst bob=dunst"
+everySelectionSystemOffAppliesNoSystemHalfAndTheHomeHalfOnce ok "sys= alice=dunst bob=dunst"
+systemOffOfADisabledSelectionChangesNothing ok "sys=dunst alice=dunst"
+systemOffEverywhereNeverImportsTheSystemHalf ok "sys= alice=splitlandmine"
+systemOnByOneSelectionImportsTheSystemHalf throws landmine/default.nix was imported
+aggregationMemberSystemOffByTheHost ok      "sys=systemonly alice=dunst"
+userAggregationMemberSystemOffByTheUser ok  "sys= alice=dunst"
+systemOffByTheHostOnAModuleWithoutAHomeHalfIsRefused throws dendrites/systemonly/default.nix (habit module 'systemonly'): host 'fixture' `habit.dendrites.systemonly.system = false` selects only the home half of 'systemonly', which has none
+systemOffByAUserOnAModuleWithoutAHomeHalfIsRefused throws dendrites/systemonly/default.nix (habit module 'systemonly'): user 'alice' of host 'fixture' `habit.users.alice.dendrites.systemonly.system = false` selects only the home half of 'systemonly', which has none
+systemOffOnAProviderWithoutAHomeHalfIsRefused throws dendrites/systemonly/default.nix (habit module 'choice'): host 'fixture' `habit.dendrites.choice.system = false` selects only the home half of 'choice', which has none
+systemOffOnAProviderWithAHomeHalfIsApplied ok "sys= alice=homeonly"
+hostSystemOffWithoutHomeUsersIsRefused throws host 'fixture': `habit.dendrites.notifications.system = false` selects only the home half of 'notifications' but no user has home.enable
+hostSystemOffWithOnlyUsersWithoutHomeManagerIsRefused throws host 'fixture': `habit.dendrites.notifications.system = false` selects only the home half of 'notifications' but no user has home.enable
+inventoryShowsEachSelectionsSystem  ok      "host=false alice=true"
+overrideSystemModuleAppliesWhenTheTargetsSystemHalfDoes ok "system=1 overlays=1 alice=1"
+overrideSystemModuleIsWithheldFromATargetSelectedAsHomeOnly ok "system=0 overlays=1 alice=1"
+overrideSystemModuleAppliesWhenOneSelectionOfTheTargetAsksForTheSystemHalf ok "system=1 overlays=1 alice=1"
+standaloneHomeAcceptsSystemOff      ok      "dunst"
+standaloneHomeAcceptsSystemOffOnAModuleWithoutAHomeHalf ok ""
+systemInAnImportedFileFailsAnAssertion throws `habit.dendrites.systemonly.system` is set in
+systemInAnInlineImportIsCaughtByItsValue throws `habit.dendrites.systemonly.system` is set in
 hostAndUserWithDifferentProvidersAreRefused throws dendrite 'notifications' is selected with different providers (host: dunst; user 'alice': herald); one system takes one implementation
 usersWithDifferentProvidersAreRefused throws dendrite 'notifications' is selected with different providers (user 'alice': mako; user 'bob': dunst); one system takes one implementation
 hostSelectionSkipsAUserWithoutHomeManager ok "sys=dunst alice=dunst"
@@ -170,6 +194,10 @@ wrapKeyIsTheNameAndFileIsTheAuthors ok      "habit:ownFile authors/own-file.nix"
 wrapKeepsTheModulesFormals          ok      "sys=k:supplied home="
 wrapHomeWithoutAReaderIsNeverRead   ok      "sys=k:s home="
 wrapHomeWithAReaderIsRead           throws  habit.home was read
+wrapSystemOffAppliesTheHomeHalfAlone ok     "sys= home=k:h"
+wrapSystemOffWithoutAHomeHalfIsRefused throws lanes/systemOnly.nix (habit module 'systemOnly'): the host selects only the home half of 'systemOnly', which has none
+wrapSystemOffNeverReadsTheHomeHalfItChecks ok "sys= home="
+wrapSystemOffNeverForcesAConditionItChecks ok "sys= home="
 wrapSystemOffAppliesNothingOfTheSystem ok   "sys= home=k:h"
 wrapSystemOnImports                 throws  landmine/default.nix was imported
 wrapSystemOffEmitsNoSystemOptions   ok      "sys= home=k:h"

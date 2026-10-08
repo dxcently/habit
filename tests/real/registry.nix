@@ -6,6 +6,7 @@
   catalogue = {
     zsh = ./dendrites/zsh.nix;
     tmux = ./dendrites/tmux.nix;
+    git = ./dendrites/git.nix;
     plain = ./dendrites/plain.nix;
     forced = ./dendrites/forced.nix;
     activation = ./dendrites/activation.nix;

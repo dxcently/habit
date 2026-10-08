@@ -95,6 +95,10 @@ Everything about membership follows from that priority.
 | two selected groups choose different providers for it  | error: `habit.dendrites.<member>.provider` has conflicting definition values |
 | host sets `habit.dendrites.notifications.provider = "x"` | the host's choice beats the group's default                 |
 
+A group writes only `enable` and `provider`, so the rest of a member's selection
+is the host's: `habit.dendrites.<member>.system = false` keeps the member and
+asks for its home half alone ([Dendrites](dendrites.md#halves-and-scopes)).
+
 The workstation example switches a member off:
 
 ```nix

@@ -122,6 +122,7 @@ let
       {
         inherit covers;
         sys = removeAttrs c [ "habit" ];
+        hasHome = h ? home;
         home = h.home or { };
       };
 
@@ -157,6 +158,11 @@ let
   # false` still defines its options, an error for one the platform does not
   # declare (every option under `home-manager` without Home Manager's module).
   #
+  # `system = false`: the selection asks for the home half alone, so the system
+  # half is not applied and nothing of it is imported, as in a standalone home.
+  # `homeOnlyBy` names each selection that asked for it; a module with no home
+  # half is refused, since there is nothing for them to select.
+  #
   # For a user, a condition around the home half is emitted outside the user's
   # home module, as `home-manager.users.<user> = mkIf c <module>`: the platform
   # discharges it per definition, and a false one defines nothing in the user's
@@ -169,8 +175,11 @@ let
       path,
       standalone,
       homeFor,
+      system ? true,
+      homeOnlyBy ? [ ],
     }:
     let
+      applySystem = system && !standalone;
       file = toString (if lib.pathIsDirectory path then path + "/default.nix" else path);
       where = "${file} (habit module '${name}')";
       raw = import path;
@@ -202,17 +211,20 @@ let
             ) c.covers c.home
           ) cs;
         in
-        m
-        // {
-          key = "habit:${name}";
-          imports = optionals (!standalone) m.imports ++ optional standalone home;
-          config = mkMerge [
-            (optionalAttrs (!standalone) sys)
-            (optionalAttrs (homeFor != [ ]) {
-              home-manager.users = genAttrs homeFor (_: mkMerge perUser);
-            })
-          ];
-        };
+        if homeOnlyBy != [ ] && !any (c: c.hasHome) cs then
+          throw "${where}: ${lib.head homeOnlyBy} selects only the home half of '${name}', which has none"
+        else
+          m
+          // {
+            key = "habit:${name}";
+            imports = optionals applySystem m.imports ++ optional standalone home;
+            config = mkMerge [
+              (optionalAttrs applySystem sys)
+              (optionalAttrs (homeFor != [ ]) {
+                home-manager.users = genAttrs homeFor (_: mkMerge perUser);
+              })
+            ];
+          };
     in
     if isFunction raw then
       lib.setFunctionArgs (args: build (raw args)) (lib.functionArgs raw)

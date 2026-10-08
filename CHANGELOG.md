@@ -4,6 +4,21 @@ Append-only. Newest first.
 
 ## v2
 
+- A dendrite selection takes `system` (a bool, default `true`) in both scopes,
+  `habit.dendrites.<name>.system` and `habit.users.<user>.dendrites.<name>.system`:
+  `false` asks for the module's home half alone. The system half is applied iff
+  at least one enabled selection of the module has `system = true`, and its
+  `imports` are not evaluated otherwise; where the home half goes is unchanged.
+  A group's members still write only `enable` and `provider`, so a host sets
+  `habit.dendrites.<member>.system = false` on one. A home accepts the field and
+  it changes nothing. A selection of a module or provider with no `habit.home`
+  at `system = false` throws ``… selects only the home half of '<name>', which
+  has none`` naming the host or user, the key and the file, and the host's
+  own `system = false` on a host where no user has `home.enable` throws ``…
+  selects only the home half of '<name>' but no user has home.enable``. An
+  override record's `system` module follows its target's system half; its
+  `overlay` and `home` module do not. The inventory shows each selection's
+  `system`.
 - A `mkIf` around a home half, at any depth above `habit.home`, is emitted
   outside the user's home module, as `home-manager.users.<user> = mkIf c <module>`,
   so the platform discharges it per definition: a false condition defines

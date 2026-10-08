@@ -51,6 +51,19 @@ in
     };
   };
 
+  nixosHomeOnlySelectionAppliesNoSystemHalf = {
+    got = {
+      system = config.programs.git.enable;
+      alice = alice.programs.git.enable;
+      bob = bob.programs.git.enable;
+    };
+    want = {
+      system = false;
+      alice = false;
+      bob = true;
+    };
+  };
+
   nixosPlainAndOverriddenHomeHalvesBothReachTheUser =
     let
       read = user: {
@@ -94,7 +107,7 @@ in
       };
       bob = {
         HOME_ARGS = "x86_64-linux/desk/hello";
-        SELECTED = "";
+        SELECTED = "git";
       };
     };
   };
@@ -143,7 +156,7 @@ in
         "zsh"
       ];
       alice = [ "tmux" ];
-      bob = [ ];
+      bob = [ "git" ];
     };
   };
 

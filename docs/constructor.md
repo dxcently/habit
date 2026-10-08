@@ -28,13 +28,13 @@ for every class; a class changes only what the next section says.
 | result | `{ system, selection, inventory }` | `{ system, selection, inventory }` | `{ home, selection, inventory }` |
 | the host module is | a NixOS module | a nix-darwin module | a Home Manager module |
 | scope | `system` | `system` | `home` |
-| system half | applied | applied | dropped, its `imports` with it |
+| system half | applied iff some selection has `system = true` | the same | dropped, its `imports` with it; `system` changes nothing |
 | home half | a `home-manager.users.<user>` definition for each user it reaches | the same | imported into the configuration itself |
 | `homeManagerModule` | Home Manager's NixOS module | Home Manager's nix-darwin module | refused: the evaluator is Home Manager |
 | `habit.users` | accepted | accepted | refused: a home has no users |
 | `habit.aggregation.<group>` selects | the group's `system` half | the group's `system` half | the group's `home` half |
 | `habit.selected` holds | the host's selection, and each user's in their home | the same | the home's selection |
-| an override record applies | `overlay`, `system`, and `home` to the users it reaches | the same | `overlay` and `home`; its `system` is dropped with the system half |
+| an override record applies | `overlay`, `system` (when a selection of its target has `system = true`), and `home` to the users it reaches | the same | `overlay` and `home`; its `system` is dropped with the system half |
 
 A darwin host differs from a NixOS one in the module system it is evaluated
 by and nothing else: habit declares nothing that says a module supports
@@ -229,7 +229,7 @@ the workstation example (paths shortened to the repository root):
   "host": "desk",
   "aggregation": [ "desktop" ],
   "dendrites": {
-    "bluetooth": { "provider": null, "source": "./examples/workstation/dendrites/bluetooth" }
+    "bluetooth": { "provider": null, "system": true, "source": "./examples/workstation/dendrites/bluetooth" }
   },
   "users": {
     "alice": {
@@ -237,7 +237,7 @@ the workstation example (paths shortened to the repository root):
       "home": true,
       "aggregation": [ "desktop" ],
       "dendrites": {
-        "notifications": { "provider": "dunst", "source": "./examples/workstation/dendrites/notifications" }
+        "notifications": { "provider": "dunst", "system": true, "source": "./examples/workstation/dendrites/notifications" }
       }
     }
   },
@@ -249,13 +249,14 @@ the workstation example (paths shortened to the repository root):
 | ------------- | ----------------------------------------------------------------------- |
 | `host`        | `hostName`                                                              |
 | `aggregation` | the groups the host selected                                            |
-| `dendrites`   | each capability selected for the system: its `provider` and `source`, the catalogue path that answered |
+| `dendrites`   | each capability selected for the system: its `provider`, its `system` (whether the selection asks for the system half) and `source`, the catalogue path that answered |
 | `users`       | per user: `definition`, `home` (whether Home Manager is on), its groups and its capabilities; `{ }` for a home |
 | `overrides`   | the override records that matched this host (`mkModules` and the builders only; `inventoryOf` alone has no records to match) |
 
 `printing` is absent: the host switched it off, so it is not part of what the
-host is. The inventory says nothing of a module's halves: whether a module has a
-home half is known only by importing it, which the inventory never does.
+host is. The inventory says what each selection asked of a module's halves, `system`,
+and nothing of the halves themselves: whether a module has a home half is known
+only by importing it, which the inventory never does.
 
 ## Wiring a consumer
 

@@ -1,5 +1,6 @@
 # tests/real/hosts/desk.nix — a NixOS host with two Home Manager users: the host
-# selects for both, alice selects one more for herself.
+# selects for both, alice selects one more for herself and bob selects the home
+# half of another alone.
 {
   habit.dendrites = {
     zsh.enable = true;
@@ -19,6 +20,10 @@
   habit.users.bob = {
     definition = ../users/bob.nix;
     home.enable = true;
+    dendrites.git = {
+      enable = true;
+      system = false;
+    };
   };
 
   networking.hostName = "desk";

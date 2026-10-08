@@ -63,11 +63,11 @@ let
   lanes = import ./lanes.nix { inherit lib; };
   scan = import ./scan.nix { inherit lib; };
 
-  # A flag the host writes. The scan reads it as a bool that is false until
+  # A flag the host writes. The scan reads it as a bool that is `default` until
   # written; the platform evaluation declares the same key inert, null until
   # written, so a value written in a file the scan never read is told from none.
   flag =
-    inert: description:
+    inert: default: description:
     mkOption (
       {
         inherit description;
@@ -81,7 +81,7 @@ let
         else
           {
             type = types.bool;
-            default = false;
+            inherit default;
           }
       )
     );
@@ -97,7 +97,8 @@ let
       mkOption {
         type = types.submodule {
           options = {
-            enable = flag inert "Select ${name} in this scope.";
+            enable = flag inert false "Select ${name} in this scope.";
+            system = flag inert true "Apply the system half of ${name} for this selection. Off asks for its home half alone.";
             provider = mkOption {
               type = types.nullOr types.str;
               default = null;
@@ -180,7 +181,7 @@ let
         type = types.submodule (
           {
             options = {
-              enable = flag inert (
+              enable = flag inert false (
                 if body == null then
                   "Select the ${name} aggregation in this scope."
                 else
@@ -293,7 +294,7 @@ let
                           { type = types.path; }
                       )
                     );
-                    home.enable = flag inert "Give this user a Home Manager configuration. Off means no Home Manager module is imported for them at all.";
+                    home.enable = flag inert false "Give this user a Home Manager configuration. Off means no Home Manager module is imported for them at all.";
                     home.config = mkOption {
                       type = types.deferredModule;
                       default = { };
@@ -609,8 +610,11 @@ let
   # dendrite it targets was selected here — for the system OR by one of its
   # users, because `useGlobalPkgs` means a home configuration draws from the
   # host's own package set and there is no separate home one to fix. Its
-  # `overlay` and `system` module then apply once, however many of its targets
-  # were selected.
+  # `overlay` then applies once, however many of its targets were selected.
+  #
+  # A record's `system` module follows its target's system half: it applies
+  # once when some selection of a target has `system = true`, and not when every
+  # one asked for the home half alone.
   #
   # A record's `home` module rides exactly the users its target's home half
   # reaches: every user with a home when the host selected the target, the
@@ -647,16 +651,21 @@ let
       homeOf = u: enabledNames u.dendrites;
       hostChoice = enabledNames selection.dendrites;
       here = lib.unique (hostChoice ++ lib.concatMap homeOf (lib.attrValues selection.users));
+      withSystem = scope: lib.filter (name: scope.${name}.system) (enabledNames scope);
+      systemHere = lib.unique (
+        withSystem selection.dendrites ++ lib.concatMap (u: withSystem u.dendrites) (lib.attrValues selection.users)
+      );
 
       admitsHost = r: r.hosts == null || lib.elem hostName r.hosts;
       hits = names: r: lib.any (d: lib.elem d names) r.dendrites;
 
       forHost = lib.filter (r: admitsHost r && hits here r) records;
+      forSystem = lib.filter (r: admitsHost r && hits systemHere r) records;
       carried = field: rs: lib.concatMap (r: lib.optional (r ? ${field}) r.${field}) rs;
     in
     {
       overlays = carried "overlay" forHost;
-      system = carried "system" forHost;
+      system = carried "system" forSystem;
       home = lib.mapAttrs (
         _: u: carried "home" (lib.filter (r: admitsHost r && hits (hostChoice ++ homeOf u) r) records)
       ) selection.users;
@@ -775,7 +784,7 @@ rec {
       describe =
         selected:
         lib.mapAttrs (name: d: {
-          inherit (d) provider;
+          inherit (d) provider system;
           source = toString catalogue.${name};
         }) (lib.filterAttrs (_: d: d.enable) selected);
       chosen = agg: lib.attrNames (lib.filterAttrs (_: a: a.enable) agg);
@@ -884,8 +893,18 @@ rec {
           "user '${userName}' has home.enable = false but selects home dendrites: ${lib.concatStringsSep ", " wanted}"
       ) (lib.attrNames selection.users);
 
+      # The host selects only the home half of a capability, and no user has a
+      # home to receive it. A standalone home is its own home and takes none.
+      homeWithoutUsers = lib.optionals (!isHome && hmUsers == { }) (
+        map (
+          name: "`habit.dendrites.${name}.system = false` selects only the home half of '${name}' but no user has home.enable"
+        ) (lib.filter (name: !selection.dendrites.${name}.system) (enabledNames selection.dendrites))
+      );
+
       # One wrapped module per selected capability, in catalogue order. The
-      # system half applies wherever it was selected, by the host or by a user.
+      # system half applies when some selection of it, the host's or a user's,
+      # has `system = true`; one that asks for the home half alone is told
+      # apart by `homeOnlyBy`, which the module refuses if it has no home half.
       # The home half goes to every home user when the host selected it and to
       # the selecting user alone when a user did; a user it reaches by both
       # routes gets it once. One system takes one implementation, so every
@@ -897,7 +916,8 @@ rec {
           claims =
             lib.optional selection.dendrites.${name}.enable {
               who = "host";
-              inherit (selection.dendrites.${name}) provider;
+              by = "host '${hostName}' `habit.dendrites.${name}.system = false`";
+              inherit (selection.dendrites.${name}) provider system;
               users = lib.attrNames hmUsers;
             }
             ++ lib.concatMap (
@@ -907,7 +927,8 @@ rec {
               in
               lib.optional d.enable {
                 who = "user '${userName}'";
-                inherit (d) provider;
+                by = "user '${userName}' of host '${hostName}' `habit.users.${userName}.dendrites.${name}.system = false`";
+                inherit (d) provider system;
                 users = [ userName ];
               }
             ) (lib.attrNames selection.users);
@@ -926,6 +947,8 @@ rec {
               inherit (impl) path;
               standalone = isHome;
               homeFor = lib.unique (lib.concatMap (c: c.users) claims);
+              system = lib.any (c: c.system) claims;
+              homeOnlyBy = lib.optionals (!isHome) (map (c: c.by) (lib.filter (c: !c.system) claims));
             }
           )
       ) (lib.attrNames catalogue);
@@ -1008,6 +1031,8 @@ rec {
     in
     if strandedHome != [ ] then
       throw "host '${hostName}': ${lib.concatStringsSep "; " strandedHome}"
+    else if homeWithoutUsers != [ ] then
+      throw "host '${hostName}': ${lib.concatStringsSep "; " homeWithoutUsers}"
     else if hmUsers != { } && homeManagerModule == null then
       throw "host '${hostName}': user(s) ${lib.concatStringsSep ", " (lib.attrNames hmUsers)} have home.enable = true but no `homeManagerModule` was given"
     else if isHome && homeManagerModule != null then

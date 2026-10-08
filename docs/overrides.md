@@ -47,7 +47,8 @@ record ──► hosts admits this host? ──no──► not applied
            a target selected here (system, or by any user)? ──no──► not applied
                 │ yes
                 ▼
-           overlay + system apply to the host, once
+           overlay applies to the host, once
+           system applies to the host, once, if a selection of a target has system = true
            home rides the users the target's home half reaches
 ```
 
@@ -55,8 +56,12 @@ record ──► hosts admits this host? ──no──► not applied
   was selected here, for the system or by one of its users. A capability only a
   user selected still matches the host: with `useGlobalPkgs` a user's home
   draws from the host's package set, so there is no separate home one to fix.
-- Its `overlay` and `system` module apply **once**, however many of its targets
-  were selected.
+- Its `overlay` applies **once**, however many of its targets were selected.
+- Its `system` module applies **once** too, and follows its target's system
+  half: only when some selection of a target has `system = true`
+  ([Dendrites](dendrites.md#halves-and-scopes)). A target selected only with
+  `system = false` still draws the `overlay` and the `home` module, since the
+  home draws from the host's package set, but not the `system` module.
 - Its `home` module rides exactly the users the target's home half reaches:
   every user with Home Manager when the host selected the target, the selecting
   user alone when a user did, so the fix travels with the thing it fixes.

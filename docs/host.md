@@ -46,6 +46,7 @@ host module ────┤        (pkgs, config poisoned; imports dropped;
 | ------------------------------------------------ | -------------------- | ------- | -------------------------------------------------------- |
 | `habit.dendrites.<name>.enable`                  | bool                 | `false` | select a capability for the system                       |
 | `habit.dendrites.<name>.provider`                | null or string       | `null`  | which provider answers it for the system                 |
+| `habit.dendrites.<name>.system`                  | bool                 | `true`  | `false` asks for the home half alone ([Dendrites](dendrites.md#halves-and-scopes)); only its home half then applies, to every user with `home.enable`, unless another selection has `system = true` |
 | `habit.aggregation.<group>.enable`               | bool                 | `false` | select a group's `system` half                           |
 | `habit.aggregation.<group>.<member>.provider`    | null or string       | the body's | choose a provider for a provider-bearing member       |
 | `habit.users.<user>`                             | submodule            | `{ }`   | a user attached to this host (below)                     |
@@ -143,7 +144,7 @@ Each `habit.users.<user>` is a scope of its own.
 | `definition`                                 | path            | none    | the user's module: its own settings are the account, its `habit.home` is the user's home |
 | `home.enable`                                | bool            | `false` | give this user a Home Manager configuration; off imports no Home Manager for them |
 | `home.config`                                | deferred module | `{ }`   | extra home settings, evaluated only in the user's Home Manager configuration |
-| `dendrites.<name>.enable` / `.provider`      | as above        |         | select a capability for this user's home                    |
+| `dendrites.<name>.enable` / `.provider` / `.system` | as above |         | select a capability for this user's home; `system = false` asks for its home half alone |
 | `aggregation.<group>.enable` / `.<member>.provider` | as above |         | select a group's `home` half for this user                  |
 
 ```nix
