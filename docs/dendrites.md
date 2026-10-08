@@ -80,10 +80,12 @@ removes it before the module system sees the rest. So:
   false condition defines nothing in the user's Home Manager. `mkIf false {
   habit.home.stylix.enable = true; }` is safe where Home Manager does not
   declare `stylix`, and a condition may cover the half's `imports` and option
-  declarations too, since the whole module is withheld. A `mkOverride` is
-  carried down to what the half sets instead: the definition of the user holds
-  no priority, so one module's priority never filters another's home half for
-  the same user. Write `mkIf` outside `mkOverride` (`mkIf c (mkOverride p x)`),
+  declarations too, since the whole module is withheld. The condition is
+  evaluated in the system evaluation, above the user's home: it may read the
+  system's `config`, but not `config.home-manager.users.<user>.*`, which
+  recurses. A `mkOverride` is carried down to what the half sets instead: the
+  definition of the user holds no priority, so one module's priority never
+  filters another's home half for the same user. Write `mkIf` outside `mkOverride` (`mkIf c (mkOverride p x)`),
   as nixpkgs itself requires: the other order fails in the module system. In a
   standalone home there is no `home-manager.users`: the half is imported into
   the home itself, and a `mkIf` and a `mkOverride` are both carried down to what
@@ -134,6 +136,9 @@ applies the system half. A group's members write only `enable` and `provider`
 follows its target's system half: it is not applied for a target every one of
 whose selections has `system = false`. Its `overlay` and `home` module do not
 depend on it ([Override records](overrides.md#matching)).
+
+A module selected only with `system = false` still declares its own `options` in
+the system evaluation; only its `config` and `imports` are dropped.
 
 Two refusals keep `system = false` honest ([Errors](errors.md#modules)): a
 module with no `habit.home` has no home half to select, whichever scope or
