@@ -2,7 +2,7 @@
 
 Append-only. Newest first.
 
-## v2
+## 0.2.0
 
 - A dendrite selection takes `system` (a bool, default `true`) in both scopes,
   `habit.dendrites.<name>.system` and `habit.users.<user>.dendrites.<name>.system`:
