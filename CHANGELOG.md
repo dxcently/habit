@@ -2,7 +2,7 @@
 
 Append-only. Newest first.
 
-## Unreleased
+## 0.3.0
 
 - A catalogue entry may be a module value, an attrset or a function, in place of
   a path, so a consumer can generate a family of entries (one per package from a
