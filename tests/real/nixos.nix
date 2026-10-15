@@ -19,6 +19,13 @@ let
     specialArgs.greeting = "hello";
   };
 
+  valued = composition.mkNixosHost {
+    inherit nixpkgs;
+    registry = import ./valueRegistry.nix;
+    hostName = "valued";
+    host = ./hosts/valued.nix;
+  };
+
   inherit (desk.system) config;
   alice = config.home-manager.users.alice;
   bob = config.home-manager.users.bob;
@@ -168,5 +175,16 @@ in
   nixosToplevelEvaluates = {
     got = lib.hasSuffix ".drv" config.system.build.toplevel.drvPath;
     want = true;
+  };
+
+  nixosValueEntrySelectedIsAppliedAndUnselectedIsNot = {
+    got = {
+      tmux = valued.system.config.programs.tmux.enable;
+      htop = valued.system.config.programs.htop.enable;
+    };
+    want = {
+      tmux = true;
+      htop = false;
+    };
   };
 }

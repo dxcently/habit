@@ -151,7 +151,7 @@ from `x86_64-linux`:
 
 | target | evaluated | what the cases pin |
 | ------ | --------- | ------------------ |
-| NixOS with Home Manager's NixOS module (`mkNixosHost`) | `nixosSystem`, down to `system.build.toplevel.drvPath` | a host's selection reaches every user and a user's reaches that user alone; a plain home half and one under `mkOverride` both reach the user; a function-valued `habit.home` takes `lib.hm`; `habit.selected` holds each scope; the builder's arguments reach every module |
+| NixOS with Home Manager's NixOS module (`mkNixosHost`) | `nixosSystem`, down to `system.build.toplevel.drvPath` | a host's selection reaches every user and a user's reaches that user alone; a plain home half and one under `mkOverride` both reach the user; a value entry selected by name is applied and an unselected one is not; a function-valued `habit.home` takes `lib.hm`; `habit.selected` holds each scope; the builder's arguments reach every module |
 | nix-darwin with Home Manager's darwin module (`mkDarwinHost`) | `darwinSystem` for `aarch64-darwin`, down to `system.build.toplevel.drvPath` | the system half applies; the home half routes through Home Manager, whose home directory comes from the user module's `users.users.<user>.home`; a Linux-only option fails, as a file entry and as a directory entry, and the module system names the module's file in both |
 | standalone Home Manager (`mkHome`) | `homeManagerConfiguration`, down to `home.activationPackage.drvPath`, and `examples/home` | the system half is dropped and the home half lands; `habit.selected` is the home's; the caller's and a record's overlays both apply; `extraSpecialArgs` reach modules |
 
