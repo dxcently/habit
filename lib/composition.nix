@@ -88,8 +88,9 @@ let
 
   # A catalogue entry: a path (a file, or a directory's `default.nix`), or a
   # module value, an attrset or a function. A value is itself the module; a path
-  # is imported only when selection reads it.
-  isValue = entry: lib.isAttrs entry || lib.isFunction entry;
+  # is imported only when selection reads it. Path-like comes first, so an
+  # attrset that coerces to a path (a derivation, a flake input) stays a path.
+  isValue = entry: !types.path.check entry && (lib.isAttrs entry || lib.isFunction entry);
 
   entryType = types.mkOptionType {
     name = "catalogue entry";
@@ -409,12 +410,12 @@ let
     catalogue: name: provider:
     let
       entry = catalogue.${name};
-      value = isValue entry;
-      set = if value then entry else import entry;
+      isValueEntry = isValue entry;
+      set = if isValueEntry then entry else import entry;
       providers = if lib.isAttrs set then set.providers or null else null;
       names = lib.concatStringsSep ", " (lib.attrNames providers);
     in
-    if value && providers != null then
+    if isValueEntry && providers != null then
       throw "dendrite '${name}': a provider set is a file; a catalogue value cannot carry providers"
     else if providers != null then
       if provider == null then
@@ -425,21 +426,18 @@ let
         {
           path = providers.${provider};
           value = null;
-          label = "${name}/${provider}";
         }
     else if provider != null then
       throw "dendrite '${name}' has a single implementation and takes no provider (got '${provider}')"
-    else if value then
+    else if isValueEntry then
       {
         path = null;
         value = entry;
-        label = name;
       }
     else
       {
         path = entry;
         value = null;
-        label = name;
       };
 
   # Where the inventory says a capability came from: a path names its file, a

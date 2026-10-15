@@ -2872,6 +2872,58 @@ selectionCases
     }
   ]) { dendrites.attrsValue.enable = true; };
 
+  # A path-like attrset is still a path, imported and named as its file.
+  valueOutPathEntryIsAPath = assembledIn registryWithValues {
+    dendrites.outPathEntry.enable = true;
+    users.alice = homeUser "alice" { };
+  };
+
+  valueOutPathEntrySourceIsItsFile =
+    lib.hasSuffix "/dendrites/homeonly/default.nix"
+      (resolveIn registryWithValues { dendrites.outPathEntry.enable = true; }).inv.dendrites.outPathEntry.source;
+
+  # A function module receives the module arguments: here the host's name.
+  valueFunctionReceivesModuleArgs = assembledIn registryWithValues {
+    dendrites.argValue.enable = true;
+  };
+
+  # Two names for one value are two entries: each keeps its own `habit:<name>`
+  # key, so the list option takes both definitions.
+  valueSameValueTwiceAppliesTwice = assembledIn registryWithValues {
+    dendrites.dupA.enable = true;
+    dendrites.dupB.enable = true;
+  };
+
+  valueStandaloneHomeReceivesTheHomeHalf = marksOf (homeConfigOf {
+    mod.dendrites.homeValue.enable = true;
+    args.registry = registryWithValues;
+  });
+
+  # A value that imports a `habit` selection is one the host scan never saw.
+  valueImportingAHabitKeyIsRefused = failedAssertions (evalAssembled {
+    mod.dendrites.importsHabitKey.enable = true;
+    args = {
+      registry = registryWithValues;
+    };
+  });
+
+  # The read boundary: an unselected entry is read to learn its kind, so a
+  # `throw` as the entry itself throws; its attributes are not forced.
+  registryWithBoundary = registry // {
+    catalogue = registry.catalogue // import ./values/boundary.nix;
+  };
+
+  valueUnselectedAttributesAreNotForced = assembledIn registryWithBoundary { };
+
+  valueThrowingEntryIsReadOnRead = assembledIn (
+    registry
+    // {
+      catalogue = registry.catalogue // {
+        thrownEntry = throw "entry read";
+      };
+    }
+  ) { };
+
   mergeRegistriesValueClash =
     (catalogues.mergeRegistries [
       {

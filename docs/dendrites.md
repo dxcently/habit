@@ -255,8 +255,14 @@ package from a list of names. A capability written by hand stays a file.
 
 A selected value is applied exactly where a file's module would be: it takes
 the same `habit:<name>` key, its `habit.home` half goes to the users it reaches
-by the same rules, and its conditions and priorities behave as in a file. An
-unselected value is never applied, so its body is never forced.
+by the same rules, and its conditions and priorities behave as in a file. Two
+names for one value are two entries, each applied under its own key.
+
+The read boundary is exact. Every catalogue entry is read to weak head normal
+form to learn its kind (a path, an attrset or a function), so an entry that is
+itself `throw` throws on read, selected or not. An attrset's attributes (`_file`,
+`providers`, `config`) and a function's body are never forced unless the entry
+is selected.
 
 Where a value comes from, for errors and the inventory:
 
@@ -266,7 +272,8 @@ Where a value comes from, for errors and the inventory:
 | an attrset without `_file`                  | `catalogue value '<name>'`               | `<value '<name>'>`                 |
 | a function                                  | `catalogue value '<name>'`               | `<value '<name>'>`                 |
 
-A path entry keeps the path it was written as.
+A path entry keeps the path it was written as. An attrset that coerces to a path
+(an `outPath`, as a derivation or a flake input is) is a path, not a value.
 
 A provider set is a file. An attrset value with `providers` is refused, naming
 the entry, and a provider target stays a path, as before. That refusal, like a

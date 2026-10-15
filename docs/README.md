@@ -8,19 +8,19 @@ gives it.
 
 ## The words
 
-| word            | is                                                                     | page                                  |
-| --------------- | ---------------------------------------------------------------------- | ------------------------------------- |
-| registry        | plain data: capability, group and fix names mapped to paths or module values | [The constructor](constructor.md)     |
-| dendrite        | a capability: one plain module, or a set of providers that are plain modules | [Dendrites](dendrites.md)        |
-| half            | the system half or the home half (`habit.home`) of one module, derived when a selected module is imported | [Dendrites](dendrites.md#a-plain-module) |
-| `habit.selected` | what a scope selected: a read-only option in every evaluation         | [Dendrites](dendrites.md#reading-the-selection) |
-| scan            | how selection reads the host module: its `habit.*` keys only, never the platform's values | [The host module](host.md#the-scan) |
-| aggregation     | a group of dendrites, written as data, selected by name                | [Aggregations](aggregations.md)       |
-| host module     | one module: its `habit.*` keys select, everything else is the host's own platform configuration | [The host module](host.md) |
-| class           | what a host is built for: `nixos`, `darwin` or `home`; it sets the scope and the evaluator the caller supplies | [The constructor](constructor.md#classes) |
-| override record | a fix that belongs to a capability and applies where it was selected   | [Override records](overrides.md)      |
-| nucleus         | by convention, the aggregation of dendrites every host selects         | [Aggregations](aggregations.md#what-every-host-carries) |
-| inventory       | what a host resolved, derived from its selection                       | [The constructor](constructor.md#the-inventory) |
+| word             | is                                                                                                             | page                                                    |
+| ---------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| registry         | plain data: capability, group and fix names mapped to paths or module values                                   | [The constructor](constructor.md)                       |
+| dendrite         | a capability: one plain module, or a set of providers that are plain modules                                   | [Dendrites](dendrites.md)                               |
+| half             | the system half or the home half (`habit.home`) of one module, derived when a selected module is imported      | [Dendrites](dendrites.md#a-plain-module)                |
+| `habit.selected` | what a scope selected: a read-only option in every evaluation                                                  | [Dendrites](dendrites.md#reading-the-selection)         |
+| scan             | how selection reads the host module: its `habit.*` keys only, never the platform's values                      | [The host module](host.md#the-scan)                     |
+| aggregation      | a group of dendrites, written as data, selected by name                                                        | [Aggregations](aggregations.md)                         |
+| host module      | one module: its `habit.*` keys select, everything else is the host's own platform configuration                | [The host module](host.md)                              |
+| class            | what a host is built for: `nixos`, `darwin` or `home`; it sets the scope and the evaluator the caller supplies | [The constructor](constructor.md#classes)               |
+| override record  | a fix that belongs to a capability and applies where it was selected                                           | [Override records](overrides.md)                        |
+| nucleus          | by convention, the aggregation of dendrites every host selects                                                 | [Aggregations](aggregations.md#what-every-host-carries) |
+| inventory        | what a host resolved, derived from its selection                                                               | [The constructor](constructor.md#the-inventory)         |
 
 ```
 registry ─┐

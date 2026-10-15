@@ -305,6 +305,14 @@ valueProviderSetIsRefused           throws  dendrite 'providerSet': a provider s
 valueNotAModuleIsRefused            throws  option `habit.catalogue.notAModule' is not of type `a path, an attrset module or a function module'
 mergeRegistriesValueEntriesMerge    ok      "sys=attrs"
 mergeRegistriesValueClash           throws  catalogue names defined by more than one source: 'attrsValue' by alpha and beta
+valueOutPathEntryIsAPath            ok      "sys= alice=homeonly"
+valueOutPathEntrySourceIsItsFile    ok      true
+valueFunctionReceivesModuleArgs     ok      "sys=fixture"
+valueSameValueTwiceAppliesTwice     ok      "sys=dup+dup"
+valueStandaloneHomeReceivesTheHomeHalf ok   "home"
+valueImportingAHabitKeyIsRefused    throws  but the host scan never saw it
+valueUnselectedAttributesAreNotForced ok    "sys="
+valueThrowingEntryIsReadOnRead      throws  entry read
 EOF
 )
 

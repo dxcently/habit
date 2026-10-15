@@ -212,12 +212,12 @@ let
           perUser = concatMap (
             c:
             leaves (
-              covers: value:
+              covers: part:
               let
                 split = lib.partition isCondition covers;
               in
               lib.foldr (cond: inner: mkIf cond.condition inner) (_: {
-                imports = [ (homeLeaf homeWhere file split.wrong value) ];
+                imports = [ (homeLeaf homeWhere file split.wrong part) ];
               }) split.right
             ) c.covers c.home
           ) cs;
