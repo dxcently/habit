@@ -2,6 +2,17 @@
 
 Append-only. Newest first.
 
+## Unreleased
+
+- A catalogue entry may be a module value, an attrset or a function, in place of
+  a path, so a consumer can generate a family of entries (one per package from a
+  list of names). A selected value is applied where a file's module would be,
+  under the same `habit:<name>` key with the same halves, routing and conditions;
+  an unselected value is never applied. A value with `providers` is refused, since
+  a provider set is a file. `lanes.wrap` takes a `value` beside `path`. The
+  inventory's `source` for a value is its `_file`, else `<value '<name>'>`, and
+  errors name it by its `_file`, else `catalogue value '<name>'`.
+
 ## 0.2.0
 
 - A dendrite selection takes `system` (a bool, default `true`) in both scopes,

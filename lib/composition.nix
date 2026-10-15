@@ -86,6 +86,17 @@ let
       )
     );
 
+  # A catalogue entry: a path (a file, or a directory's `default.nix`), or a
+  # module value, an attrset or a function. A value is itself the module; a path
+  # is imported only when selection reads it.
+  isValue = entry: lib.isAttrs entry || lib.isFunction entry;
+
+  entryType = types.mkOptionType {
+    name = "catalogue entry";
+    description = "a path, an attrset module or a function module";
+    check = entry: types.path.check entry || isValue entry;
+  };
+
   # One selection scope: for each catalogued capability, whether it is selected
   # here and which implementation answers. Generated per catalogue name, so an
   # unknown dendrite fails as an option that does not exist, naming the file
@@ -364,9 +375,9 @@ let
                   }
                   // {
                     catalogue = mkOption {
-                      type = types.attrsOf types.path;
+                      type = types.attrsOf entryType;
                       readOnly = true;
-                      description = "Named path per capability. The constructor reads it back in the platform pass.";
+                      description = "Named entry per capability: a path, or a module value. The constructor reads it back in the platform pass.";
                     };
                   };
 
@@ -397,11 +408,15 @@ let
   implOf =
     catalogue: name: provider:
     let
-      entry = import catalogue.${name};
-      providers = if lib.isAttrs entry then entry.providers or null else null;
+      entry = catalogue.${name};
+      value = isValue entry;
+      set = if value then entry else import entry;
+      providers = if lib.isAttrs set then set.providers or null else null;
       names = lib.concatStringsSep ", " (lib.attrNames providers);
     in
-    if providers != null then
+    if value && providers != null then
+      throw "dendrite '${name}': a provider set is a file; a catalogue value cannot carry providers"
+    else if providers != null then
       if provider == null then
         throw "dendrite '${name}' is enabled but chose no provider; available providers: ${names}"
       else if !(providers ? ${provider}) then
@@ -409,15 +424,34 @@ let
       else
         {
           path = providers.${provider};
+          value = null;
           label = "${name}/${provider}";
         }
     else if provider != null then
       throw "dendrite '${name}' has a single implementation and takes no provider (got '${provider}')"
+    else if value then
+      {
+        path = null;
+        value = entry;
+        label = name;
+      }
     else
       {
-        path = catalogue.${name};
+        path = entry;
+        value = null;
         label = name;
       };
+
+  # Where the inventory says a capability came from: a path names its file, a
+  # value its `_file`, and a value without one is named by its catalogue name.
+  sourceOf =
+    name: entry:
+    if !isValue entry then
+      toString entry
+    else if lib.isAttrs entry && entry ? _file then
+      toString entry._file
+    else
+      "<value '${name}'>";
 
   # `habit.selected`: what one scope resolved, a read-only option in the
   # evaluation that scope's modules run in. It is written from selection data
@@ -785,7 +819,7 @@ rec {
         selected:
         lib.mapAttrs (name: d: {
           inherit (d) provider system;
-          source = toString catalogue.${name};
+          source = sourceOf name catalogue.${name};
         }) (lib.filterAttrs (_: d: d.enable) selected);
       chosen = agg: lib.attrNames (lib.filterAttrs (_: a: a.enable) agg);
     in
@@ -944,7 +978,7 @@ rec {
           lib.optional (claims != [ ]) (
             lanes.wrap {
               inherit name;
-              inherit (impl) path;
+              inherit (impl) path value;
               standalone = isHome;
               homeFor = lib.unique (lib.concatMap (c: c.users) claims);
               system = lib.any (c: c.system) claims;

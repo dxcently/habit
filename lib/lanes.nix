@@ -158,6 +158,10 @@ let
   # false` still defines its options, an error for one the platform does not
   # declare (every option under `home-manager` without Home Manager's module).
   #
+  # A value is the module itself, an attrset or a function, given in place of
+  # the path a file would be: it is never imported, and it is applied only when
+  # it is forced, as a file's module is.
+  #
   # `system = false`: the selection asks for the home half alone, so the system
   # half is not applied and nothing of it is imported, as in a standalone home.
   # `homeOnlyBy` names each selection that asked for it; a module with no home
@@ -172,7 +176,8 @@ let
   wrap =
     {
       name,
-      path,
+      path ? null,
+      value ? null,
       standalone,
       homeFor,
       system ? true,
@@ -180,9 +185,15 @@ let
     }:
     let
       applySystem = system && !standalone;
-      file = toString (if lib.pathIsDirectory path then path + "/default.nix" else path);
+      file =
+        if value == null then
+          toString (if lib.pathIsDirectory path then path + "/default.nix" else path)
+        else if isAttrs value && value ? _file then
+          toString value._file
+        else
+          "catalogue value '${name}'";
       where = "${file} (habit module '${name}')";
-      raw = import path;
+      raw = if value == null then import path else value;
       build =
         module:
         let

@@ -21,13 +21,14 @@ host module ──► selection pass ──► resolved selection ──► plat
 ## Why habit
 
 - **Nothing you didn't pick is imported.** An unselected capability, provider
-  or group body never reaches `import`; the test suite proves it with files that
-  throw the moment anything imports them.
+  or group body never reaches `import`, and an unselected module value is never
+  applied; the test suite proves it with files and values that throw the moment
+  anything reads them.
 - **Groups without lock-in.** Take a group, drop one member with
   `enable = false`, bring it back with `mkForce`. Ordinary NixOS priorities, no
   new language.
 - **Every host can tell you what it is.** A generated inventory lists each
-  capability, its provider and the registry path it came from; nobody keeps it
+  capability, its provider and the registry entry it came from; nobody keeps it
   by hand.
 - **Loud, not silent.** A name two merged registries both define, a misspelt key
   in a group, a field nothing declared: each is an error naming the culprit.

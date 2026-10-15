@@ -1,7 +1,7 @@
 # Dendrites
 
-A dendrite is one capability: a name in the registry's `catalogue` and the file
-or directory that answers it.
+A dendrite is one capability: a name in the registry's `catalogue` and the file,
+directory or module value that answers it.
 
 ```nix
 catalogue = {
@@ -14,8 +14,9 @@ catalogue = {
 uses the file form, [`examples/workstation`](https://github.com/dxcently/habit/tree/main/examples/workstation)
 the directory form.
 
-The catalogue holds names and paths only. An entry is `import`ed in the
-platform pass, and only when some scope enabled it.
+The catalogue holds names and entries only. A path entry is `import`ed in the
+platform pass, and only when some scope enabled it; a module value is applied
+there under the same condition ([Value entries](#value-entries)).
 
 ## A plain module
 
@@ -237,6 +238,47 @@ provider, and a selector that names another is an error naming every claimant
 
 A provider is chosen with `habit.dendrites.<name>.provider`, or under the
 aggregation that groups it ([Aggregations](aggregations.md#choosing-a-provider)).
+
+## Value entries
+
+An entry may be a module value instead of a path: an attrset, or a function of
+the module's arguments. A value is for a generated family, such as one entry per
+package from a list of names. A capability written by hand stays a file.
+
+```nix
+{
+  catalogue = lib.genAttrs [ "fzf" "htop" ] (name: {
+    programs.${name}.enable = true;
+  });
+}
+```
+
+A selected value is applied exactly where a file's module would be: it takes
+the same `habit:<name>` key, its `habit.home` half goes to the users it reaches
+by the same rules, and its conditions and priorities behave as in a file. An
+unselected value is never applied, so its body is never forced.
+
+Where a value comes from, for errors and the inventory:
+
+| a value is                                  | named in errors as                       | `source` in the inventory          |
+| ------------------------------------------- | ---------------------------------------- | ---------------------------------- |
+| an attrset with `_file`                     | its `_file`                              | its `_file`                        |
+| an attrset without `_file`                  | `catalogue value '<name>'`               | `<value '<name>'>`                 |
+| a function                                  | `catalogue value '<name>'`               | `<value '<name>'>`                 |
+
+A path entry keeps the path it was written as.
+
+A provider set is a file. An attrset value with `providers` is refused, naming
+the entry, and a provider target stays a path, as before. That refusal, like a
+path's provider set being read, happens when the entry is selected.
+
+An entry that is none of a path, an attrset or a function is refused by the
+module system, naming `habit.catalogue.<name>` and the value it got
+([Errors](errors.md#selecting-capabilities)). Like every catalogue entry, it is
+checked when habit reads it, so one nothing selects is not reported.
+
+Merged registries name entries, never their values, so value entries merge and
+clash like paths ([Merging registries](merging.md)).
 
 ## What is not a module
 

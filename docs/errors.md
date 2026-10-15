@@ -13,6 +13,8 @@ them.
 | `dendrite '<name>' has no provider '<p>'; available providers: <list>` | the chosen provider is not in the dendrite's `providers` | choose one from the list |
 | `dendrite '<name>' has a single implementation and takes no provider (got '<p>')` | a provider was set on a dendrite that is a plain module | remove the `provider` |
 | `dendrite '<name>' is selected with different providers (<claimants>); one system takes one implementation` | the host and a user, or two users, selected one capability with different providers; each claimant is `host` or `user '<user>'`, then its provider | make every selector name the same provider |
+| `dendrite '<name>': a provider set is a file; a catalogue value cannot carry providers` | an attrset catalogue value has `providers` | move the provider set into a file and name the file as the entry ([Value entries](dendrites.md#value-entries)) |
+| ``A definition for option `habit.catalogue.<name>' is not of type `a path, an attrset module or a function module'. Definition values: …`` | a catalogue entry is a number, a list, `null` or a relative path; the module system's message, naming the entry and the value it got | make it a path, an attrset or a function |
 
 ## The host module
 
@@ -54,7 +56,8 @@ Two more come from the platform evaluation and the hooks:
 A selected dendrite, provider file or user module is wrapped when it is
 imported. Each message begins `<path> (habit module '<name>')`, where `<path>`
 is the module's file (the `default.nix` for a catalogue entry that is a
-directory) and `<name>` is the capability or `user:<user>`.
+directory), or for a catalogue value the `_file` it carries, or else
+`catalogue value '<name>'`. `<name>` is the capability or `user:<user>`.
 
 | message continues | cause | fix |
 | ----------------- | ----- | --- |

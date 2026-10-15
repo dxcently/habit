@@ -26,10 +26,13 @@ let
 
   # The whole resolution: selection, inventory, and every element of the module
   # list the host would import.
-  resolve =
-    mod:
+  resolveIn =
+    reg: mod:
     let
-      r = mkModules { host = selecting mod; };
+      r = mkModules {
+        registry = reg;
+        host = selecting mod;
+      };
     in
     builtins.deepSeq (builtins.toJSON r.inventory) (
       forceEach r.modules {
@@ -37,6 +40,8 @@ let
         inv = r.inventory;
       }
     );
+
+  resolve = resolveIn registry;
 
   # A module list's identity, element for element, short of the values it holds.
   # `==` is no instrument here: Nix counts two distinct function objects as
@@ -232,6 +237,11 @@ let
       splitLandmine = ./dendrites/splitLandmine;
       choice = ./dendrites/choice;
     };
+  };
+
+  # The fixture registry plus the catalogue entries that are module values.
+  registryWithValues = registry // {
+    catalogue = registry.catalogue // import ./values/entries.nix;
   };
 
   # The fixture registry plus the two entries the class cases select: one whose
@@ -2778,6 +2788,99 @@ selectionCases
       {
         name = "upstream";
         catalogue.ssh = ../../examples/minimal/dendrites/ssh.nix;
+      }
+    ]).catalogue;
+
+  # ── Catalogue values (tests/selection/values) ──────────────────────────────
+  # An entry may be a module value as well as a path. A selected value is applied
+  # where a file's module would be; an unselected one is never applied, so the
+  # ones that throw sit unselected beside the cases that select their neighbours.
+  valueAttrsEntryApplies = assembledIn registryWithValues {
+    dendrites.attrsValue.enable = true;
+  };
+
+  valueFunctionEntryApplies = assembledIn registryWithValues {
+    dendrites.functionValue.enable = true;
+  };
+
+  valueUnselectedEntriesAreInert = assembledIn registryWithValues { };
+
+  valueSelectedFunctionIsApplied = assembledIn registryWithValues {
+    dendrites.throwingFunction.enable = true;
+  };
+
+  valueSelectedConfigIsRead = assembledIn registryWithValues {
+    dendrites.throwingConfig.enable = true;
+  };
+
+  valueHomeHalfReachesTheUser = assembledIn registryWithValues {
+    dendrites.homeValue.enable = true;
+    users.alice = homeUser "alice" { };
+  };
+
+  # A path-like string is still a path: the entry is a file, named as one.
+  valuePathStringEntryApplies = assembledIn (
+    registry
+    // {
+      catalogue = registry.catalogue // {
+        pathString = toString ./dendrites/homeonly/default.nix;
+      };
+    }
+  ) {
+    dendrites.pathString.enable = true;
+    users.alice = homeUser "alice" { };
+  };
+
+  valueInventoryNamesItsFile = (resolveIn registryWithValues {
+    dendrites.attrsWithFile.enable = true;
+  }).inv.dendrites.attrsWithFile.source;
+
+  valueInventoryNamesItsName = (resolveIn registryWithValues {
+    dendrites.attrsValue.enable = true;
+  }).inv.dendrites.attrsValue.source;
+
+  # The provenance of a value that names no file is the catalogue value's name,
+  # in errors too: a `habit` key habit does not read names the entry.
+  valueErrorNamesTheEntry = assembledIn registryWithValues {
+    dendrites.badValue.enable = true;
+  };
+
+  valueErrorNamesItsFile = assembledIn registryWithValues {
+    dendrites.badFile.enable = true;
+  };
+
+  valueProviderSetIsRefused =
+    (resolveIn registryWithValues {
+      dendrites.providerSet.enable = true;
+    }).inv.host;
+
+  valueNotAModuleIsRefused =
+    (resolveIn registryWithValues {
+      dendrites.notAModule.enable = true;
+    }).inv.host;
+
+  # Clash detection names entries, never their values, so value entries merge
+  # and clash like paths.
+  mergeRegistriesValueEntriesMerge = assembledIn (catalogues.mergeRegistries [
+    {
+      name = "paths";
+      catalogue = registry.catalogue;
+    }
+    {
+      name = "values";
+      catalogue = import ./values/entries.nix;
+    }
+  ]) { dendrites.attrsValue.enable = true; };
+
+  mergeRegistriesValueClash =
+    (catalogues.mergeRegistries [
+      {
+        name = "alpha";
+        catalogue.attrsValue = { };
+      }
+      {
+        name = "beta";
+        catalogue.attrsValue = _: { };
       }
     ]).catalogue;
 }

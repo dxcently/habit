@@ -290,6 +290,21 @@ exampleHomeInventory                ok      "alice:ssh=ssh.nix"
 exampleHomeModules                  ok      ["lambda","set{_class,_file,config,disabledModules,imports,key,options}","path"]
 exampleHomeConfig                   ok      "alice ssh=true"
 exampleHomeSelected                 ok      "ssh"
+valueAttrsEntryApplies              ok      "sys=attrs"
+valueFunctionEntryApplies           ok      "sys=function"
+valueUnselectedEntriesAreInert      ok      "sys="
+valueSelectedFunctionIsApplied      throws  applied
+valueSelectedConfigIsRead           throws  config forced
+valueHomeHalfReachesTheUser         ok      "sys= alice=home"
+valuePathStringEntryApplies         ok      "sys= alice=homeonly"
+valueInventoryNamesItsFile          ok      "values/attrsWithFile.nix"
+valueInventoryNamesItsName          ok      "<value 'attrsValue'>"
+valueErrorNamesTheEntry             throws  catalogue value 'badValue' (habit module 'badValue'): unknown habit key(s): homee
+valueErrorNamesItsFile              throws  values/badFile.nix (habit module 'badFile'): unknown habit key(s): homee
+valueProviderSetIsRefused           throws  dendrite 'providerSet': a provider set is a file; a catalogue value cannot carry providers
+valueNotAModuleIsRefused            throws  option `habit.catalogue.notAModule' is not of type `a path, an attrset module or a function module'
+mergeRegistriesValueEntriesMerge    ok      "sys=attrs"
+mergeRegistriesValueClash           throws  catalogue names defined by more than one source: 'attrsValue' by alpha and beta
 EOF
 )
 

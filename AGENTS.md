@@ -16,10 +16,11 @@ suite evaluates. This file holds the invariants to keep while editing them.
    written inline in the host's `imports` that selection does not hold. Anything that lets a selection
    option read `config` of the platform is the circular import the two passes
    exist to prevent.
-2. **Unselected modules are never imported.** A catalogue entry, a provider file
-   or an aggregation body is `import`ed iff selection kept it: `lanes.wrap` is
-   handed selected paths only, and a wrapped module imports its file when it is
-   forced. The one weaker boundary is override records (read to be matched; only
+2. **Unselected modules are never imported.** A catalogue path, a provider file
+   or an aggregation body is `import`ed iff selection kept it, and a catalogue
+   module value is applied iff selection kept it: `lanes.wrap` is handed selected
+   entries only (a path, or a value it applies when forced), and a wrapped module
+   imports its file when it is forced. The one weaker boundary is override records (read to be matched; only
    their functions stay uncalled) and is stated as such.
 3. **A pure function of `lib`.** `lib/*.nix` take `{ lib }` and nothing else:
    no flake inputs, no `pkgs`, no `builtins.getFlake`, no environment. The flake

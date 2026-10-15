@@ -43,12 +43,13 @@ error, naming the module's file ([Dendrites](dendrites.md#darwin)).
 
 ## The registry
 
-A registry is plain data, read before any module graph exists. Names and paths
-only; nothing is imported at registry time.
+A registry is plain data, read before any module graph exists. Names and
+entries only: a path, or a module value ([Value entries](dendrites.md#value-entries)).
+Nothing is imported or applied at registry time.
 
 | field          | maps             | to                                            |
 | -------------- | ---------------- | --------------------------------------------- |
-| `catalogue`    | capability name  | the file or directory that answers it ([Dendrites](dendrites.md)) |
+| `catalogue`    | capability name  | the file, directory or module value that answers it ([Dendrites](dendrites.md)) |
 | `aggregations` | group name       | a directory holding the group's `default.nix` body ([Aggregations](aggregations.md)) |
 | `overrides`    | record name      | a file holding a capability-scoped fix ([Override records](overrides.md)); optional |
 
@@ -205,7 +206,7 @@ defaults the module list is exactly the one assembled without them.
   whole selection (`habit` as the host wrote it and resolved, so
   `selection.dendrites` and a hook's `selection.<option>`, with `catalogue`
   beside them), so it can `import` a body nothing selected; passing selected
-  paths only is the caller's discipline, and the suite pins that it is possible
+  entries only is the caller's discipline, and the suite pins that it is possible
   (`extraModulesForCanReachTheCatalogue`).
 
 ```nix
@@ -249,7 +250,7 @@ the workstation example (paths shortened to the repository root):
 | ------------- | ----------------------------------------------------------------------- |
 | `host`        | `hostName`                                                              |
 | `aggregation` | the groups the host selected                                            |
-| `dendrites`   | each capability selected for the system: its `provider`, its `system` (whether the selection asks for the system half) and `source`, the catalogue path that answered |
+| `dendrites`   | each capability selected for the system: its `provider`, its `system` (whether the selection asks for the system half) and `source`, the catalogue path or value that answered |
 | `users`       | per user: `definition`, `home` (whether Home Manager is on), its groups and its capabilities; `{ }` for a home |
 | `overrides`   | the override records that matched this host (`mkModules` and the builders only; `inventoryOf` alone has no records to match) |
 

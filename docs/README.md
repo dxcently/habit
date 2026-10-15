@@ -10,7 +10,7 @@ gives it.
 
 | word            | is                                                                     | page                                  |
 | --------------- | ---------------------------------------------------------------------- | ------------------------------------- |
-| registry        | plain data: capability, group and fix names mapped to paths            | [The constructor](constructor.md)     |
+| registry        | plain data: capability, group and fix names mapped to paths or module values | [The constructor](constructor.md)     |
 | dendrite        | a capability: one plain module, or a set of providers that are plain modules | [Dendrites](dendrites.md)        |
 | half            | the system half or the home half (`habit.home`) of one module, derived when a selected module is imported | [Dendrites](dendrites.md#a-plain-module) |
 | `habit.selected` | what a scope selected: a read-only option in every evaluation         | [Dendrites](dendrites.md#reading-the-selection) |
@@ -53,8 +53,9 @@ is `habit.home` for what belongs in a user's home and `habit.selected` for what
 was selected. Which half goes where is decided when a selected module is
 imported, by who selected it. [Dendrites](dendrites.md)
 
-**Nothing unselected is imported.** A catalogue entry, a provider file and an
-aggregation body are each `import`ed if and only if selection kept them. The
+**Nothing unselected is imported.** A catalogue path, a provider file and an
+aggregation body are each `import`ed if and only if selection kept them, and a
+catalogue module value is applied if and only if selection kept it. The
 suite proves it with fixtures that throw when imported. The one weaker
 boundary, override records, is stated where it lives.
 [Override records](overrides.md#the-evaluation-boundary)
@@ -79,7 +80,7 @@ naming the name and every source defining it.
 [Merging registries](merging.md)
 
 **The inventory is derived, never hand-kept.** What a host resolved (its
-groups, each capability with its provider and the path that answered, its
+groups, each capability with its provider and the entry that answered, its
 users, the fixes that matched) is computed from the selection itself.
 [The constructor](constructor.md#the-inventory)
 
@@ -127,7 +128,7 @@ quoted in these pages is the file the suite evaluates.
 
 `tests/selection/` holds executable cases over a fixture registry
 (`registry.nix`, `dendrites/`, `aggregations/`, `overrides/`, `users/`,
-`badrecords/`), over host modules (`hosts/`) and the hooks (`hooks/`), over the
+`badrecords/`, `values/`), over host modules (`hosts/`) and the hooks (`hooks/`), over the
 wrapper (`lanes/`), over each class against stub option trees named like
 nix-darwin's and Home Manager's, and over the examples. A fixture
 implementation or aggregation body that throws on import proves that "never
