@@ -19,7 +19,6 @@ gives it.
 | host module      | one module: its `habit.*` keys select, everything else is the host's own platform configuration                | [The host module](host.md)                              |
 | class            | what a host is built for: `nixos`, `darwin` or `home`; it sets the scope and the evaluator the caller supplies | [The constructor](constructor.md#classes)               |
 | override record  | a fix that belongs to a capability and applies where it was selected                                           | [Override records](overrides.md)                        |
-| nucleus          | by convention, the aggregation of dendrites every host selects                                                 | [Aggregations](aggregations.md#what-every-host-carries) |
 | inventory        | what a host resolved, derived from its selection                                                               | [The constructor](constructor.md#the-inventory)         |
 
 ```

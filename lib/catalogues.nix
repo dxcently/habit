@@ -6,7 +6,7 @@
 #
 # A source is a registry plus the name to blame it by:
 #
-#   { name = "aoide"; catalogue = { … }; aggregations = { … }; overrides = { … }; }
+#   { name = "personal"; catalogue = { … }; aggregations = { … }; overrides = { … }; }
 #
 # Any of the three fields may be absent; one that is present must be an attrset.
 # A source takes only those four fields: another one (a misspelt `aggregation`)

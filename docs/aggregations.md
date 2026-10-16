@@ -70,11 +70,10 @@ gets the `home` half, so the group's `system` half is not read there.
 
 ## What every host carries
 
-The constructor has no slot for what every host carries. By convention it is
-an aggregation named `nucleus`, whose members are the dendrites every host
-selects; each host selects it, and any host can deselect a member like any
-other group's. A module that must reach a host even when it selects nothing
-goes in `extraModules`.
+The constructor has no slot for what every host carries. A host gets it by
+selecting an aggregation of its own, and can deselect a member as in any other
+group. A module that must reach a host even when it selects nothing goes in
+`extraModules`.
 
 ## Membership is mkDefault
 

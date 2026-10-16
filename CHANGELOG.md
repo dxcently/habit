@@ -2,6 +2,13 @@
 
 Append-only. Newest first.
 
+## Unreleased
+
+- The docs no longer name a `nucleus` aggregation as habit's convention. The
+  constructor has no group every host carries: a host selects an aggregation of
+  its own, like any other group. The words table drops `nucleus`. No change of
+  behaviour.
+
 ## 0.3.0
 
 - A catalogue entry may be a module value, an attrset or a function, in place of
