@@ -2,7 +2,7 @@
 
 Append-only. Newest first.
 
-## Unreleased
+## 0.5.0
 
 - A host's group now reaches its users' homes. `habit.aggregation.<group>.enable
   = true` on a host still applies the group's `system` half, and now also gives
