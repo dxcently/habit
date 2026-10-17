@@ -37,7 +37,7 @@ The body is data, read only when a host or one of its users selects the group.
 | field                   | means                                                                     |
 | ----------------------- | ------------------------------------------------------------------------- |
 | `description`           | the description of the group's `enable` option                            |
-| `system` / `home`       | the half that answers when the host / a user selects the group; a standalone home selects the `home` half |
+| `system` / `home`       | the half that answers when the host selects the group (its `system` half, and its `home` half for each user with a home) or a user does (its `home` half); a standalone home selects the `home` half |
 | `<half>.members`        | capability names the group enables in that scope                          |
 | `<half>.providers`      | `{ <member> = "<default provider>"; }` for provider-bearing members; each is also a member |
 | `<half>.module`         | a module the half carries beside its members, below                       |
@@ -47,7 +47,7 @@ The two halves' `module` land where their scope's own settings do:
 | half     | `module` lands                                                                               |
 | -------- | -------------------------------------------------------------------------------------------- |
 | `system` | in the host's evaluation, as its own module-list entry just before the host module           |
-| `home`   | in each selecting user's home, after the homes of that user's modules and of the matched override records, just before the user's own `home.config`; in a standalone home, as its own module-list entry just before the host module |
+| `home`   | in the home of each user it reaches (one that selected the group, or every user with a home when the host did, less those that opted out), after the homes of that user's modules and of the matched override records, just before the user's own `home.config`; in a standalone home, as its own module-list entry just before the host module |
 
 A selected body is validated when it is read, and each failure names the
 aggregation and its file ([Errors](errors.md#aggregation-bodies)):
@@ -55,18 +55,39 @@ aggregation and its file ([Errors](errors.md#aggregation-bodies)):
 - a body that is not an attrset (a function written like a dendrite, a list)
   names its type;
 - a field outside this table at the top (a misspelt `sytem`) names the field;
+- a registry entry that is not a path (a set written in place of a file) names
+  the group and its type;
 - a `system` or `home` that is not an attrset names the half and its type;
 - a key outside `members`, `providers` and `module` in a half (a `member`, a
   `nixos`) names the half and the key.
 
 A body nobody selected is never read, so it is never validated either.
 
-One body serves both scopes. The host selects it with
-`habit.aggregation.desktop.enable = true` and gets the `system` half; a user
-selects it with `habit.users.<name>.aggregation.desktop.enable = true` and gets
-the `home` half. The two halves reach different evaluators. A standalone home
-has no users: it selects with `habit.aggregation.desktop.enable = true` too, and
-gets the `home` half, so the group's `system` half is not read there.
+### One body serves both scopes
+
+The two halves reach different evaluators, and one body serves both:
+
+- the host selects it with `habit.aggregation.desktop.enable = true`. The host
+  applies the `system` half, and every user with `home.enable = true` gets the
+  `home` half, exactly as if each had selected the group with
+  `habit.users.<name>.aggregation.desktop.enable = true`.
+- a user selects it for herself with `habit.users.<name>.aggregation.desktop.enable
+  = true`. Only that user gets the `home` half.
+- both routes together merge: the group's membership and its `home` module apply
+  once for the user.
+- a user opts out of a group the host sent with
+  `habit.users.<name>.aggregation.desktop.enable = false`. That withholds the
+  group's `home` half for that user alone; the `system` half is the host's and
+  stays ([Opting out](host.md#opting-out)).
+
+A standalone home has no users. It selects with
+`habit.aggregation.desktop.enable = true` too, and gets the `home` half, so the
+group's `system` half is not read there.
+
+A member a host's group sends to users is a user's selection, so its system
+half applies as it does for a user who selected the group: a user's selection
+applies the system half unless it writes `system = false`
+([Dendrites](dendrites.md#halves-and-scopes)).
 
 ## What every host carries
 

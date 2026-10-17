@@ -47,7 +47,7 @@ host module ────┤        (pkgs, config poisoned; imports dropped;
 | `habit.dendrites.<name>.enable`                  | bool                 | `false` | select a capability for the system                       |
 | `habit.dendrites.<name>.provider`                | null or string       | `null`  | which provider answers it for the system                 |
 | `habit.dendrites.<name>.system`                  | bool                 | `true`  | `false` asks for the home half alone ([Dendrites](dendrites.md#halves-and-scopes)); only its home half then applies, to every user with `home.enable`, unless another selection has `system = true` |
-| `habit.aggregation.<group>.enable`               | bool                 | `false` | select a group's `system` half                           |
+| `habit.aggregation.<group>.enable`               | bool                 | `false` | select a group: its `system` half, and its `home` half for every user with `home.enable`, as if each had selected it ([Aggregations](aggregations.md#one-body-serves-both-scopes)) |
 | `habit.aggregation.<group>.<member>.provider`    | null or string       | the body's | choose a provider for a provider-bearing member       |
 | `habit.users.<user>`                             | submodule            | `{ }`   | a user attached to this host (below)                     |
 | `habit.catalogue`                                | attrs of path, read-only | the registry's | the catalogue, read back by the platform pass   |
@@ -142,10 +142,12 @@ Each `habit.users.<user>` is a scope of its own.
 | field                                        | type            | default | means                                                       |
 | -------------------------------------------- | --------------- | ------- | ----------------------------------------------------------- |
 | `definition`                                 | path            | none    | the user's module: its own settings are the account, its `habit.home` is the user's home |
-| `home.enable`                                | bool            | `false` | give this user a Home Manager configuration; off imports no Home Manager for them |
+| `home.enable`                                | bool            | `false` | give this user a Home Manager configuration; off imports no Home Manager for them, and nothing the host selected reaches the user's home |
 | `home.config`                                | deferred module | `{ }`   | extra home settings, evaluated only in the user's Home Manager configuration |
-| `dendrites.<name>.enable` / `.provider` / `.system` | as above |         | select a capability for this user's home; `system = false` asks for its home half alone |
-| `aggregation.<group>.enable` / `.<member>.provider` | as above |         | select a group's `home` half for this user                  |
+| `dendrites.<name>.enable`                    | null or bool    | `null`  | `true` selects the capability for this user's home; `false` withholds the home half the host sent ([Opting out](#opting-out)) |
+| `dendrites.<name>.provider` / `.system`      | as above        |         | which provider answers it for this user; `system = false` asks for its home half alone |
+| `aggregation.<group>.enable`                 | null or bool    | `null`  | `true` selects the group's `home` half for this user; `false` withholds the one the host sent |
+| `aggregation.<group>.<member>.provider`      | null or string  | the body's | which provider answers a provider-bearing member for this user |
 
 ```nix
 # examples/workstation/users/alice.nix
@@ -174,11 +176,35 @@ imports of the wiring's own definition, which comes after them:
 
 1. the user module's `habit.home`
 2. the home half of every capability the host selected and of every capability
-   this user selected, in catalogue order
+   this user selected, in catalogue order, less those this user opted out of
 3. `habit.selected`, this user's own scope ([Dendrites](dendrites.md#reading-the-selection))
 4. the `home` module of every override record the user's own selection
    matched
-5. the `home.module` of every group the user selected, then `home.config`
+5. the `home.module` of every group the user selected, or the host selected
+   for its homes, less those this user opted out of, then `home.config`
+
+### Opting out
+
+A user withholds a home half the host sent by writing `false` where the host
+reached it. Each opt-out is exact: it withholds only the home half, and only for
+that user.
+
+| the user writes | withholds, for that user                                                          | keeps                                                                  |
+| --------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `habit.users.<u>.dendrites.<n>.enable = false` | the home half of `<n>`, whatever brought it: a host dendrite, a host group's member, or the user's own group | `<n>`'s system half; `<n>`'s home half for every other user |
+| `habit.users.<u>.aggregation.<g>.enable = false` | the home module and the home members that `<g>` sent to `<u>`                   | the system half of `<g>`; the host's dendrites, including a member the host selected directly; every other user |
+
+A group's opt-out does not withhold a member the host selected as a dendrite,
+whether directly or through a group's system half: that member is the host's,
+and reaches the user as any host dendrite does. To withhold one of those, opt
+out of that dendrite too.
+
+An opt-out of something that never reached the user is an error, not a no-op,
+naming the user and what it opted out of ([Errors](errors.md#users)). It
+reaches a user only with `home.enable = true`, so an opt-out of a user without
+a home is an error too. A `false` written in a file the host imports, or inline
+in its `imports`, is refused as a key the scan never saw, as any other key is
+([Imports are not scanned](#imports-are-not-scanned)).
 
 ### Home Manager wiring
 

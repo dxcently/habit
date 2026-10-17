@@ -3080,4 +3080,126 @@ selectionCases
         catalogue.attrsValue = _: { };
       }
     ]).catalogue;
+
+  # ── Host groups reach the users' homes (Change A) and opt-outs (Change B) ──
+  # A host's group reaches every user with a home as if each had selected it.
+  householdHomeHalfReachesEveryHomeUser = assembled {
+    aggregation.household.enable = true;
+    users.alice = homeUser "alice" { };
+    users.bob = homeUser "bob" { };
+  };
+
+  # A user without a home receives no home half, and nothing else changes.
+  householdHomeHalfSkipsAUserWithoutHome = assembled {
+    aggregation.household.enable = true;
+    users.alice = homeUser "alice" { };
+    users.dan = {
+      definition = ./users/bob.nix;
+    };
+  };
+
+  # The host and a user select the same group: its home half is applied once.
+  hostAndUserSelectingAGroupApplyItOnce = assembled {
+    aggregation.household.enable = true;
+    users.alice = homeUser "alice" { aggregation.household.enable = true; };
+  };
+
+  # The host's group carries a home provider; the user it reaches gets it, as if
+  # the user had selected the group.
+  hostGroupHomeProviderReachesTheUser = assembled {
+    aggregation.desk.enable = true;
+    users.alice = homeUser "alice" { };
+  };
+
+  # A user's own provider choice for a host-sent group wins over the body's.
+  userChoosesProviderForHostGroup = assembled {
+    aggregation.desk.enable = true;
+    users.alice = homeUser "alice" {
+      aggregation.desk.notifications.provider = "mako";
+    };
+  };
+
+  # Opt-out of a host-sent group withholds its home members and module for that
+  # user, and keeps them for another; the system half is the host's and stays.
+  userOptsOutOfHostGroup = assembled {
+    aggregation.household.enable = true;
+    users.alice = homeUser "alice" { aggregation.household.enable = false; };
+    users.bob = homeUser "bob" { };
+  };
+
+  # A member the host selected directly as a dendrite is not withheld by the
+  # group's opt-out.
+  userOptOutOfGroupKeepsAHostDendrite = assembled {
+    dendrites.homeonly.enable = true;
+    aggregation.household.enable = true;
+    users.alice = homeUser "alice" { aggregation.household.enable = false; };
+  };
+
+  # Opt-out of a host-selected dendrite withholds its home half; the system half
+  # stays, and so does the home half of every other user.
+  userOptsOutOfHostDendrite = assembled {
+    dendrites.notifications = dunst;
+    users.alice = homeUser "alice" { dendrites.notifications.enable = false; };
+    users.bob = homeUser "bob" { };
+  };
+
+  # A user's opt-out of a home member the host's group brought withholds that
+  # member for the user alone: the group's module still reaches them.
+  userOptsOutOfAGroupsHomeMemberDendrite = assembled {
+    aggregation.household.enable = true;
+    users.alice = homeUser "alice" { dendrites.homeonly.enable = false; };
+    users.bob = homeUser "bob" { };
+  };
+
+  # The same opt-out for a dendrite the host reached through a group's system
+  # half: whatever brought it, the home half is withheld for that user.
+  userOptsOutOfADendriteBroughtByAGroup = assembled {
+    aggregation.workstation.enable = true;
+    users.alice = homeUser "alice" { dendrites.notifications.enable = false; };
+    users.bob = homeUser "bob" { };
+  };
+
+  # Opt-outs of what never reached the user are refused, naming the user and the
+  # capability or group.
+  userOptOutOfNeverReachedDendriteIsRefused = assembled {
+    users.alice = homeUser "alice" { dendrites.notifications.enable = false; };
+  };
+
+  userOptOutOfNeverReachedGroupIsRefused = assembled {
+    users.alice = homeUser "alice" { aggregation.household.enable = false; };
+  };
+
+  # An opt-out written inline in the host's imports is caught by its value.
+  userOptOutInAnInlineImportIsCaught = failedAssertions (evalAssembled {
+    host = ./hosts/importsOptOutInline.nix;
+  });
+
+  # ── Change C: a body or a record that is not a path is a named error ──────
+  registryWithBadGroup = registry // {
+    aggregations = registry.aggregations // {
+      valued = {
+        description = "A value, not a file.";
+      };
+    };
+  };
+
+  # Unselected, the bad entry is never read.
+  unselectedGroupValueIsInert = assembledIn registryWithBadGroup {
+    aggregation.household.enable = true;
+  };
+
+  selectedGroupValueIsRefused = assembledIn registryWithBadGroup {
+    aggregation.valued.enable = true;
+  };
+
+  registryWithBadOverride = registry // {
+    overrides = {
+      badRecord = {
+        dendrites = [ "systemonly" ];
+        system.fixture.marks = [ "never" ];
+      };
+    };
+  };
+
+  overrideValueIsRefused = assembledIn registryWithBadOverride { };
 }

@@ -113,6 +113,15 @@ Who selected a module decides where its halves go:
 | the host, `system = false`, and `U` | applied once             | `U` once                                       |
 | a standalone home                 | dropped, `imports` with it | the home itself                                |
 
+A user withholds the home half the host sent it with `enable = false`, and a
+host-selected dendrite's home half reaches every user with a home except those
+that opted out ([Opting out](host.md#opting-out)):
+
+| selected by                                         | system half       | home half goes to                              |
+| --------------------------------------------------- | ----------------- | ---------------------------------------------- |
+| the host, and user `U` writes `enable = false`      | applied           | every user with `home.enable = true` except `U` |
+| a host-selected group, and user `U` writes `enable = false` for the member | applied (the host's) | every user with a home except `U` |
+
 A selection's `system` (a bool, default `true`) says whether it asks for the
 module's system half. The system half is applied iff at least one enabled
 selection of the module, the host's or any user's, has `system = true`; where

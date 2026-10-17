@@ -43,6 +43,9 @@ Two more come from the platform evaluation and the hooks:
 | message | cause | fix |
 | ------- | ----- | --- |
 | `host '<host>': user '<user>' has home.enable = false but selects home dendrites: <list>` | a user selects home capabilities with their home off | set `home.enable = true`, or drop the selections |
+| `habit: user '<user>' opts out of dendrite '<name>', which never reached it; remove ...` | a user writes `dendrites.<name>.enable = false`, and neither the host nor the user's own groups reach its home half | remove the opt-out |
+| `habit: user '<user>' opts out of aggregation '<group>', which never reached it; remove ...` | a user writes `aggregation.<group>.enable = false` for a group the host did not select | remove the opt-out |
+| ``host '<host>': `habit.dendrites.<name>.system = false` selects only the home half of '<name>' but every user with home.enable opts out of it`` | the host selects only the home half of a capability and every user with a home opted out of it | drop `system = false`, or let one user keep it |
 | ``host '<host>': `habit.dendrites.<name>.system = false` selects only the home half of '<name>' but no user has home.enable`` | the host selects only the home half of a capability and no user has Home Manager on to receive it; several are joined by `;` | give a user `home.enable = true`, or drop `system = false` |
 | ``host '<host>': user(s) <users> have home.enable = true but no `homeManagerModule` was given`` | a user has Home Manager on and the caller gave none to import | pass Home Manager's `nixosModules.home-manager` or `darwinModules.home-manager` as `homeManagerModule` |
 
@@ -83,6 +86,7 @@ selected aggregation only, when its body is read.
 
 | message continues | cause | fix |
 | ----------------- | ----- | --- |
+| `is a <type>, not a path; a body is a file or a directory holding a default.nix` | the registry's entry is a set, a string or another non-path (no `aggregation '<name>' (<path>)`: there is no path to name) | make the entry a path to the body |
 | `is a <type>, not an attrset; a body is an attrset taking only description, system, home` | the body is a function (written like a dendrite), a list or another non-attrset | make it an attrset |
 | `has unknown field(s): <fields>; a body takes only description, system, home` | a misspelt half (`sytem`) or another key at the top of the body | rename or remove it |
 | ``has unknown field(s) in `<half>`: <fields>; a half takes only members, providers, module`` | a key in `system` or `home` the constructor does not read (`member`, `nixos`); `<half>` is `system` or `home` | rename or remove it |
@@ -99,6 +103,7 @@ Each begins `override record '<name>' (<path>)`.
 | `targets unknown dendrite(s): <names>; every target must be a catalogue name` | a target not in the catalogue | correct the name, or add the capability |
 | `is confined to unknown host(s): <hosts>` | `hosts` names a host not in `knownHosts` | pass every host name as `knownHosts`, or correct the name |
 | `carries nothing to apply; give it an overlay, a system module or a home module` | none of `overlay`, `system`, `home` | add one, or delete the record |
+| `is a <type>, not a path; a record is a file` (no `(<path>)`: the entry is not a path) | the registry's `overrides` entry is a set, a string or another non-path | make the entry a path to the record |
 
 These are checked on every host, matched or not.
 

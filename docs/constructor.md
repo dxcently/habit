@@ -32,7 +32,7 @@ for every class; a class changes only what the next section says.
 | home half | a `home-manager.users.<user>` definition for each user it reaches | the same | imported into the configuration itself |
 | `homeManagerModule` | Home Manager's NixOS module | Home Manager's nix-darwin module | refused: the evaluator is Home Manager |
 | `habit.users` | accepted | accepted | refused: a home has no users |
-| `habit.aggregation.<group>` selects | the group's `system` half | the group's `system` half | the group's `home` half |
+| `habit.aggregation.<group>` selects | the group's `system` half, and its `home` half to every user with a home | the same | the group's `home` half |
 | `habit.selected` holds | the host's selection, and each user's in their home | the same | the home's selection |
 | an override record applies | `overlay`, `system` (when a selection of its target has `system = true`), and `home` to the users it reaches | the same | `overlay` and `home`; its `system` is dropped with the system half |
 

@@ -86,6 +86,16 @@ let
       )
     );
 
+  # A user's flag: null is no opinion, so an explicit `false` (an opt-out) is
+  # told from one never written. The scan and the platform read it the same way.
+  optFlag =
+    description:
+    mkOption {
+      type = types.nullOr types.bool;
+      default = null;
+      inherit description;
+    };
+
   # A catalogue entry: a path (a file, or a directory's `default.nix`), or a
   # module value, an attrset or a function. A value is itself the module; a path
   # is imported only when selection reads it. Path-like comes first, so an
@@ -103,13 +113,21 @@ let
   # unknown dendrite fails as an option that does not exist, naming the file
   # that asked for it.
   selectionScope =
-    { catalogue, inert }:
+    {
+      catalogue,
+      inert,
+      tristate ? false,
+    }:
     lib.mapAttrs (
       name: _:
       mkOption {
         type = types.submodule {
           options = {
-            enable = flag inert false "Select ${name} in this scope.";
+            enable =
+              if tristate then
+                optFlag "Select ${name} in this scope. `false` withholds the home half the host sent."
+              else
+                flag inert false "Select ${name} in this scope.";
             system = flag inert true "Apply the system half of ${name} for this selection. Off asks for its home half alone.";
             provider = mkOption {
               type = types.nullOr types.str;
@@ -140,6 +158,9 @@ let
 
   readBody =
     name: path:
+    if !types.path.check path then
+      throw "aggregation '${name}' is a ${builtins.typeOf path}, not a path; a body is a file or a directory holding a default.nix"
+    else
     let
       body = import path;
       where = "aggregation '${name}' (${
@@ -182,6 +203,7 @@ let
       bodies,
       scope,
       inert,
+      tristate ? false,
     }:
     lib.mapAttrs (
       name: _:
@@ -193,12 +215,15 @@ let
         type = types.submodule (
           {
             options = {
-              enable = flag inert false (
-                if body == null then
-                  "Select the ${name} aggregation in this scope."
-                else
-                  body.description or "Select the ${name} aggregation in this scope."
-              );
+              enable =
+                let
+                  description =
+                    if body == null then
+                      "Select the ${name} aggregation in this scope."
+                    else
+                      body.description or "Select the ${name} aggregation in this scope.";
+                in
+                if tristate then optFlag description else flag inert false description;
             }
             // lib.mapAttrs (member: default: {
               provider = mkOption {
@@ -233,6 +258,7 @@ let
       bodies,
       scope,
       root,
+      hostGroups ? [ ],
     }:
     lib.mapAttrsToList (
       name: body:
@@ -240,7 +266,7 @@ let
         half = halfOf body scope;
         cfg = root.aggregation.${name};
       in
-      mkIf cfg.enable {
+      mkIf (groupOn hostGroups name cfg.enable) {
         dendrites =
           lib.genAttrs (half.members or [ ]) (_: {
             enable = mkDefault true;
@@ -254,6 +280,12 @@ let
 
   knownBodies = bodies: if bodies == null then { } else bodies;
 
+  # Whether a group is on in a scope. A user's `enable` is null where nothing was
+  # written; there the host's selection of the group reaches the user as the
+  # user's own would. An explicit `false` withholds it. The host's groups are
+  # `hostGroups` (the gate step's answer), and a host's own `enable` is a bool.
+  groupOn = hostGroups: name: enable: enable == true || (enable == null && lib.elem name hostGroups);
+
   # The keys a host writes under `habit`. `inert` declares the same ones for the
   # platform evaluation, where nothing reads a body and a key nobody wrote is
   # null.
@@ -264,6 +296,7 @@ let
       bodies,
       inert,
       scope,
+      hostGroups ? [ ],
     }:
     {
       dendrites = selectionScope { inherit catalogue inert; };
@@ -284,12 +317,12 @@ let
           types.submoduleWith {
             shorthandOnlyDefinesConfig = true;
             specialArgs = {
-              inherit lib;
+              inherit lib hostGroups;
               scope = "home";
             };
             modules = [
               (
-                { config, ... }:
+                { config, hostGroups, ... }:
                 {
                   options = {
                     definition = mkOption (
@@ -312,17 +345,23 @@ let
                       default = { };
                       description = "Extra home settings for this user, evaluated only in their Home Manager configuration.";
                     };
-                    dendrites = selectionScope { inherit catalogue inert; };
+                    dendrites = selectionScope {
+                      inherit catalogue inert;
+                      tristate = true;
+                    };
                     aggregation = aggregationScope {
                       inherit aggregations bodies inert;
                       scope = "home";
+                      tristate = true;
                     };
                   };
 
+                  # The host's groups reach a user only where it has a home.
                   config = mkMerge (aggregationConfig {
                     bodies = knownBodies bodies;
                     scope = "home";
                     root = config;
+                    hostGroups = lib.optionals config.home.enable hostGroups;
                   });
                 }
               )
@@ -352,6 +391,7 @@ let
       catalogue,
       aggregations,
       bodies ? null,
+      hostGroups ? [ ],
       selectionModules ? [ ],
       scope ? "system",
     }:
@@ -370,6 +410,7 @@ let
                       catalogue
                       aggregations
                       bodies
+                      hostGroups
                       scope
                       ;
                     inert = false;
@@ -567,10 +608,23 @@ let
           file = d.file;
         }) (writtenPaths "habit" d.value)
       ) (lib.filter (d: d.file != hostFile) options.habit.definitionsWithLocations);
+      # A user's `enable` is held to what the scan read, not what selection
+      # resolved: a group's membership is not written by anyone.
+      scannedEnable = name: section: key: selection.scanned.users.${name}.${section}.${key}.enable;
       unseenKeys = unseen "habit" {
         inherit (config.habit) dendrites aggregation;
         users = lib.mapAttrs (_: u: u // { home = removeAttrs u.home [ "config" ]; }) config.habit.users;
-      } { inherit (selection) dendrites aggregation users; };
+      } {
+        inherit (selection) dendrites aggregation;
+        users = lib.mapAttrs (
+          name: u:
+          u
+          // {
+            dendrites = lib.mapAttrs (n: d: d // { enable = scannedEnable name "dendrites" n; }) u.dendrites;
+            aggregation = lib.mapAttrs (g: a: a // { enable = scannedEnable name "aggregation" g; }) u.aggregation;
+          }
+        ) selection.users;
+      };
       inline = map (path: {
         inherit path;
         file = hostFile;
@@ -632,6 +686,9 @@ let
       name,
       path,
     }:
+    if !types.path.check path then
+      throw "override record '${name}' is a ${builtins.typeOf path}, not a path; a record is a file"
+    else
     let
       body = import path;
       where = "override record '${name}' (${toString path})";
@@ -709,6 +766,9 @@ let
 
       homeOf = u: enabledNames u.dendrites;
       hostChoice = enabledNames selection.dendrites;
+      # What reaches a user's home: the host's dendrites less the ones it opted
+      # out of, and the user's own.
+      homeTargetsOf = u: lib.filter (d: !u.dendrites.${d}.optOut) hostChoice ++ homeOf u;
       here = lib.unique (hostChoice ++ lib.concatMap homeOf (lib.attrValues selection.users));
       withSystem = scope: lib.filter (name: scope.${name}.system) (enabledNames scope);
       systemHere = lib.unique (
@@ -726,7 +786,7 @@ let
       overlays = carried "overlay" forHost;
       system = carried "system" forSystem;
       home = lib.mapAttrs (
-        _: u: carried "home" (lib.filter (r: admitsHost r && hits (hostChoice ++ homeOf u) r) records)
+        _: u: carried "home" (lib.filter (r: admitsHost r && hits (homeTargetsOf u) r) records)
       ) selection.users;
       standalone = carried "home" forHost;
       matched = map (r: r.name) forHost;
@@ -802,7 +862,10 @@ rec {
       hostModule = scan.scanModule { inherit host specialArgs; };
 
       eval =
-        bodies:
+        {
+          bodies,
+          hostGroups,
+        }:
         (lib.evalModules {
           modules = [
             (mkSchema {
@@ -810,6 +873,7 @@ rec {
                 catalogue
                 aggregations
                 bodies
+                hostGroups
                 selectionModules
                 scope
                 ;
@@ -818,9 +882,14 @@ rec {
           ];
         }).config.habit;
 
-      gate = eval null;
+      # The gate step reads no body, so a user's `enable` there is what the host
+      # wrote, null where it wrote nothing.
+      gate = eval {
+        bodies = null;
+        hostGroups = [ ];
+      };
 
-      chosen = agg: lib.attrNames (lib.filterAttrs (_: a: a.enable) agg);
+      chosen = agg: lib.attrNames (lib.filterAttrs (_: a: a.enable == true) agg);
 
       selected =
         if scope == "home" && lib.attrNames gate.users != [ ] then
@@ -829,9 +898,80 @@ rec {
           lib.unique (
             chosen gate.aggregation ++ lib.concatMap (u: chosen u.aggregation) (lib.attrValues gate.users)
           );
+
+      # A host's group reaches every user with a home as if each had selected it.
+      hostGroups = chosen gate.aggregation;
+
+      resolved = eval {
+        bodies = lib.genAttrs selected (name: readBody name aggregations.${name});
+        inherit hostGroups;
+      };
+
+      # What a user's own `enable` resolves to once the host's groups are in: a
+      # bool for selection, and `optOut` for an explicit `false`.
+      normalizeUser =
+        u:
+        u
+        // {
+          dendrites = lib.mapAttrs (
+            _: d:
+            d
+            // {
+              enable = d.enable == true;
+              optOut = d.enable == false;
+            }
+          ) u.dendrites;
+          aggregation = lib.mapAttrs (
+            name: a:
+            a
+            // {
+              enable = groupOn (lib.optionals u.home.enable hostGroups) name a.enable;
+              optOut = a.enable == false;
+            }
+          ) u.aggregation;
+        };
+      users = lib.mapAttrs (_: normalizeUser) resolved.users;
+
+      # The home members a user gets from its enabled groups, read from the
+      # bodies selection already read.
+      homeMembersOf =
+        u:
+        lib.concatMap (
+          g:
+          let
+            half = halfOf (readBody g aggregations.${g}) "home";
+          in
+          (half.members or [ ]) ++ lib.attrNames (half.providers or { })
+        ) (enabledNames u.aggregation);
+
+      # An opt-out is exact: it must withhold something. Naming what never
+      # reached the user is cheaper than a silent no-op that looks applied.
+      neverReached = lib.concatMap (
+        name:
+        let
+          u = users.${name};
+          reachedDendrite = n: u.home.enable && (resolved.dendrites.${n}.enable || lib.elem n (homeMembersOf u));
+          reachedGroup = g: u.home.enable && lib.elem g hostGroups;
+        in
+        map (
+          n: "user '${name}' opts out of dendrite '${n}', which never reached it; remove `habit.users.${name}.dendrites.${n}.enable`"
+        ) (lib.filter (n: u.dendrites.${n}.optOut && !reachedDendrite n) (lib.attrNames u.dendrites))
+        ++ map (
+          g: "user '${name}' opts out of aggregation '${g}', which never reached it; remove `habit.users.${name}.aggregation.${g}.enable`"
+        ) (lib.filter (g: u.aggregation.${g}.optOut && !reachedGroup g) (lib.attrNames u.aggregation))
+      ) (lib.attrNames users);
     in
     refuseReservedNames scope selectionModules (
-      eval (lib.genAttrs selected (name: readBody name aggregations.${name}))
+      if neverReached != [ ] then
+        throw "habit: ${lib.concatStringsSep "; " neverReached}"
+      else
+        resolved
+        // {
+          inherit users;
+          # The gate's answer to each user's `enable`, as written: the platform
+          # pass checks the host's and imports' writes against it.
+          scanned = gate;
+        }
     );
 
   # A host's resolved shape: what it selected and from where, for the system and
@@ -855,7 +995,7 @@ rec {
           inherit (d) provider system;
           source = sourceOfSelected name d.provider;
         }) (lib.filterAttrs (_: d: d.enable) selected);
-      chosen = agg: lib.attrNames (lib.filterAttrs (_: a: a.enable) agg);
+      chosen = agg: lib.attrNames (lib.filterAttrs (_: a: a.enable == true) agg);
     in
     {
       host = hostName;
@@ -963,10 +1103,18 @@ rec {
 
       # The host selects only the home half of a capability, and no user has a
       # home to receive it. A standalone home is its own home and takes none.
-      homeWithoutUsers = lib.optionals (!isHome && hmUsers == { }) (
+      # The users a host dendrite's home half reaches: every user with a home,
+      # less those that opted out of this dendrite.
+      homeReceivers =
+        name: lib.filter (u: !selection.users.${u}.dendrites.${name}.optOut) (lib.attrNames hmUsers);
+      homeWithoutUsers = lib.optionals (!isHome) (
         map (
-          name: "`habit.dendrites.${name}.system = false` selects only the home half of '${name}' but no user has home.enable"
-        ) (lib.filter (name: !selection.dendrites.${name}.system) (enabledNames selection.dendrites))
+          name:
+          if hmUsers == { } then
+            "`habit.dendrites.${name}.system = false` selects only the home half of '${name}' but no user has home.enable"
+          else
+            "`habit.dendrites.${name}.system = false` selects only the home half of '${name}' but every user with home.enable opts out of it"
+        ) (lib.filter (name: !selection.dendrites.${name}.system && homeReceivers name == [ ]) (enabledNames selection.dendrites))
       );
 
       # One wrapped module per selected capability, in catalogue order. The
@@ -986,7 +1134,7 @@ rec {
               who = "host";
               by = "host '${hostName}' `habit.dendrites.${name}.system = false`";
               inherit (selection.dendrites.${name}) provider system;
-              users = lib.attrNames hmUsers;
+              users = homeReceivers name;
             }
             ++ lib.concatMap (
               userName:

@@ -83,7 +83,9 @@ host     ──►│ only; the rest is freeform, ignored   │   │ declare th
 
 - **gate**: every aggregation in the registry declares only `enable`; the
   rest of its attrset is accepted and ignored. No body is read. The answer is
-  the set of aggregations the host, or one of its users, selects.
+  the set of aggregations the host, or one of its users, selects. The host's
+  part of that answer then reaches each user with a home: the select step
+  enables the group's home members for them, as their own selection would.
 - **select**: the selected bodies are imported, declare their real nested
   options, and write their membership. Nothing else is read. A selector the
   body does not own (`habit.aggregation.desktop.compositor.provider`) now fails as

@@ -2,6 +2,29 @@
 
 Append-only. Newest first.
 
+## Unreleased
+
+- A host's group now reaches its users' homes. `habit.aggregation.<group>.enable
+  = true` on a host still applies the group's `system` half, and now also gives
+  the group's `home` half (its home members, home providers and home module) to
+  every user with `home.enable = true`, as if each had selected the group. Before,
+  a host's group sent only its system half, and a user had to select the group
+  for her own home. A host-selected dendrite already reached every home; groups
+  now match it. A member the group's home half brings is a user's selection, so
+  its system half applies as it does for a user who selected the group.
+- A user may opt out of a home half the host sent: `habit.users.<u>.dendrites.<n>.enable
+  = false` withholds `<n>`'s home half for `<u>`, whatever brought it, and
+  `habit.users.<u>.aggregation.<g>.enable = false` withholds the home half of a
+  host's group `<g>` for `<u>`. The system half is untouched. Both `enable`
+  options under a user are now `null | bool`, where `null` is no opinion. An
+  opt-out of something that never reached the user is an error that names the
+  user and the capability or group.
+- An aggregation or override registry entry that is not a path (a set, a string)
+  is a named error, `aggregation '<name>' is a <type>, not a path` or
+  `override record '<name>' is a <type>, not a path`, where it used to fail with
+  Nix's `cannot coerce` message. An unselected aggregation entry is still never
+  read.
+
 ## 0.4.0
 
 - A provider set may be a catalogue value: an attrset whose only key is

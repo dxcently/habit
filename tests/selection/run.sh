@@ -331,6 +331,22 @@ valueStandaloneHomeReceivesTheHomeHalf ok   "home"
 valueImportingAHabitKeyIsRefused    throws  but the host scan never saw it
 valueUnselectedAttributesAreNotForced ok    "sys="
 valueThrowingEntryIsReadOnRead      throws  entry read
+householdHomeHalfReachesEveryHomeUser ok "sys=systemonly alice=household+homeonly bob=household+homeonly"
+householdHomeHalfSkipsAUserWithoutHome ok "sys=systemonly alice=household+homeonly"
+hostAndUserSelectingAGroupApplyItOnce ok "sys=systemonly alice=household+homeonly"
+hostGroupHomeProviderReachesTheUser ok "sys=dunst alice=dunst"
+userChoosesProviderForHostGroup ok "sys= alice=mako"
+userOptsOutOfHostGroup ok "sys=systemonly alice= bob=household+homeonly"
+userOptOutOfGroupKeepsAHostDendrite ok "sys=systemonly alice=homeonly"
+userOptsOutOfAGroupsHomeMemberDendrite ok "sys=systemonly alice=household bob=household+homeonly"
+userOptsOutOfHostDendrite ok "sys=dunst alice= bob=dunst"
+userOptsOutOfADendriteBroughtByAGroup ok "sys=systemonly+dunst alice= bob=dunst"
+userOptOutOfNeverReachedDendriteIsRefused throws  user 'alice' opts out of dendrite 'notifications', which never reached it
+userOptOutOfNeverReachedGroupIsRefused throws  user 'alice' opts out of aggregation 'household', which never reached it
+userOptOutInAnInlineImportIsCaught throws  `habit.users.alice.dendrites.notifications.enable` is set in
+unselectedGroupValueIsInert ok "sys=systemonly"
+selectedGroupValueIsRefused throws  aggregation 'valued' is a set, not a path
+overrideValueIsRefused throws  override record 'badRecord' is a set, not a path
 EOF
 )
 

@@ -19,6 +19,14 @@ let
     specialArgs.greeting = "hello";
   };
 
+  house = composition.mkNixosHost {
+    inherit nixpkgs;
+    registry = import ./registry.nix;
+    hostName = "house";
+    host = ./hosts/house.nix;
+    homeManagerModule = home-manager.nixosModules.home-manager;
+  };
+
   valued = composition.mkNixosHost {
     inherit nixpkgs;
     registry = import ./valueRegistry.nix;
@@ -177,6 +185,17 @@ in
   nixosSystemHalfTakesTheBuildersArguments = {
     got = config.environment.variables.SYSTEM_ARGS;
     want = "x86_64-linux/desk/hello";
+  };
+
+  nixosHostGroupHomeHalfReachesEveryUserButAnOptOut = {
+    got = {
+      alice = house.system.config.home-manager.users.alice.programs.git.enable;
+      bob = house.system.config.home-manager.users.bob.programs.git.enable;
+    };
+    want = {
+      alice = true;
+      bob = false;
+    };
   };
 
   nixosToplevelEvaluates = {

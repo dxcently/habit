@@ -82,17 +82,20 @@ host module
 │   ├── provider  null | string   for a provider set
 │   └── system    bool            true; false selects the home half alone
 ├── habit.aggregation.<group>     <group> from aggregations
-│   ├── enable    bool            false; a host selects the system half, a home the home half
+│   ├── enable    bool            false; a host selects the system half and every user's home half
 │   └── <member>.provider         provider-bearing members only
 ├── habit.users.<user>            per-user selection
 │   ├── definition   path
 │   ├── home.enable  bool         false
 │   ├── home.config  deferred module
-│   ├── dendrites.<name>.{enable,provider,system}
-│   └── aggregation.<group>.{enable,<member>.provider}
+│   ├── dendrites.<name>.{enable,provider,system}   enable: null | bool; false opts out of the host's home half
+│   └── aggregation.<group>.{enable,<member>.provider}   enable: null | bool; false opts out of the host's group
 ├── habit.catalogue               read-only; the registry's catalogue
 └── everything else               the host's own config; selection never reads it
 ```
+
+A host's selection reaches the homes of its users with `home.enable = true`, and
+a user may opt out of any home half the host sent ([The host module](docs/host.md#opting-out)).
 
 ### What is read when
 

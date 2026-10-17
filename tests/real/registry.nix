@@ -17,7 +17,9 @@
     udev = ./dendrites/udev.nix;
   };
 
-  aggregations = { };
+  aggregations = {
+    house = ./aggregations/house;
+  };
 
   overrides = {
     plain-fix = ./overrides/plain-fix.nix;
