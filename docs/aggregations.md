@@ -84,10 +84,15 @@ A standalone home has no users. It selects with
 `habit.aggregation.desktop.enable = true` too, and gets the `home` half, so the
 group's `system` half is not read there.
 
-A member a host's group sends to users is a user's selection, so its system
-half applies as it does for a user who selected the group: a user's selection
-applies the system half unless it writes `system = false`
-([Dendrites](dendrites.md#halves-and-scopes)).
+A host's group sends its home members to users, and their system halves are
+the host's. Whenever the host selects the group, each home member's system half
+applies on the host with its host-level `system` (default `true`), whatever the
+users do, including when there are no users with a home. A user's opt-out
+withholds only that user's home half ([Opting out](host.md#opting-out)). A
+member's provider for its system half is the provider the users' home claims
+name, or the group's default when none of them is active; users who choose
+different providers for one member are refused, as they are for user
+selections ([Errors](errors.md#selecting-capabilities)).
 
 ## What every host carries
 

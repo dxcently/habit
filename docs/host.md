@@ -194,7 +194,9 @@ that user.
 | `habit.users.<u>.dendrites.<n>.enable = false` | the home half of `<n>`, whatever brought it: a host dendrite, a host group's member, or the user's own group | `<n>`'s system half; `<n>`'s home half for every other user |
 | `habit.users.<u>.aggregation.<g>.enable = false` | the home module and the home members that `<g>` sent to `<u>`                   | the system half of `<g>`; the host's dendrites, including a member the host selected directly; every other user |
 
-A group's opt-out does not withhold a member the host selected as a dendrite,
+A host-sent group member's system half is the host's: a user's opt-out removes
+only that user's home half, and the system half still applies on the host, with
+or without any home user. A group's opt-out does not withhold a member the host selected as a dendrite,
 whether directly or through a group's system half: that member is the host's,
 and reaches the user as any host dendrite does. To withhold one of those, opt
 out of that dendrite too.

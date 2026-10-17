@@ -3174,6 +3174,44 @@ selectionCases
     host = ./hosts/importsOptOutInline.nix;
   });
 
+  # ── A host-sent home member's system half is the host's (review fix) ──────
+  # `systemonly` is a home member with no home half: its system half reaches the
+  # host through the host's group, whoever opts out of its home.
+  hostSentSystemHalfSurvivesADendriteOptOut = assembled {
+    aggregation.roomwide.enable = true;
+    users.alice = homeUser "alice" { dendrites.systemonly.enable = false; };
+  };
+
+  hostSentSystemHalfSurvivesAGroupOptOut = assembled {
+    aggregation.roomwide.enable = true;
+    users.alice = homeUser "alice" { aggregation.roomwide.enable = false; };
+  };
+
+  # Zero home users: the host selected the group, so the system half applies.
+  hostSentSystemHalfWithoutHomeUsers = assembled {
+    aggregation.roomwide.enable = true;
+  };
+
+  # A home user who did not opt out still gets the member; the system half is the
+  # same either way.
+  hostSentMemberReachesAUserWithoutOptOut = assembled {
+    aggregation.roomwide.enable = true;
+    users.alice = homeUser "alice" { };
+  };
+
+  # A member a user selected through its own group keeps today's behaviour: the
+  # system half comes from that user's selection.
+  userSelectedGroupMemberSystemHalfIsUnchanged = assembled {
+    users.alice = homeUser "alice" { aggregation.roomwide.enable = true; };
+  };
+
+  # The host's `system = false` on a host-sent member is still honoured: home only,
+  # and `systemonly` has no home half to give.
+  hostSentMemberSystemOffIsRefused = assembled {
+    aggregation.roomwide.enable = true;
+    dendrites.systemonly.system = false;
+  };
+
   # ── Change C: a body or a record that is not a path is a named error ──────
   registryWithBadGroup = registry // {
     aggregations = registry.aggregations // {

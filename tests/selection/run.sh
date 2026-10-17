@@ -331,6 +331,12 @@ valueStandaloneHomeReceivesTheHomeHalf ok   "home"
 valueImportingAHabitKeyIsRefused    throws  but the host scan never saw it
 valueUnselectedAttributesAreNotForced ok    "sys="
 valueThrowingEntryIsReadOnRead      throws  entry read
+hostSentSystemHalfSurvivesADendriteOptOut ok "sys=systemonly alice="
+hostSentSystemHalfSurvivesAGroupOptOut ok "sys=systemonly alice="
+hostSentSystemHalfWithoutHomeUsers ok "sys=systemonly"
+hostSentMemberReachesAUserWithoutOptOut ok "sys=systemonly alice="
+userSelectedGroupMemberSystemHalfIsUnchanged ok "sys=systemonly alice="
+hostSentMemberSystemOffIsRefused throws  selects only the home half of 'systemonly', which has none
 householdHomeHalfReachesEveryHomeUser ok "sys=systemonly alice=household+homeonly bob=household+homeonly"
 householdHomeHalfSkipsAUserWithoutHome ok "sys=systemonly alice=household+homeonly"
 hostAndUserSelectingAGroupApplyItOnce ok "sys=systemonly alice=household+homeonly"

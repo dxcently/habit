@@ -132,4 +132,22 @@ in
       fileEntry = true;
     };
   };
+
+  # A host's group reaches the mac's one home user; an opt-out of the group
+  # withholds that home half and nothing else.
+  darwinHostGroupHomeHalfReachesTheUserButAnOptOut = {
+    got = {
+      alice =
+        (macWith { habit.aggregation.den.enable = true; }).system.config.home-manager.users.alice.home.preferXdgDirectories;
+      optedOut =
+        (macWith {
+          habit.aggregation.den.enable = true;
+          habit.users.alice.aggregation.den.enable = false;
+        }).system.config.home-manager.users.alice.home.preferXdgDirectories;
+    };
+    want = {
+      alice = true;
+      optedOut = false;
+    };
+  };
 }

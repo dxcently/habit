@@ -10,8 +10,8 @@ Append-only. Newest first.
   every user with `home.enable = true`, as if each had selected the group. Before,
   a host's group sent only its system half, and a user had to select the group
   for her own home. A host-selected dendrite already reached every home; groups
-  now match it. A member the group's home half brings is a user's selection, so
-  its system half applies as it does for a user who selected the group.
+  now match it. A member the group's home half brings keeps its system half on
+  the host, whatever the users do, so an opt-out removes only a home half.
 - A user may opt out of a home half the host sent: `habit.users.<u>.dendrites.<n>.enable
   = false` withholds `<n>`'s home half for `<u>`, whatever brought it, and
   `habit.users.<u>.aggregation.<g>.enable = false` withholds the home half of a

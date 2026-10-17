@@ -14,9 +14,8 @@ suite evaluates. This file holds the invariants to keep while editing them.
    never forces another key, and the platform evaluation declares `habit.*`
    inert and fails any key a file other than the host's writes, and any key
    written inline in the host's `imports` that the scan did not read as written.
-   Anything
-   that lets a selection option read `config` of the platform is the circular
-   import the two passes exist to prevent.
+   Anything that lets a selection option read `config` of the platform is the
+   circular import the two passes exist to prevent.
 2. **Unselected modules are never imported or applied.** A catalogue path, a
    provider target or an aggregation body is `import`ed iff selection kept it,
    and a catalogue module value or provider's module value is applied iff

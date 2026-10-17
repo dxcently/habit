@@ -765,14 +765,15 @@ let
       ) overrides;
 
       homeOf = u: enabledNames u.dendrites;
-      hostChoice = enabledNames selection.dendrites;
+      hostChoice = lib.unique (enabledNames selection.dendrites ++ lib.attrNames selection.hostHome);
       # What reaches a user's home: the host's dendrites less the ones it opted
       # out of, and the user's own.
       homeTargetsOf = u: lib.filter (d: !u.dendrites.${d}.optOut) hostChoice ++ homeOf u;
       here = lib.unique (hostChoice ++ lib.concatMap homeOf (lib.attrValues selection.users));
       withSystem = scope: lib.filter (name: scope.${name}.system) (enabledNames scope);
       systemHere = lib.unique (
-        withSystem selection.dendrites ++ lib.concatMap (u: withSystem u.dendrites) (lib.attrValues selection.users)
+        lib.filter (n: selection.dendrites.${n}.system) hostChoice
+        ++ lib.concatMap (u: withSystem u.dendrites) (lib.attrValues selection.users)
       );
 
       admitsHost = r: r.hosts == null || lib.elem hostName r.hosts;
@@ -907,50 +908,75 @@ rec {
         inherit hostGroups;
       };
 
+      homeHalfOf = g: halfOf (readBody g aggregations.${g}) "home";
+      homeMembersOfGroups =
+        gs:
+        lib.concatMap (
+          g:
+          let
+            half = homeHalfOf g;
+          in
+          (half.members or [ ]) ++ lib.attrNames (half.providers or { })
+        ) gs;
+
+      # The home half a host group sends to its users: each member, and the
+      # provider its group names for it (null where none). A host-sent member's
+      # system half is the host's, so this is what it applies when no user's
+      # home claim is active.
+      hostHome = lib.genAttrs (lib.unique (homeMembersOfGroups hostGroups)) (
+        n: lib.findFirst (p: p != null) null (map (g: ((homeHalfOf g).providers or { }).${n} or null) hostGroups)
+      );
+
       # What a user's own `enable` resolves to once the host's groups are in: a
-      # bool for selection, and `optOut` for an explicit `false`.
+      # bool for selection, `optOut` for an explicit `false`, and `hostSent` for
+      # a dendrite that only a host group's home half brought to this user.
       normalizeUser =
-        u:
+        name: u:
+        let
+          gateUser = gate.users.${name};
+          explicit = lib.filter (n: gateUser.dendrites.${n}.enable == true) (lib.attrNames gateUser.dendrites);
+          ownGroups = lib.filter (g: gateUser.aggregation.${g}.enable == true) (lib.attrNames gateUser.aggregation);
+          hostOnlyGroups = lib.filter (
+            g: lib.elem g hostGroups && gateUser.aggregation.${g}.enable == null
+          ) (lib.attrNames gateUser.aggregation);
+          hostSentMembers = homeMembersOfGroups (lib.optionals u.home.enable hostOnlyGroups);
+          ownMembers = explicit ++ homeMembersOfGroups ownGroups;
+          hostSent = n: lib.elem n hostSentMembers && !(lib.elem n ownMembers);
+        in
         u
         // {
           dendrites = lib.mapAttrs (
-            _: d:
+            n: d:
+            let
+              on = d.enable == true;
+              fromHost = on && hostSent n;
+            in
             d
             // {
-              enable = d.enable == true;
+              enable = on;
               optOut = d.enable == false;
+              inherit fromHost;
+              # The system half of a host-sent member is the host's to decide.
+              system = if fromHost then resolved.dendrites.${n}.system else d.system;
             }
           ) u.dendrites;
           aggregation = lib.mapAttrs (
-            name: a:
+            g: a:
             a
             // {
-              enable = groupOn (lib.optionals u.home.enable hostGroups) name a.enable;
+              enable = groupOn (lib.optionals u.home.enable hostGroups) g a.enable;
               optOut = a.enable == false;
             }
           ) u.aggregation;
         };
-      users = lib.mapAttrs (_: normalizeUser) resolved.users;
+      users = lib.mapAttrs normalizeUser resolved.users;
 
-      # The home members a user gets from its enabled groups, read from the
-      # bodies selection already read.
-      homeMembersOf =
-        u:
-        lib.concatMap (
-          g:
-          let
-            half = halfOf (readBody g aggregations.${g}) "home";
-          in
-          (half.members or [ ]) ++ lib.attrNames (half.providers or { })
-        ) (enabledNames u.aggregation);
-
-      # An opt-out is exact: it must withhold something. Naming what never
-      # reached the user is cheaper than a silent no-op that looks applied.
       neverReached = lib.concatMap (
         name:
         let
           u = users.${name};
-          reachedDendrite = n: u.home.enable && (resolved.dendrites.${n}.enable || lib.elem n (homeMembersOf u));
+          reachedDendrite =
+            n: u.home.enable && (resolved.dendrites.${n}.enable || lib.elem n (homeMembersOfGroups (enabledNames u.aggregation)));
           reachedGroup = g: u.home.enable && lib.elem g hostGroups;
         in
         map (
@@ -967,7 +993,7 @@ rec {
       else
         resolved
         // {
-          inherit users;
+          inherit users hostHome;
           # The gate's answer to each user's `enable`, as written: the platform
           # pass checks the host's and imports' writes against it.
           scanned = gate;
@@ -1142,12 +1168,29 @@ rec {
                 d = selection.users.${userName}.dendrites.${name};
               in
               lib.optional d.enable {
-                who = "user '${userName}'";
-                by = "user '${userName}' of host '${hostName}' `habit.users.${userName}.dendrites.${name}.system = false`";
+                who = if d.fromHost then "host" else "user '${userName}'";
+                by =
+                  if d.fromHost then
+                    "host '${hostName}' `habit.dendrites.${name}.system = false`"
+                  else
+                    "user '${userName}' of host '${hostName}' `habit.users.${userName}.dendrites.${name}.system = false`";
                 inherit (d) provider system;
                 users = [ userName ];
               }
-            ) (lib.attrNames selection.users);
+            ) (lib.attrNames selection.users)
+            # A host-sent member no user's home claim carries (zero home users,
+            # or each opted out) still applies its system half: the host sent it.
+            ++ lib.optional (
+              lib.hasAttr name selection.hostHome
+              && !selection.dendrites.${name}.enable
+              && !lib.any (u: selection.users.${u}.dendrites.${name}.enable) (lib.attrNames selection.users)
+            ) {
+              who = "host";
+              by = "host '${hostName}' `habit.dendrites.${name}.system = false`";
+              provider = selection.hostHome.${name};
+              inherit (selection.dendrites.${name}) system;
+              users = [ ];
+            };
           providers = lib.unique (map (c: c.provider) claims);
           claimants = lib.concatStringsSep "; " (
             map (c: "${c.who}: ${if c.provider == null then "no provider" else c.provider}") claims

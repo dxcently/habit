@@ -19,6 +19,7 @@
 
   aggregations = {
     house = ./aggregations/house;
+    den = ./aggregations/den;
   };
 
   overrides = {

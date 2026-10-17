@@ -120,7 +120,7 @@ that opted out ([Opting out](host.md#opting-out)):
 | selected by                                         | system half       | home half goes to                              |
 | --------------------------------------------------- | ----------------- | ---------------------------------------------- |
 | the host, and user `U` writes `enable = false`      | applied           | every user with `home.enable = true` except `U` |
-| a host-selected group, and user `U` writes `enable = false` for the member | applied (the host's) | every user with a home except `U` |
+| a host-selected group, and user `U` writes `enable = false` for the member | applied, as the host's (whatever the users do) | every user with a home except `U` |
 
 A selection's `system` (a bool, default `true`) says whether it asks for the
 module's system half. The system half is applied iff at least one enabled
