@@ -244,6 +244,12 @@ let
     catalogue = registry.catalogue // import ./values/entries.nix;
   };
 
+  # The fixture registry plus the provider sets written as values, and the file
+  # provider sets with module values among their targets.
+  registryWithProviders = registry // {
+    catalogue = registry.catalogue // import ./values/providers.nix;
+  };
+
   # The fixture registry plus the two entries the class cases select: one whose
   # system half only NixOS declares, one whose only nix-darwin does.
   registryWithTargets = registry // {
@@ -2849,11 +2855,6 @@ selectionCases
     dendrites.badFile.enable = true;
   };
 
-  valueProviderSetIsRefused =
-    (resolveIn registryWithValues {
-      dendrites.providerSet.enable = true;
-    }).inv.host;
-
   valueNotAModuleIsRefused =
     (resolveIn registryWithValues {
       dendrites.notAModule.enable = true;
@@ -2923,6 +2924,143 @@ selectionCases
       };
     }
   ) { };
+
+  # ── Provider sets (tests/selection/values/providers.nix) ───────────────────
+  # A provider set is data naming targets: a path, or a module value. Only the
+  # chosen target is imported or applied, and only a selected set has its
+  # `providers` read.
+  providerValueSetChoosesAPath = assembledIn registryWithProviders {
+    dendrites.mixedSet = {
+      enable = true;
+      provider = "alpha";
+    };
+    users.alice = homeUser "alice" { };
+  };
+
+  providerValueSetChoosesAValue = assembledIn registryWithProviders {
+    dendrites.mixedSet = {
+      enable = true;
+      provider = "beta";
+    };
+    users.alice = homeUser "alice" { };
+  };
+
+  providerValueSetNeedsAProvider = (resolveIn registryWithProviders {
+    dendrites.providerSet.enable = true;
+  }).inv.host;
+
+  providerValueSetUnknownProvider = (resolveIn registryWithProviders {
+    dendrites.mixedSet = {
+      enable = true;
+      provider = "nope";
+    };
+  }).inv.host;
+
+  # `throwingProviders` is selected by no one: its `providers` is never read.
+  providerValueSetUnselectedIsNotRead = assembledIn registryWithProviders {
+    dendrites.mixedSet = {
+      enable = true;
+      provider = "alpha";
+    };
+  };
+
+  # The targets not chosen are never read: a path that throws on import and a
+  # value that is `throw`.
+  providerUnchosenTargetsAreNotRead = assembledIn registryWithProviders {
+    dendrites.unchosenThrowing = {
+      enable = true;
+      provider = "good";
+    };
+  };
+
+  providerChosenValueIsRead = (resolveIn registryWithProviders {
+    dendrites.chosenThrown = {
+      enable = true;
+      provider = "thrown";
+    };
+  }).inv.host;
+
+  providerValueSetWithExtraKeyIsRefused = (resolveIn registryWithProviders {
+    dendrites.extraKey = {
+      enable = true;
+      provider = "alpha";
+    };
+  }).inv.host;
+
+  providerFileSetWithExtraKeyIsRefused = (resolveIn registryWithProviders {
+    dendrites.fileExtra = {
+      enable = true;
+      provider = "alpha";
+    };
+  }).inv.host;
+
+  providerSetNotASetIsRefused = (resolveIn registryWithProviders {
+    dendrites.listProviders = {
+      enable = true;
+      provider = "alpha";
+    };
+  }).inv.host;
+
+  providerNestedSetIsRefused = (resolveIn registryWithProviders {
+    dendrites.nestedSet = {
+      enable = true;
+      provider = "inner";
+    };
+  }).inv.host;
+
+  # A value target's error names it `<name>.<provider>`, as a value without a
+  # `_file` is named.
+  providerValueTargetErrorNamesIt = assembledIn registryWithProviders {
+    dendrites.badTarget = {
+      enable = true;
+      provider = "bad";
+    };
+  };
+
+  # A file provider set may name a module value as a target.
+  providerFileSetChoosesAValue = assembledIn registryWithProviders {
+    dendrites.fileSet = {
+      enable = true;
+      provider = "valued";
+    };
+    users.alice = homeUser "alice" { };
+  };
+
+  providerFileSetChoosesAPath = assembledIn registryWithProviders {
+    dendrites.fileSet = {
+      enable = true;
+      provider = "alpha";
+    };
+  };
+
+  # The inventory names a chosen value target by its catalogue name and provider,
+  # and a path target by the provider set that names it, as a file's is.
+  providerInventoryNamesAValueTarget = (resolveIn registryWithProviders {
+    dendrites.mixedSet = {
+      enable = true;
+      provider = "beta";
+    };
+  }).inv.dendrites.mixedSet.source;
+
+  providerInventoryNamesThePathTargetsSet = (resolveIn registryWithProviders {
+    dendrites.mixedSet = {
+      enable = true;
+      provider = "alpha";
+    };
+  }).inv.dendrites.mixedSet.source;
+
+  providerInventoryNamesTheFileSet = lib.hasSuffix "/values/providers/fileSet.nix" (resolveIn registryWithProviders {
+    dendrites.fileSet = {
+      enable = true;
+      provider = "alpha";
+    };
+  }).inv.dendrites.fileSet.source;
+
+  # The inventory names a selected file without importing it: the platform pass
+  # imports the file, the inventory alone does not.
+  inventoryNeverImportsASelectedFile = lib.hasSuffix "/dendrites/landmine" (
+    mkModules { host = selecting { dendrites.landmine.enable = true; }; }
+  ).inventory.dendrites.landmine.source;
 
   mergeRegistriesValueClash =
     (catalogues.mergeRegistries [

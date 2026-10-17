@@ -52,10 +52,10 @@ is `habit.home` for what belongs in a user's home and `habit.selected` for what
 was selected. Which half goes where is decided when a selected module is
 imported, by who selected it. [Dendrites](dendrites.md)
 
-**Nothing unselected is imported.** A catalogue path, a provider file and an
+**Nothing unselected is imported.** A catalogue path, a provider target and an
 aggregation body are each `import`ed if and only if selection kept them, and a
-catalogue module value is applied if and only if selection kept it. The
-suite proves it with fixtures that throw when imported. The one weaker
+catalogue module value or provider's module value is applied if and only if
+selection kept it. The suite proves it with fixtures that throw when imported. The one weaker
 boundary, override records, is stated where it lives.
 [Override records](overrides.md#the-evaluation-boundary)
 

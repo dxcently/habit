@@ -26,6 +26,13 @@ let
     host = ./hosts/valued.nix;
   };
 
+  providerSet = composition.mkNixosHost {
+    inherit nixpkgs;
+    registry = import ./providerRegistry.nix;
+    hostName = "providerSet";
+    host = ./hosts/providerSet.nix;
+  };
+
   inherit (desk.system) config;
   alice = config.home-manager.users.alice;
   bob = config.home-manager.users.bob;
@@ -185,6 +192,17 @@ in
     want = {
       tmux = true;
       htop = false;
+    };
+  };
+
+  nixosProviderValueChosenIsAppliedAndUnchosenIsNot = {
+    got = {
+      tmux = providerSet.system.config.programs.tmux.enable;
+      zsh = providerSet.system.config.programs.zsh.enable;
+    };
+    want = {
+      tmux = true;
+      zsh = false;
     };
   };
 }

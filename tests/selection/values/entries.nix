@@ -41,12 +41,6 @@ in
     habit.homee = { };
   };
 
-  providerSet = {
-    providers = {
-      dunst = ../dendrites/notifications/dunst.nix;
-    };
-  };
-
   notAModule = 3;
 
   # A function module that takes a module argument: the host's own name.

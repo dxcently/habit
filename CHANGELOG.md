@@ -4,6 +4,16 @@ Append-only. Newest first.
 
 ## Unreleased
 
+- A provider set may be a catalogue value: an attrset whose only key is
+  `providers`, so a consumer can write a capability's providers where its inputs
+  are in scope. A provider target, in a value set or a file's, is a path or a
+  module value, and only the chosen target is imported or applied; the set's
+  `providers` is read only when the capability is selected. The 0.3.0 refusal of a
+  value with `providers` is lifted. A set with a key besides `providers` is
+  refused, in a file as well as a value (a file's extra keys were ignored before),
+  and so is a target that is itself a provider set. The inventory's `source` for a
+  chosen value target is its `_file`, else `<value '<name>.<provider>'>`, and errors
+  name it `catalogue value '<name>.<provider>'`.
 - The docs no longer name a `nucleus` aggregation as habit's convention. The
   constructor has no group every host carries: a host selects an aggregation of
   its own, like any other group. The words table drops `nucleus`. No change of

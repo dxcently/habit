@@ -113,7 +113,8 @@ the catalogue is `import`ed.
 | the registry            | always; it is names and paths only                              |
 | an aggregation body     | iff the host or one of its users selected that aggregation      |
 | a catalogue entry       | iff a scope enabled that capability (platform pass)             |
-| a provider file         | iff it is the provider chosen for an enabled capability         |
+| a provider set's `providers` | iff a scope enabled that capability                        |
+| a provider target (a file, or a module value) | iff it is the provider chosen for an enabled capability |
 | a user's definition     | for every user on the host                                      |
 | the host module         | its `habit.*` keys by the scan; the whole file by the platform evaluation; its `imports` by the platform evaluation alone |
 | an override record file | always, on every host (see [Override records](overrides.md#the-evaluation-boundary)) |

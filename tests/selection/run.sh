@@ -301,7 +301,24 @@ valueInventoryNamesItsFile          ok      "values/attrsWithFile.nix"
 valueInventoryNamesItsName          ok      "<value 'attrsValue'>"
 valueErrorNamesTheEntry             throws  catalogue value 'badValue' (habit module 'badValue'): unknown habit key(s): homee
 valueErrorNamesItsFile              throws  values/badFile.nix (habit module 'badFile'): unknown habit key(s): homee
-valueProviderSetIsRefused           throws  dendrite 'providerSet': a provider set is a file; a catalogue value cannot carry providers
+providerValueSetChoosesAPath               ok      "sys=alpha alice=alpha"
+providerValueSetChoosesAValue              ok      "sys=beta alice=beta"
+providerValueSetNeedsAProvider             throws  dendrite 'providerSet' is enabled but chose no provider; available providers: dunst
+providerValueSetUnknownProvider            throws  dendrite 'mixedSet' has no provider 'nope'; available providers: alpha, beta
+providerValueSetUnselectedIsNotRead        ok      "sys=alpha"
+providerUnchosenTargetsAreNotRead          ok      "sys=alpha"
+providerChosenValueIsRead                  throws  chosen provider value was read
+providerValueSetWithExtraKeyIsRefused      throws  dendrite 'extraKey': a provider set takes only `providers`; it also has config
+providerFileSetWithExtraKeyIsRefused       throws  dendrite 'fileExtra': a provider set takes only `providers`; it also has fixture
+providerSetNotASetIsRefused                throws  dendrite 'listProviders': `providers` is a list, not an attrset of provider targets
+providerNestedSetIsRefused                 throws  dendrite 'nestedSet' provider 'inner' is a provider set; a provider is a path or a module value
+providerValueTargetErrorNamesIt            throws  catalogue value 'badTarget.bad' (habit module 'badTarget'): unknown habit key(s): homee
+providerFileSetChoosesAValue               ok      "sys=valued alice=valued"
+providerFileSetChoosesAPath                ok      "sys=alpha"
+providerInventoryNamesAValueTarget         ok      "<value 'mixedSet.beta'>"
+providerInventoryNamesThePathTargetsSet    ok      "<value 'mixedSet'>"
+providerInventoryNamesTheFileSet           ok      true
+inventoryNeverImportsASelectedFile         ok      true
 valueNotAModuleIsRefused            throws  option `habit.catalogue.notAModule' is not of type `a path, an attrset module or a function module'
 mergeRegistriesValueEntriesMerge    ok      "sys=attrs"
 mergeRegistriesValueClash           throws  catalogue names defined by more than one source: 'attrsValue' by alpha and beta

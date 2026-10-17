@@ -13,7 +13,10 @@ them.
 | `dendrite '<name>' has no provider '<p>'; available providers: <list>` | the chosen provider is not in the dendrite's `providers` | choose one from the list |
 | `dendrite '<name>' has a single implementation and takes no provider (got '<p>')` | a provider was set on a dendrite that is a plain module | remove the `provider` |
 | `dendrite '<name>' is selected with different providers (<claimants>); one system takes one implementation` | the host and a user, or two users, selected one capability with different providers; each claimant is `host` or `user '<user>'`, then its provider | make every selector name the same provider |
-| `dendrite '<name>': a provider set is a file; a catalogue value cannot carry providers` | an attrset catalogue value has `providers` | move the provider set into a file and name the file as the entry ([Value entries](dendrites.md#value-entries)) |
+| `dendrite '<name>': a provider set takes only `providers`; it also has <keys>` | a provider set, a file or a value, has `providers` and a key besides it, which would be dropped | move the key out of the set, or drop it |
+| `dendrite '<name>': `providers` is a <type>, not an attrset of provider targets` | `providers` is a list, string or other non-attrset | make it an attrset of name to target |
+| `dendrite '<name>' provider '<p>' is a <type>; a provider is a path or a module value` | a chosen target is a number, list or `null` | make it a path, an attrset or a function |
+| `dendrite '<name>' provider '<p>' is a provider set; a provider is a path or a module value` | a chosen target has `providers`; a set of sets is not a provider | make the target a module, or lift it into the outer set |
 | ``A definition for option `habit.catalogue.<name>' is not of type `a path, an attrset module or a function module'. Definition values: …`` | a catalogue entry is a number, a list, `null` or a relative path; the module system's message, naming the entry and the value it got | make it a path, an attrset or a function |
 
 ## The host module
@@ -53,11 +56,12 @@ Two more come from the platform evaluation and the hooks:
 
 ## Modules
 
-A selected dendrite, provider file or user module is wrapped when it is
+A selected dendrite, provider target or user module is wrapped when it is
 imported. Each message begins `<path> (habit module '<name>')`, where `<path>`
 is the module's file (the `default.nix` for a catalogue entry that is a
 directory), or for a catalogue value the `_file` it carries, or else
-`catalogue value '<name>'`. `<name>` is the capability or `user:<user>`.
+`catalogue value '<name>'`, or for a chosen provider's value
+`catalogue value '<name>.<provider>'`. `<name>` is the capability or `user:<user>`.
 
 | message continues | cause | fix |
 | ----------------- | ----- | --- |

@@ -200,8 +200,8 @@ read-only ([Errors](errors.md#from-the-module-system)); a dendrite that writes
 ## Several providers
 
 A capability with more than one implementation is a provider set. The entry is
-data naming provider files, and each provider file is a plain module of its
-own.
+data naming its providers, and each provider is a plain module of its own: a
+file, or a module value ([Value entries](#value-entries)).
 
 ```nix
 # examples/workstation/dendrites/notifications/default.nix — two providers;
@@ -223,17 +223,41 @@ own.
 }
 ```
 
-The entry file is read when the capability is enabled; of its provider files,
-only the chosen one is ever imported. One system takes one implementation of a
-capability: the host and every user that select it must name the same
-provider, and a selector that names another is an error naming every claimant
-([Errors](errors.md#selecting-capabilities)).
+The set may also be written as a catalogue value, an attrset whose only key is
+`providers`, where the flake that writes it has its inputs in scope. A target
+in it is a path or a module value, as in a file:
+
+```nix
+catalogue = {
+  notifications = {
+    providers = {
+      dunst = ./dendrites/notifications/dunst.nix;
+      mako = { habit.home.services.mako.enable = true; };
+    };
+  };
+};
+```
+
+A file and a value that hold the same attrset are the same provider set. A set with
+`providers` and any other key is refused, in a file or a value, naming the
+capability and the keys, since they would be dropped without a word.
+
+The entry is read when the capability is enabled. Of its targets, only the chosen
+one is read: a path is imported and a module value is applied, and the rest are
+never read, so a target that throws sits unchosen harmlessly. The set's
+`providers` attribute is read only when the capability is enabled; an unselected
+set's `providers` is never forced. A target may not itself be a provider set. One
+system takes one implementation of a capability: the host and every user that
+select it must name the same provider, and a selector that names another is an
+error naming every claimant ([Errors](errors.md#selecting-capabilities)).
 
 | selection                                     | result                                                     |
 | --------------------------------------------- | ---------------------------------------------------------- |
-| enabled, `provider = "dunst"`                 | `dunst.nix` is imported; `mako.nix` is never read          |
+| enabled, `provider = "dunst"`                 | `dunst.nix` is imported; `mako` is never read              |
+| enabled, `provider = "mako"`, a module value  | the value is applied; `dunst.nix` is never read            |
 | enabled, no provider                          | error naming the available providers                       |
 | enabled, `provider = "nope"`                  | error naming the available providers                       |
+| enabled, a set with a key besides `providers` | error naming the capability and the keys                   |
 | single implementation, any `provider`         | error: it takes no provider                                |
 
 A provider is chosen with `habit.dendrites.<name>.provider`, or under the
@@ -271,13 +295,23 @@ Where a value comes from, for errors and the inventory:
 | an attrset with `_file`                     | its `_file`                              | its `_file`                        |
 | an attrset without `_file`                  | `catalogue value '<name>'`               | `<value '<name>'>`                 |
 | a function                                  | `catalogue value '<name>'`               | `<value '<name>'>`                 |
+| a chosen provider's value                   | its `_file`, or `catalogue value '<name>.<provider>'` | its `_file`, or `<value '<name>.<provider>'>` |
+
+A file's provider set is named by its file, whichever provider it chooses: the
+inventory does not read the file to find the target. A value's provider set is
+named `<value '<name>'>`, unless its chosen target is a module value of its own,
+which is named by its `_file`, or else `<value '<name>.<provider>'>`.
 
 A path entry keeps the path it was written as. An attrset that coerces to a path
 (an `outPath`, as a derivation or a flake input is) is a path, not a value.
 
-A provider set is a file. An attrset value with `providers` is refused, naming
-the entry, and a provider target stays a path, as before. That refusal, like a
-path's provider set being read, happens when the entry is selected.
+An attrset with `providers` is a provider set, not a module, and a function is
+always a module. `providers` is the one key that tells them apart, as it tells a
+file's provider set from a file's module. NixOS, nix-darwin and Home Manager
+declare no top-level `providers` option, so no platform module is read as a set.
+A consumer's own top-level option of that name would be, and is refused, naming
+the entry. A set is read when its capability is selected, and only its chosen
+target is then read ([Several providers](#several-providers)).
 
 An entry that is none of a path, an attrset or a function is refused by the
 module system, naming `habit.catalogue.<name>` and the value it got

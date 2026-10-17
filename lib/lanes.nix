@@ -160,7 +160,9 @@ let
   #
   # A value is the module itself, an attrset or a function, given in place of
   # the path a file would be: it is never imported, and it is applied only when
-  # it is forced, as a file's module is.
+  # it is forced, as a file's module is. `valueName` names it in errors when it
+  # has no `_file`: the catalogue name, or `<name>.<provider>` for a provider's
+  # value.
   #
   # `system = false`: the selection asks for the home half alone, so the system
   # half is not applied and nothing of it is imported, as in a standalone home.
@@ -178,6 +180,7 @@ let
       name,
       path ? null,
       value ? null,
+      valueName ? name,
       standalone,
       homeFor,
       system ? true,
@@ -191,7 +194,7 @@ let
         else if isAttrs value && value ? _file then
           toString value._file
         else
-          "catalogue value '${name}'";
+          "catalogue value '${valueName}'";
       where = "${file} (habit module '${name}')";
       raw = if value == null then import path else value;
       build =

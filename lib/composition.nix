@@ -402,10 +402,13 @@ let
 
   # ── The platform pass ──────────────────────────────────────────────────────
   # Only what selection resolved is imported. A catalogue entry that was never
-  # enabled is never `import`ed, and an unselected provider file is never read.
+  # enabled is never `import`ed, and an unchosen provider target is never read.
 
-  # Resolve one enabled capability to the file that answers it. A provider set
-  # is the one entry read to find out which: it is data naming provider files.
+  # Resolve one enabled capability to the module that answers it: a path, or a
+  # module value, with the name that labels a value in errors (`valueName`) and
+  # the inventory's `source`. A provider set is the one entry read to find out
+  # which: it is data naming the provider targets, and only the chosen target is
+  # looked at further. The entry is read here only because it is selected.
   implOf =
     catalogue: name: provider:
     let
@@ -414,34 +417,58 @@ let
       set = if isValueEntry then entry else import entry;
       providers = if lib.isAttrs set then set.providers or null else null;
       names = lib.concatStringsSep ", " (lib.attrNames providers);
+      extra = lib.attrNames (removeAttrs set [ "providers" ]);
     in
-    if isValueEntry && providers != null then
-      throw "dendrite '${name}': a provider set is a file; a catalogue value cannot carry providers"
-    else if providers != null then
-      if provider == null then
+    if providers != null then
+      if extra != [ ] then
+        throw "dendrite '${name}': a provider set takes only `providers`; it also has ${lib.concatStringsSep ", " extra}"
+      else if !lib.isAttrs providers then
+        throw "dendrite '${name}': `providers` is a ${builtins.typeOf providers}, not an attrset of provider targets"
+      else if provider == null then
         throw "dendrite '${name}' is enabled but chose no provider; available providers: ${names}"
       else if !(providers ? ${provider}) then
         throw "dendrite '${name}' has no provider '${provider}'; available providers: ${names}"
       else
-        {
-          path = providers.${provider};
-          value = null;
-        }
+        targetOf name provider providers.${provider} (sourceOf name entry)
     else if provider != null then
       throw "dendrite '${name}' has a single implementation and takes no provider (got '${provider}')"
-    else if isValueEntry then
+    else
+      {
+        path = if isValueEntry then null else entry;
+        value = if isValueEntry then entry else null;
+        valueName = name;
+        source = sourceOf name entry;
+      };
+
+  # The chosen provider's target: a path, imported as it is, or a module value,
+  # applied under the dendrite's key. A value is named `<name>.<provider>`. A
+  # target that is itself a provider set is refused: a provider is a module.
+  targetOf =
+    name: provider: target: setSource:
+    let
+      targetName = "${name}.${provider}";
+    in
+    if !entryType.check target then
+      throw "dendrite '${name}' provider '${provider}' is a ${builtins.typeOf target}; a provider is a path or a module value"
+    else if isValue target && lib.isAttrs target && target ? providers then
+      throw "dendrite '${name}' provider '${provider}' is a provider set; a provider is a path or a module value"
+    else if isValue target then
       {
         path = null;
-        value = entry;
+        value = target;
+        valueName = targetName;
+        source = sourceOf targetName target;
       }
     else
       {
-        path = entry;
+        path = target;
         value = null;
+        valueName = name;
+        source = setSource;
       };
 
-  # Where the inventory says a capability came from: a path names its file, a
-  # value its `_file`, and a value without one is named by its catalogue name.
+  # Where a catalogue entry is named: a path by its file, a value by its `_file`,
+  # and a value without one by its catalogue name.
   sourceOf =
     name: entry:
     if !isValue entry then
@@ -813,11 +840,20 @@ rec {
     { hostName, selection }:
     let
       inherit (selection) catalogue;
+      # A file is named by its path and never read here, so the inventory imports
+      # nothing the platform pass would not. A value is resolved, which reads no
+      # file: a value provider set names its chosen value target.
+      sourceOfSelected =
+        name: provider:
+        if isValue catalogue.${name} then
+          (implOf catalogue name provider).source
+        else
+          sourceOf name catalogue.${name};
       describe =
         selected:
         lib.mapAttrs (name: d: {
           inherit (d) provider system;
-          source = sourceOf name catalogue.${name};
+          source = sourceOfSelected name d.provider;
         }) (lib.filterAttrs (_: d: d.enable) selected);
       chosen = agg: lib.attrNames (lib.filterAttrs (_: a: a.enable) agg);
     in
@@ -976,7 +1012,7 @@ rec {
           lib.optional (claims != [ ]) (
             lanes.wrap {
               inherit name;
-              inherit (impl) path value;
+              inherit (impl) path value valueName;
               standalone = isHome;
               homeFor = lib.unique (lib.concatMap (c: c.users) claims);
               system = lib.any (c: c.system) claims;
