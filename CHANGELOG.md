@@ -2,7 +2,7 @@
 
 Append-only. Newest first.
 
-## Unreleased
+## 0.4.0
 
 - A provider set may be a catalogue value: an attrset whose only key is
   `providers`, so a consumer can write a capability's providers where its inputs
