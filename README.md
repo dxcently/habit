@@ -56,11 +56,14 @@ registry
 │           | value      a module as an attrset or a function
 │           | { providers = { <p> = path | value; }; }
 ├── aggregations   name ─► path      a directory whose default.nix is the body
-│     body = { description?; system? = { members; providers; module; };
-│                            home?   = { members; providers; module; }; }
+│     body = { description?; system? = { members?; providers?; module?; };
+│                            home?   = { members?; providers?; module?; }; }
 └── overrides      name ─► path      a record file, optional
       record = { dendrites; hosts?; overlay?; system?; home?; }
 ```
+
+Every field marked `?` is optional. A record needs `dendrites` and at least one
+of `overlay`, `system` or `home`.
 
 [Dendrites](docs/dendrites.md), [Aggregations](docs/aggregations.md),
 [Override records](docs/overrides.md). `mergeRegistries` merges the three
@@ -69,7 +72,8 @@ fields by name; a name two sources define is an error
 
 ### The host's keys
 
-[The host module](docs/host.md#keys)
+[The host module](docs/host.md#keys). Each account's own keys are under
+[users](docs/host.md#users).
 
 ```
 host module
@@ -78,9 +82,9 @@ host module
 │   ├── provider  null | string   for a provider set
 │   └── system    bool            true; false selects the home half alone
 ├── habit.aggregation.<group>     <group> from aggregations
-│   ├── enable    bool            false; selects the group's system half
+│   ├── enable    bool            false; a host selects the system half, a home the home half
 │   └── <member>.provider         provider-bearing members only
-├── habit.users.<user>            [users](docs/host.md#users)
+├── habit.users.<user>            per-user selection
 │   ├── definition   path
 │   ├── home.enable  bool         false
 │   ├── home.config  deferred module
@@ -132,17 +136,13 @@ registry ─────┘     gate:   which groups are selected
                  system | home
 ```
 
-### Three rules
+### One rule worth knowing
 
-- **Membership is `mkDefault`.** A group sets `enable = mkDefault true` on each
-  member; a host drops one with `enable = false` and restores it with `mkForce`
-  ([Aggregations](docs/aggregations.md#membership-is-mkdefault)).
 - **One provider per capability per system.** The host, its groups and its users
-  must agree; two different choices are an error naming every claimant
-  ([Dendrites](docs/dendrites.md#several-providers)).
-- **Users get home halves.** `habit.users.<user>.home.enable` gives a Home Manager
-  configuration; each capability's home half goes to the users it reaches
-  ([Users](docs/host.md#users)).
+  must agree. A host or user clash is an error naming every claimant; two groups
+  choosing different providers give the module system's "conflicting definition
+  values" error ([Dendrites](docs/dendrites.md#several-providers),
+  [Aggregations](docs/aggregations.md)).
 
 ## Installation
 
