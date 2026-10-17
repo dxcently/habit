@@ -12,8 +12,10 @@ Append-only. Newest first.
   value with `providers` is lifted. A set with a key besides `providers` is
   refused, in a file as well as a value (a file's extra keys were ignored before),
   and so is a target that is itself a provider set. The inventory's `source` for a
-  chosen value target is its `_file`, else `<value '<name>.<provider>'>`, and errors
-  name it `catalogue value '<name>.<provider>'`.
+  chosen module value target is its `_file`, else `<value '<name>.<provider>'>`,
+  and errors name it `catalogue value '<name>.<provider>'`. A file provider set is
+  named by its file, whichever provider it chooses; a value provider set with a
+  path target is named by the set.
 - The docs no longer name a `nucleus` aggregation as habit's convention. The
   constructor has no group every host carries: a host selects an aggregation of
   its own, like any other group. The words table drops `nucleus`. No change of

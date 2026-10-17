@@ -42,6 +42,12 @@
     providers = [ ./providers/alpha.nix ];
   };
 
+  numberTarget = {
+    providers = {
+      num = 3;
+    };
+  };
+
   nestedSet = {
     providers = {
       inner = {

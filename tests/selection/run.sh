@@ -311,6 +311,7 @@ providerChosenValueIsRead                  throws  chosen provider value was rea
 providerValueSetWithExtraKeyIsRefused      throws  dendrite 'extraKey': a provider set takes only `providers`; it also has config
 providerFileSetWithExtraKeyIsRefused       throws  dendrite 'fileExtra': a provider set takes only `providers`; it also has fixture
 providerSetNotASetIsRefused                throws  dendrite 'listProviders': `providers` is a list, not an attrset of provider targets
+providerTargetNotAPathOrValueIsRefused     throws  dendrite 'numberTarget' provider 'num' is a int; a provider is a path or a module value
 providerNestedSetIsRefused                 throws  dendrite 'nestedSet' provider 'inner' is a provider set; a provider is a path or a module value
 providerValueTargetErrorNamesIt            throws  catalogue value 'badTarget.bad' (habit module 'badTarget'): unknown habit key(s): homee
 providerFileSetChoosesAValue               ok      "sys=valued alice=valued"

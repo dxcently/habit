@@ -3001,6 +3001,13 @@ selectionCases
     };
   }).inv.host;
 
+  providerTargetNotAPathOrValueIsRefused = (resolveIn registryWithProviders {
+    dendrites.numberTarget = {
+      enable = true;
+      provider = "num";
+    };
+  }).inv.host;
+
   providerNestedSetIsRefused = (resolveIn registryWithProviders {
     dendrites.nestedSet = {
       enable = true;

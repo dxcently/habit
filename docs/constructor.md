@@ -250,7 +250,7 @@ the workstation example (paths shortened to the repository root):
 | ------------- | ----------------------------------------------------------------------- |
 | `host`        | `hostName`                                                              |
 | `aggregation` | the groups the host selected                                            |
-| `dendrites`   | each capability selected for the system: its `provider`, its `system` (whether the selection asks for the system half) and `source`, the catalogue path or value that answered (a value provider set's chosen value is `<value '<name>.<provider>'>`; a file is named by its path) |
+| `dendrites`   | each capability selected for the system: its `provider`, its `system` (whether the selection asks for the system half) and `source`, the catalogue path or value that answered (a value provider set names its chosen module value by its `_file`, else `<value '<name>.<provider>'>`, or a path target by the set; a file provider set is named by its file, whichever provider it chooses) |
 | `users`       | per user: `definition`, `home` (whether Home Manager is on), its groups and its capabilities; `{ }` for a home |
 | `overrides`   | the override records that matched this host (`mkModules` and the builders only; `inventoryOf` alone has no records to match) |
 

@@ -295,12 +295,13 @@ Where a value comes from, for errors and the inventory:
 | an attrset with `_file`                     | its `_file`                              | its `_file`                        |
 | an attrset without `_file`                  | `catalogue value '<name>'`               | `<value '<name>'>`                 |
 | a function                                  | `catalogue value '<name>'`               | `<value '<name>'>`                 |
-| a chosen provider's value                   | its `_file`, or `catalogue value '<name>.<provider>'` | its `_file`, or `<value '<name>.<provider>'>` |
+| a value provider set's chosen module value  | its `_file`, or `catalogue value '<name>.<provider>'` | its `_file`, or `<value '<name>.<provider>'>` |
 
 A file's provider set is named by its file, whichever provider it chooses: the
 inventory does not read the file to find the target. A value's provider set is
-named `<value '<name>'>`, unless its chosen target is a module value of its own,
-which is named by its `_file`, or else `<value '<name>.<provider>'>`.
+named by its chosen target. A module value target is named by its `_file`, or
+else `<value '<name>.<provider>'>`. A path target is named by the set itself:
+its `_file`, or else `<value '<name>'>`.
 
 A path entry keeps the path it was written as. An attrset that coerces to a path
 (an `outPath`, as a derivation or a flake input is) is a path, not a value.
@@ -309,9 +310,11 @@ An attrset with `providers` is a provider set, not a module, and a function is
 always a module. `providers` is the one key that tells them apart, as it tells a
 file's provider set from a file's module. NixOS, nix-darwin and Home Manager
 declare no top-level `providers` option, so no platform module is read as a set.
-A consumer's own top-level option of that name would be, and is refused, naming
-the entry. A set is read when its capability is selected, and only its chosen
-target is then read ([Several providers](#several-providers)).
+A consumer's module that sets its own top-level `providers` option is read as a
+set when `providers` is its only key, and refused, naming the capability and the
+keys, when another key sits beside it. A set is read when its capability is
+selected, and only its chosen target is then read
+([Several providers](#several-providers)).
 
 An entry that is none of a path, an attrset or a function is refused by the
 module system, naming `habit.catalogue.<name>` and the value it got

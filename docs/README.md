@@ -55,8 +55,8 @@ imported, by who selected it. [Dendrites](dendrites.md)
 **Nothing unselected is imported.** A catalogue path, a provider target and an
 aggregation body are each `import`ed if and only if selection kept them, and a
 catalogue module value or provider's module value is applied if and only if
-selection kept it. The suite proves it with fixtures that throw when imported. The one weaker
-boundary, override records, is stated where it lives.
+selection kept it. The suite proves it with fixtures that throw when imported.
+The one weaker boundary, override records, is stated where it lives.
 [Override records](overrides.md#the-evaluation-boundary)
 
 **The host is one module, and selection reads part of it.** NixOS evaluates the

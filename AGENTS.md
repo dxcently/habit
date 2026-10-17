@@ -13,22 +13,22 @@ suite evaluates. This file holds the invariants to keep while editing them.
    `config`, `pkgs`, `options` and `osConfig` poisoned, drops its `imports` and
    never forces another key, and the platform evaluation declares `habit.*`
    inert and fails any key a file other than the host's writes, and any key
-   written inline in the host's `imports` that selection does not hold. Anything that lets a selection
-   option read `config` of the platform is the circular import the two passes
-   exist to prevent.
+   written inline in the host's `imports` that selection does not hold. Anything
+   that lets a selection option read `config` of the platform is the circular
+   import the two passes exist to prevent.
 2. **Unselected modules are never imported or applied.** A catalogue path, a
-   provider target or an aggregation body is `import`ed iff selection kept it, and
-   a catalogue module value or provider's module value is applied iff selection
-   kept it: `lanes.wrap` is
-   handed selected entries only, and a wrapped module imports its file, or
-   applies its value, when it is forced. The boundary is exact: every catalogue
-   entry is read to weak head normal form to learn its kind (path, attrset or
-   function), so an entry that is itself `throw` throws on read, selected or
-   not. A value's attributes and a function's body are never forced unless it is
-   selected. A provider set's `providers` is read only when its capability is
-   selected, and of its targets only the chosen one is imported or applied, so an
-   unchosen target that throws is never read. The one weaker boundary is override records (read to be matched;
-   only their functions stay uncalled) and is stated as such.
+   provider target or an aggregation body is `import`ed iff selection kept it,
+   and a catalogue module value or provider's module value is applied iff
+   selection kept it: `lanes.wrap` is handed selected entries only, and a
+   wrapped module imports its file, or applies its value, when it is forced. The
+   boundary is exact: every catalogue entry is read to weak head normal form to
+   learn its kind (path, attrset or function), so an entry that is itself
+   `throw` throws on read, selected or not. A value's attributes and a
+   function's body are never forced unless it is selected. A provider set's
+   `providers` is read only when its capability is selected, and of its targets
+   only the chosen one is imported or applied, so an unchosen target that throws
+   is never read. The one weaker boundary is override records (read to be
+   matched; only their functions stay uncalled) and is stated as such.
 3. **A pure function of `lib`.** `lib/*.nix` take `{ lib }` and nothing else:
    no flake inputs, no `pkgs`, no `builtins.getFlake`, no environment. The flake
    exports the public ones unapplied; `lib/lanes.nix` and `lib/scan.nix` are
