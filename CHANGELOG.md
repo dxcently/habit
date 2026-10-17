@@ -2,6 +2,13 @@
 
 Append-only. Newest first.
 
+## Unreleased
+
+- `examples/shared` and docs on a piece several entries share: two files, one
+  per half, imported by path (`imports` for the system half, `habit.home.imports`
+  for the home half). The bare-path and inline forms are shown to fail as
+  `already declared`.
+
 ## 0.5.0
 
 - A host's group now reaches its users' homes. `habit.aggregation.<group>.enable

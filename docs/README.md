@@ -108,7 +108,7 @@ vague error is a failing test. [Errors](errors.md)
 
 ## Examples
 
-Four directories under
+Five directories under
 [`examples/`](https://github.com/dxcently/habit/tree/main/examples), each a
 registry, its dendrites, a host and the call that builds it. The test suite
 calls each one the way a flake would and checks its inventory, its module list
@@ -122,6 +122,7 @@ quoted in these pages is the file the suite evaluates.
 | [`workstation`](https://github.com/dxcently/habit/tree/main/examples/workstation) | an aggregation, a member switched off, a provider choice, a Home Manager user |
 | [`merged`](https://github.com/dxcently/habit/tree/main/examples/merged)           | two registries merged, a group in one naming a capability in the other |
 | [`home`](https://github.com/dxcently/habit/tree/main/examples/home)               | a standalone Home Manager configuration; a module's system half dropped |
+| [`shared`](https://github.com/dxcently/habit/tree/main/examples/shared)           | two entries sharing one piece with a system half and a home half, imported by path |
 
 ## Tests
 

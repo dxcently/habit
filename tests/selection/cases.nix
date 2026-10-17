@@ -2797,6 +2797,60 @@ selectionCases
       }
     ]).catalogue;
 
+  # Two entries sharing one piece, with each half declared once.
+  exampleSharedInventory =
+    let
+      inv = (example ../../examples/shared).inventory;
+    in
+    "${inv.host}:${
+      builtins.concatStringsSep "," (
+        lib.mapAttrsToList (n: d: "${n}=${baseNameOf d.source}") inv.dendrites
+      )
+    }";
+
+  exampleSharedConfig =
+    let
+      inherit ((example ../../examples/shared).system) config;
+    in
+    builtins.concatStringsSep " " [
+      config.networking.hostName
+      "sys=${builtins.concatStringsSep "," config.example.runtime.system}"
+      "alice=${builtins.concatStringsSep "," config.home-manager.users.alice.example.runtime.home}"
+    ];
+
+  # The two forms the docs call a trap, with two entries selecting the piece.
+  # `dir` holds one entry file that both catalogue names point at; the bare path
+  # declares the home options twice, the inline import the system options.
+  sharedHost =
+    dir:
+    (composition.mkNixosHost {
+      nixpkgs.lib = lib // {
+        inherit nixosSystem;
+      };
+      hostName = "desk";
+      registry = {
+        catalogue = {
+          bar = dir + "/entry.nix";
+          dock = dir + "/entry.nix";
+        };
+        aggregations = { };
+      };
+      host = ../../examples/shared/hosts/desk.nix;
+      homeManagerModule = home-manager.nixosModules.home-manager;
+    }).system;
+
+  sharedBareHomeIsRefused =
+    let
+      inherit ((sharedHost ./shared/bareHome)) config;
+    in
+    builtins.concatStringsSep "," config.home-manager.users.alice.example.runtime.home;
+
+  sharedInlineSystemIsRefused =
+    let
+      inherit ((sharedHost ./shared/inlineSys)) config;
+    in
+    builtins.concatStringsSep "," config.example.runtime.system;
+
   # ── Catalogue values (tests/selection/values) ──────────────────────────────
   # An entry may be a module value as well as a path. A selected value is applied
   # where a file's module would be; an unselected one is never applied, so the

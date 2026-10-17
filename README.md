@@ -251,7 +251,8 @@ nixosConfigurations.box = (import ./box { inherit habit nixpkgs home-manager; })
 
 That directory is [`examples/minimal`](examples/minimal); the test suite
 evaluates it, down to `config.services.openssh.enable`. Groups, providers,
-users and merged registries are in [`examples/`](examples).
+pieces several entries share, users and merged registries are in
+[`examples/`](examples).
 
 The same registry builds for nix-darwin with `mkDarwinHost` and as a standalone
 Home Manager configuration with `mkHome`, each taking its evaluator from you ([The constructor](docs/constructor.md#classes),

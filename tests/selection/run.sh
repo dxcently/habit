@@ -290,6 +290,10 @@ exampleHomeInventory                ok      "alice:ssh=ssh.nix"
 exampleHomeModules                  ok      ["lambda","set{_class,_file,config,disabledModules,imports,key,options}","path"]
 exampleHomeConfig                   ok      "alice ssh=true"
 exampleHomeSelected                 ok      "ssh"
+exampleSharedInventory              ok      "desk:bar=bar.nix,dock=dock.nix"
+exampleSharedConfig                 ok      "desk sys=runtime alice=runtime"
+sharedBareHomeIsRefused             throws  is already declared
+sharedInlineSystemIsRefused         throws  is already declared
 valueAttrsEntryApplies              ok      "sys=attrs"
 valueFunctionEntryApplies           ok      "sys=function"
 valueUnselectedEntriesAreInert      ok      "sys="

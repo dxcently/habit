@@ -272,6 +272,69 @@ error naming every claimant ([Errors](errors.md#selecting-capabilities)).
 A provider is chosen with `habit.dendrites.<name>.provider`, or under the
 aggregation that groups it ([Aggregations](aggregations.md#choosing-a-provider)).
 
+## A piece several entries share
+
+A piece that more than one entry needs, and that has both a system half and a
+home half, is written as two files: a system module and a Home Manager module.
+Each entry that needs it imports the first, and names the second in its own
+`habit.home.imports`:
+
+```nix
+# examples/shared/dendrites/runtime.nix
+{ lib, ... }:
+{
+  options.example.runtime.system = lib.mkOption {
+    type = lib.types.listOf lib.types.str;
+    default = [ ];
+  };
+
+  config.example.runtime.system = [ "runtime" ];
+}
+```
+
+```nix
+# examples/shared/dendrites/runtime-home.nix
+{ lib, ... }:
+{
+  options.example.runtime.home = lib.mkOption {
+    type = lib.types.listOf lib.types.str;
+    default = [ ];
+  };
+
+  config.example.runtime.home = [ "runtime" ];
+}
+```
+
+```nix
+# examples/shared/dendrites/bar.nix
+{
+  imports = [ ./runtime.nix ];
+
+  habit.home.imports = [ ./runtime-home.nix ];
+}
+```
+
+`dock.nix` is the same file under its own name. Selecting both gives one copy of
+`runtime.nix` in the host and one of `runtime-home.nix` in each user's home. The
+example is [`examples/shared`](https://github.com/dxcently/habit/tree/main/examples/shared).
+
+habit reads `habit.home` only from a selected entry's top module. A file that an
+entry merely imports cannot write it, so the home half has to be named in the
+entry, as a path in `habit.home.imports`. Both platforms drop a second `imports`
+of the same path, so the two entries' imports give one copy of each file.
+
+The path has to stay a path. The last two rows look like the first and are not:
+
+| written in each of the entries                          | with two entries selected                                                                                            |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `habit.home.imports = [ ./runtime-home.nix ];`          | one copy: each option declared once                                                                                  |
+| `habit.home = ./runtime-home.nix;`                      | ``The option `home-manager.users.alice.example.runtime.home' in `<file>' is already declared in `<file>'.``           |
+| `imports = [ (import ./runtime.nix) ];`                 | ``The option `example.runtime.system' in `<file>' is already declared in `<file>'.``                                  |
+
+A bare path or an inline value is a second identity for the piece: the module
+system no longer sees the copies as one file, so the options it declares are
+declared twice.
+
 ## Value entries
 
 An entry may be a module value instead of a path: an attrset, or a function of
