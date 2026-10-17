@@ -1,7 +1,7 @@
 # Comparisons
 
-habit answers one question: which modules does this host import? This page
-sets it beside four projects that answer it differently: den, the dendritic
+habit answers one question: which modules does this host import or apply? This
+page sets it beside four projects that answer it differently: den, the dendritic
 pattern with flake-parts, snowfall-lib and blueprint. Each claim about another
 project was checked against its source at the revision named in its section;
 file paths there are relative to that repository. habit is described from this
@@ -15,8 +15,13 @@ None of the four does any of these, in the setups each project documents.
 | ----- | --------- | -------- |
 | A host drops one member of a shared group with `enable = false`, and any later layer brings it back with `mkForce true` | den removes with `excludes`, an append-only list; a dendritic group is a plain `imports` list; snowfall-lib and blueprint have no groups | [Aggregations](aggregations.md#membership-is-mkdefault); [den](#den), [dendritic and flake-parts](#dendritic-and-flake-parts) |
 | A member a host switched off is never imported, and the suite proves it with a file that throws on import | den does not apply an excluded aspect, but the aspect is a definition in the module graph: in den's template, import-tree loads the file that declares it; `disabledModules` loads a module before removing it; snowfall-lib imports every module into every system; blueprint has no members to switch off | [The two passes](two-passes.md#the-evaluation-boundary); [den](#den), [dendritic and flake-parts](#dendritic-and-flake-parts), [snowfall-lib](#snowfall-lib) |
-| Each host's inventory names every capability, its provider and the path it came from | den lists aspect identities with no paths; the others record nothing | [The constructor](constructor.md#the-inventory); [den](#den) |
+| Each host's inventory names every capability, its provider and the file or value its module came from | den lists aspect identities with no paths; the others record nothing | [The constructor](constructor.md#the-inventory); [den](#den) |
 | A name defined by two merged sources is an error naming both | `den.aspects` and `flake.modules` merge the two definitions into one | [Merging registries](merging.md#errors); [den](#den), [dendritic and flake-parts](#dendritic-and-flake-parts) |
+| One capability takes one implementation per system, and the implementations may be files or module values from any flake: a host and each user that select it must name the same provider, or the clash is an error naming every claimant | A search of den's source for a choice among aspects found none; `includes` takes a list of aspects from any input (`nix/lib/aspects/types.nix:921` at 7594405). flake-parts has no provider concept (`extras/modules.nix:33` at 024633c): two definitions of one `flake.modules` name merge, nothing is refused | [Dendrites](dendrites.md#several-providers); [den](#den), [dendritic and flake-parts](#dendritic-and-flake-parts) |
+
+Mixing modules from several flakes is not unique to habit. den's `includes` and
+flake-parts' `flake.modules` both take values from any flake. What habit adds is
+the one-implementation check above, and the record of which one answered.
 
 ## den
 
@@ -41,7 +46,9 @@ What the differences mean for you:
   aspect is a definition under `den.aspects`, and den's own template loads every
   file under `modules/` with import-tree (`templates/minimal/flake.nix`). The
   file declaring an excluded aspect is part of the evaluation that builds every
-  host. habit's catalogue holds paths, and an unselected one is never imported.
+  host. habit's catalogue holds paths or module values, and an unselected one is
+  never imported or applied. A provider set's unchosen target is never read
+  either, so one that throws sits harmlessly.
 - **The inventory names identities, not files.** `entity.aspects` lists
   resolved aspects with `.identity`, `.identityKey` and `.isNamed`, and lists
   anonymous aspects too
@@ -148,3 +155,8 @@ What it has that habit does not: discovery with no registry to write.
 - **Configuration routed between entities.** den's aspects are functions of
   `{ host, user }` and route configuration across hosts, users and homes. habit
   selects per host and per user, and routes nothing between them.
+- **Several implementations of one capability, one per system.** habit's
+  provider set is a keyed choice with a single-implementation check and an
+  inventory record. flake-parts' `flake.modules` and den's `includes` give the
+  same modules without that check: if merging every candidate is what you
+  want, they are simpler.
