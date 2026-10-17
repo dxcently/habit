@@ -1,4 +1,4 @@
-[![Built with Nix](https://builtwithnix.org/badge.svg)](https://builtwithnix.org)
+[![Built with Nix](https://builtwithnix.org/badge.svg)](https://builtwithnix.org) [![Nix flakes](https://img.shields.io/badge/Nix-flakes-5277C3?logo=nixos&logoColor=white)](https://nixos.wiki/wiki/Flakes)
 
 # habit
 
@@ -10,13 +10,7 @@ conditions give it; a host's habit is the module list its selection gives it.
 `mkIf` cannot keep an imported module's declarations out of the graph, and
 `mkDefault` sets priority, not imports. So habit decides what a host imports
 before NixOS evaluates anything, in an `evalModules` of its own, and hands
-NixOS only that.
-
-```
-host module ──► selection pass ──► resolved selection ──► platform pass ──► module list ──► evaluator
-                (its `habit.*` keys;                      (imports only           │
-                 knows nothing of NixOS)                   what was kept)         └──► inventory
-```
+NixOS only that. The pipeline is under [How it works](#how-it-works).
 
 ## Why habit
 
@@ -47,6 +41,108 @@ host module ──► selection pass ──► resolved selection ──► plat
 
 How habit differs from den, flake-parts, snowfall-lib and blueprint:
 [Comparisons](docs/comparisons.md).
+
+## How it works
+
+The registry names what exists and the host module says what is wanted.
+Selection keeps what the host asks for, before NixOS evaluates anything.
+
+### The registry
+
+```
+registry
+├── catalogue      name ─► entry     one per capability (a dendrite)
+│     entry = path       a module, or a provider set, in a file
+│           | value      a module as an attrset or a function
+│           | { providers = { <p> = path | value; }; }
+├── aggregations   name ─► path      a directory whose default.nix is the body
+│     body = { description?; system? = { members; providers; module; };
+│                            home?   = { members; providers; module; }; }
+└── overrides      name ─► path      a record file, optional
+      record = { dendrites; hosts?; overlay?; system?; home?; }
+```
+
+[Dendrites](docs/dendrites.md), [Aggregations](docs/aggregations.md),
+[Override records](docs/overrides.md). `mergeRegistries` merges the three
+fields by name; a name two sources define is an error
+([Merging registries](docs/merging.md)).
+
+### The host's keys
+
+[The host module](docs/host.md#keys)
+
+```
+host module
+├── habit.dendrites.<name>        <name> from catalogue
+│   ├── enable    bool            false
+│   ├── provider  null | string   for a provider set
+│   └── system    bool            true; false selects the home half alone
+├── habit.aggregation.<group>     <group> from aggregations
+│   ├── enable    bool            false; selects the group's system half
+│   └── <member>.provider         provider-bearing members only
+├── habit.users.<user>            [users](docs/host.md#users)
+│   ├── definition   path
+│   ├── home.enable  bool         false
+│   ├── home.config  deferred module
+│   ├── dendrites.<name>.{enable,provider,system}
+│   └── aggregation.<group>.{enable,<member>.provider}
+├── habit.catalogue               read-only; the registry's catalogue
+└── everything else               the host's own config; selection never reads it
+```
+
+### What is read when
+
+[The evaluation boundary](docs/two-passes.md#the-evaluation-boundary)
+
+| read | when |
+| --- | --- |
+| registry names and paths | always |
+| each catalogue entry, to its kind | always; a `throw` entry fails here, selected or not |
+| override record files | always, on every host; only a matched record's functions are called |
+| a selected entry: its file or value | iff a scope enabled it |
+| a provider set's `providers` | iff its capability is enabled |
+| the chosen provider's target | iff it is the one chosen; the other targets are never read |
+| an aggregation body | iff the host or one of its users selected the group |
+| a user's definition | for every user on the host |
+| anything unselected: an entry's attributes or function body, a provider, a body | never |
+
+### The pipeline
+
+[The two passes](docs/two-passes.md), [the module list](docs/constructor.md#the-module-list)
+
+```
+host module ──┐
+              ├──► selection pass ─────────── reads only literal habit.* keys
+registry ─────┘     gate:   which groups are selected
+                    select: their bodies, members and providers
+                       │
+                       ▼
+                 resolved selection ─────────► inventory (inventoryOf)
+                       │
+                       ▼
+                 platform pass ──────────────── imports and applies only what was kept
+                       │
+                       ▼
+                 module list ────────────────── habit, users, dendrites, Home Manager
+                       │                        wiring, extraModules, records, groups, host
+                       ▼
+                 builder ────────────────────── mkNixosHost | mkDarwinHost | mkHome
+                       │                        (the evaluator is yours)
+                       ▼
+                 system | home
+```
+
+### Three rules
+
+- **Membership is `mkDefault`.** A group sets `enable = mkDefault true` on each
+  member; a host drops one with `enable = false` and restores it with `mkForce`
+  ([Aggregations](docs/aggregations.md#membership-is-mkdefault)).
+- **One provider per capability per system.** The host, its groups and its users
+  must agree; two different choices are an error naming every claimant
+  ([Dendrites](docs/dendrites.md#several-providers)).
+- **Users get home halves.** `habit.users.<user>.home.enable` gives a Home Manager
+  configuration; each capability's home half goes to the users it reaches
+  ([Users](docs/host.md#users)).
 
 ## Installation
 
