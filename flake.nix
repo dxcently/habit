@@ -19,6 +19,12 @@
         catalogues = import ./lib/catalogues.nix;
       };
 
+      # `nix flake init -t github:dxcently/habit` copies the full example; it adds no input.
+      templates.default = {
+        path = ./examples/full;
+        description = "A desk, a server and a standalone home built with habit";
+      };
+
       checks.x86_64-linux.selection =
         pkgs.runCommand "habit-selection"
           {
