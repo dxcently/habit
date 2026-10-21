@@ -10,9 +10,10 @@ catalogue = {
 };
 ```
 
-[`examples/minimal`](https://github.com/dxcently/habit/tree/main/examples/minimal)
-uses the file form, [`examples/workstation`](https://github.com/dxcently/habit/tree/main/examples/workstation)
-the directory form.
+[Growing a capability](growing-a-capability.md) shows the file form in
+[step 1](growing-a-capability.md#1-one-file), the directory form in
+[step 2](growing-a-capability.md#2-a-home-half) and the provider set in
+[step 3](growing-a-capability.md#3-providers).
 
 The catalogue holds names and entries only. A path entry is `import`ed in the
 platform pass, and only when some scope enabled it; a module value is applied
@@ -26,9 +27,11 @@ with `options` and `config`. It may declare options of its own; habit declares
 none in a module's namespace.
 
 ```nix
-# examples/minimal/dendrites/ssh.nix
+# examples/steps/1-file/modules/dendrites/shell.nix
+{ pkgs, ... }:
 {
-  services.openssh.enable = true;
+  programs.zsh.enable = true;
+  users.defaultUserShell = pkgs.zsh;
 }
 ```
 
@@ -49,10 +52,17 @@ string, a list) is refused, naming the file ([Errors](errors.md#modules)).
 Settings for a user's Home Manager configuration go in `habit.home`:
 
 ```nix
-# examples/workstation/dendrites/notifications/dunst.nix
+# examples/steps/2-home/modules/dendrites/shell/default.nix
+{ pkgs, ... }:
 {
+  programs.zsh.enable = true;
+  users.defaultUserShell = pkgs.zsh;
+
   habit.home = {
-    services.dunst.enable = true;
+    programs.zsh = {
+      enable = true;
+      shellAliases = import ./aliases.nix;
+    };
   };
 }
 ```
@@ -213,39 +223,41 @@ data naming its providers, and each provider is a plain module of its own: a
 file, or a module value ([Value entries](#value-entries)).
 
 ```nix
-# examples/workstation/dendrites/notifications/default.nix — two providers;
-# only the chosen file is ever read.
+# examples/steps/3-providers/modules/default.nix
 {
-  providers = {
-    dunst = ./dunst.nix;
-    mako = ./mako.nix;
-  };
-}
-```
-
-```nix
-# examples/workstation/dendrites/notifications/mako.nix
-{
-  habit.home = {
-    services.mako.enable = true;
-  };
-}
-```
-
-The set may also be written as a catalogue value, an attrset whose only key is
-`providers`, where the flake that writes it has its inputs in scope. A target
-in it is a path or a module value, as in a file:
-
-```nix
-catalogue = {
-  notifications = {
-    providers = {
-      dunst = ./dendrites/notifications/dunst.nix;
-      mako = { habit.home.services.mako.enable = true; };
+  catalogue = {
+    shell = {
+      providers = {
+        bash = ./dendrites/shell/bash.nix;
+        zsh = ./dendrites/shell/zsh.nix;
+        fish = {
+          programs.fish.enable = true;
+          habit.home.programs.fish.enable = true;
+        };
+      };
     };
   };
-};
+  aggregations = { };
+  overrides = { };
+}
 ```
+
+```nix
+# examples/steps/3-providers/modules/dendrites/shell/bash.nix
+{
+  programs.bash.completion.enable = true;
+
+  habit.home = {
+    programs.bash.enable = true;
+  };
+}
+```
+
+Here the set is written as a catalogue value, an attrset whose only key is
+`providers`, where the registry that writes it has its inputs in scope. A target
+in it is a path or a module value, as in a file. Written as a file instead, the
+same attrset is `dendrites/shell/default.nix`, with `shell = ./dendrites/shell;`
+in the registry.
 
 A file and a value that hold the same attrset are the same provider set. A set with
 `providers` and any other key is refused, in a file or a value, naming the
@@ -262,8 +274,8 @@ error naming every claimant ([Errors](errors.md#selecting-capabilities)).
 
 | selection                                     | result                                                     |
 | --------------------------------------------- | ---------------------------------------------------------- |
-| enabled, `provider = "dunst"`                 | `dunst.nix` is imported; `mako` is never read              |
-| enabled, `provider = "mako"`, a module value  | the value is applied; `dunst.nix` is never read            |
+| enabled, `provider = "bash"`                 | `bash.nix` is imported; `zsh` is never read                |
+| enabled, `provider = "fish"`, a module value  | the value is applied; `bash.nix` is never read             |
 | enabled, no provider                          | error naming the available providers                       |
 | enabled, `provider = "nope"`                  | error naming the available providers                       |
 | enabled, a set with a key besides `providers` | error naming the capability and the keys                   |
@@ -280,43 +292,47 @@ Each entry that needs it imports the first, and names the second in its own
 `habit.home.imports`:
 
 ```nix
-# examples/shared/dendrites/runtime.nix
-{ lib, ... }:
+# examples/steps/7-shared/modules/dendrites/shell/prompt.nix
+{ pkgs, ... }:
 {
-  options.example.runtime.system = lib.mkOption {
-    type = lib.types.listOf lib.types.str;
-    default = [ ];
-  };
-
-  config.example.runtime.system = [ "runtime" ];
+  environment.systemPackages = [ pkgs.starship ];
 }
 ```
 
 ```nix
-# examples/shared/dendrites/runtime-home.nix
-{ lib, ... }:
+# examples/steps/7-shared/modules/dendrites/shell/prompt-home.nix
 {
-  options.example.runtime.home = lib.mkOption {
-    type = lib.types.listOf lib.types.str;
-    default = [ ];
-  };
-
-  config.example.runtime.home = [ "runtime" ];
+  programs.starship.enable = true;
 }
 ```
 
 ```nix
-# examples/shared/dendrites/bar.nix
+# examples/steps/7-shared/modules/dendrites/shell/zsh.nix
+{ pkgs, ... }:
 {
-  imports = [ ./runtime.nix ];
+  imports = [ ./prompt.nix ];
 
-  habit.home.imports = [ ./runtime-home.nix ];
+  programs.zsh.enable = true;
+  users.defaultUserShell = pkgs.zsh;
+
+  habit.home = {
+    imports = [ ./prompt-home.nix ];
+
+    programs.zsh = {
+      enable = true;
+      shellAliases = import ./aliases.nix;
+    };
+  };
 }
 ```
 
-`dock.nix` is the same file under its own name. Selecting both gives one copy of
-`runtime.nix` in the host and one of `runtime-home.nix` in each user's home. The
-example is [`examples/shared`](https://github.com/dxcently/habit/tree/main/examples/shared).
+The piece is `prompt.nix` and `prompt-home.nix`, and each provider that needs it
+names both: `imports` for the system half, `habit.home.imports` for the home half.
+The example is [step 7](growing-a-capability.md#7-shared): the fish value names
+the same two files from the registry. Only one provider is selected, so the piece
+lands once in each half. Two entries selecting the piece, as in the suite's
+fixture [`tests/selection/shared`](https://github.com/dxcently/habit/tree/main/tests/selection/shared),
+give one copy of each file.
 
 habit reads `habit.home` only from a selected entry's top module. A file that an
 entry merely imports cannot write it, so the home half has to be named in the
@@ -327,9 +343,13 @@ The path has to stay a path. The last two rows look like the first and are not:
 
 | written in each of the entries                          | with two entries selected                                                                                            |
 | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `habit.home.imports = [ ./runtime-home.nix ];`          | one copy: each option declared once                                                                                  |
-| `habit.home = ./runtime-home.nix;`                      | ``The option `home-manager.users.alice.example.runtime.home' in `<file>' is already declared in `<file>'.``           |
-| `imports = [ (import ./runtime.nix) ];`                 | ``The option `example.runtime.system' in `<file>' is already declared in `<file>'.``                                  |
+| `habit.home.imports = [ ./prompt-home.nix ];`          | one copy: each option declared once                                                                                  |
+| `habit.home = ./prompt-home.nix;`                      | ``The option `home-manager.users.alice.example.runtime.home' in `<file>' is already declared in `<file>'.``           |
+| `imports = [ (import ./prompt.nix) ];`                 | ``The option `example.runtime.system' in `<file>' is already declared in `<file>'.``                                  |
+
+The messages name `example.runtime`, the option the suite's fixture declares, so
+the same two traps with its files are the ones the suite checks
+([`tests/selection/shared`](https://github.com/dxcently/habit/tree/main/tests/selection/shared)).
 
 A bare path or an inline value is a second identity for the piece: the module
 system no longer sees the copies as one file, so the options it declares are

@@ -99,6 +99,8 @@ vague error is a failing test. [Errors](errors.md)
 | [The two passes](two-passes.md)     | why selection runs first, gate and select, the boundary         |
 | [Dendrites](dendrites.md)           | plain modules, `habit.home`, `habit.selected`, multi-provider capabilities |
 | [Aggregations](aggregations.md)     | group bodies, membership by priority, provider choices           |
+| [Growing a capability](growing-a-capability.md) | the walkthrough: one capability from a file to providers, a shared piece and an override |
+| [What a capability can be](forms.md) | each form a catalogue entry takes, and the step that shows it |
 | [The host module](host.md)          | the `habit.*` keys, the scan and its limits, users and Home Manager, darwin and standalone homes |
 | [Override records](overrides.md)    | capability-scoped fixes, matching, the weaker boundary           |
 | [The constructor](constructor.md)   | the classes and their builders, every argument, the module list order, hooks, the inventory |
@@ -108,21 +110,27 @@ vague error is a failing test. [Errors](errors.md)
 
 ## Examples
 
-Five directories under
-[`examples/`](https://github.com/dxcently/habit/tree/main/examples), each a
-registry, its dendrites, a host and the call that builds it. The test suite
-calls each one the way a flake would and checks its inventory, its module list
-and option values: real NixOS ones, and for `home` those of a stub of Home
-Manager's options (the real ones are in `tests/real/`, below). Every example file
-quoted in these pages is the file the suite evaluates.
+The examples are flakes, laid out as a repository, under
+[`examples/`](https://github.com/dxcently/habit/tree/main/examples). The walkthrough
+[grows one capability](growing-a-capability.md) across seven steps, and
+[`examples/full`](https://github.com/dxcently/habit/tree/main/examples/full) is the
+same capability and more, in the shape `nix flake init -t github:dxcently/habit`
+copies. The test suite calls each flake's `outputs` without fetching anything and
+checks what each host selected and the option values it sets: real NixOS ones,
+and for Home Manager those of a stub of its options (the real ones are in
+`tests/real/`, below). Every example file quoted in these pages is the file the
+suite evaluates.
 
-| example                                                                           | shows                                                        |
-| --------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| [`minimal`](https://github.com/dxcently/habit/tree/main/examples/minimal)         | one dendrite, one host                                       |
-| [`workstation`](https://github.com/dxcently/habit/tree/main/examples/workstation) | an aggregation, a member switched off, a provider choice, a Home Manager user |
-| [`merged`](https://github.com/dxcently/habit/tree/main/examples/merged)           | two registries merged, a group in one naming a capability in the other |
-| [`home`](https://github.com/dxcently/habit/tree/main/examples/home)               | a standalone Home Manager configuration; a module's system half dropped |
-| [`shared`](https://github.com/dxcently/habit/tree/main/examples/shared)           | two entries sharing one piece with a system half and a home half, imported by path |
+| example                                                                                | shows                                                        |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| [`steps/1-file`](https://github.com/dxcently/habit/tree/main/examples/steps/1-file)    | a capability that is one file                                |
+| [`steps/2-home`](https://github.com/dxcently/habit/tree/main/examples/steps/2-home)    | a home half, and a file beside the module                     |
+| [`steps/3-providers`](https://github.com/dxcently/habit/tree/main/examples/steps/3-providers) | a provider set, as files and as a value              |
+| [`steps/4-users`](https://github.com/dxcently/habit/tree/main/examples/steps/4-users)  | two users' homes, one opting out                             |
+| [`steps/5-terminal`](https://github.com/dxcently/habit/tree/main/examples/steps/5-terminal) | a group, a module reading `habit.selected`, a second host |
+| [`steps/6-override`](https://github.com/dxcently/habit/tree/main/examples/steps/6-override) | an override record                                      |
+| [`steps/7-shared`](https://github.com/dxcently/habit/tree/main/examples/steps/7-shared) | a piece two providers share, with a system half and a home half |
+| [`full`](https://github.com/dxcently/habit/tree/main/examples/full)                    | a desk, a server and a standalone home; a second registry merged in; the template |
 
 ## Tests
 
@@ -153,7 +161,7 @@ from `x86_64-linux`:
 | ------ | --------- | ------------------ |
 | NixOS with Home Manager's NixOS module (`mkNixosHost`) | `nixosSystem`, down to `system.build.toplevel.drvPath` | a host's selection reaches every user and a user's reaches that user alone; a plain home half and one under `mkOverride` both reach the user; a value entry selected by name is applied and an unselected one is not; a function-valued `habit.home` takes `lib.hm`; `habit.selected` holds each scope; the builder's arguments reach every module |
 | nix-darwin with Home Manager's darwin module (`mkDarwinHost`) | `darwinSystem` for `aarch64-darwin`, down to `system.build.toplevel.drvPath` | the system half applies; the home half routes through Home Manager, whose home directory comes from the user module's `users.users.<user>.home`; a Linux-only option fails, as a file entry and as a directory entry, and the module system names the module's file in both |
-| standalone Home Manager (`mkHome`) | `homeManagerConfiguration`, down to `home.activationPackage.drvPath`, and `examples/home` | the system half is dropped and the home half lands; `habit.selected` is the home's; the caller's and a record's overlays both apply; `extraSpecialArgs` reach modules |
+| standalone Home Manager (`mkHome`) | `homeManagerConfiguration`, down to `home.activationPackage.drvPath`, and `examples/full`'s `homeConfigurations.alice` | the system half is dropped and the home half lands; `habit.selected` is the home's; the caller's and a record's overlays both apply; `extraSpecialArgs` reach modules |
 
 Nothing there is built: a darwin builder is not needed to evaluate.
 

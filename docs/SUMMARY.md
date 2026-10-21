@@ -2,6 +2,8 @@
 
 [Overview](README.md)
 
+- [Growing a capability](growing-a-capability.md)
+- [What a capability can be](forms.md)
 - [The two passes](two-passes.md)
 - [Dendrites](dendrites.md)
 - [Aggregations](aggregations.md)

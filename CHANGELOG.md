@@ -8,6 +8,16 @@ Append-only. Newest first.
   per half, imported by path (`imports` for the system half, `habit.home.imports`
   for the home half). The bare-path and inline forms are shown to fail as
   `already declared`.
+- The examples are real flakes, laid out as a repository (`flake.nix`,
+  `modules/`, `hosts/`, `users/`), and the suite calls each one's `outputs`
+  without fetching anything. `examples/minimal`, `workstation`, `merged`, `home`
+  and `shared` are replaced by `examples/steps` and `examples/full`; each of
+  their cases is carried by a step or by `full`.
+- A walkthrough, [Growing a capability](docs/growing-a-capability.md), grows one
+  capability across seven steps, and [What a capability can be](docs/forms.md)
+  lists each form it takes.
+- `examples/full` is the flake template: `nix flake init -t github:dxcently/habit`.
+  The root flake adds `templates.default` and no input.
 
 ## 0.5.0
 

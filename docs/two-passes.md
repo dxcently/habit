@@ -123,5 +123,5 @@ the catalogue is `import`ed.
 
 Each "iff" is proved in `tests/selection` by a fixture that throws when it is
 imported: `dendrites/landmine`, `dendrites/notifications/landmine.nix`,
-`aggregations/landmine`, and in the examples, `printing` swapped for a throwing
+`aggregations/landmine`, and in `examples/full`, `tmux` swapped for a throwing
 body after the host switched it off.

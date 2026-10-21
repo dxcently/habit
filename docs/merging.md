@@ -27,57 +27,119 @@ would otherwise drop a group without a trace, so it is an error.
 
 ## The example
 
+[`examples/full`](https://github.com/dxcently/habit/tree/main/examples/full) merges
+two sources. The core registry is the flake's own modules, and the personal one
+adds `tmux` and a group that names `ssh`, which only the core defines.
+
 ```nix
-# examples/merged/shared/registry.nix
+# examples/full/modules/default.nix — the core registry; personal/ adds a second one.
 {
   catalogue = {
-    git = ./dendrites/git;
-    ssh = ./dendrites/ssh;
+    shell = {
+      providers = {
+        bash = ./dendrites/shell/bash.nix;
+        zsh = ./dendrites/shell/zsh.nix;
+        fish = {
+          imports = [ ./dendrites/shell/prompt.nix ];
+          programs.fish.enable = true;
+          habit.home = {
+            imports = [ ./dendrites/shell/prompt-home.nix ];
+            programs.fish.enable = true;
+          };
+        };
+      };
+    };
+    terminal = {
+      providers = {
+        kitty = ./dendrites/terminal/kitty.nix;
+        foot = ./dendrites/terminal/foot.nix;
+      };
+    };
+    ssh = ./dendrites/ssh.nix;
+  };
+  aggregations = {
+    base = ./aggregations/base;
+    terminal = ./aggregations/terminal;
+  };
+  overrides = {
+    zsh-quiet-compaudit = ./overrides/zsh-quiet-compaudit.nix;
   };
 }
 ```
 
 ```nix
-# examples/merged/personal/registry.nix — `dev` groups a capability this
-# source does not define; the merged registry is where the name resolves.
+# examples/full/modules/personal/default.nix — a second registry; `dev` groups `ssh`, which only the core registry defines.
 {
   catalogue = {
-    tmux = ./dendrites/tmux;
+    tmux = ./dendrites/tmux.nix;
   };
   aggregations = {
     dev = ./aggregations/dev;
   };
+  overrides = { };
 }
 ```
+
+`dev` lives in `personal` and names `ssh`, which lives in `core`. Names resolve
+in the merged registry, so a group in one source may group capabilities from
+another. `desk` selects `dev` and gets `ssh` and `tmux`, then switches `tmux` off
+for itself, which a host may do over any group
+([Membership is mkDefault](aggregations.md#membership-is-mkdefault)). The flake
+merges the two and hands the result to both hosts and the standalone home:
 
 ```nix
-# examples/merged/default.nix — two registries, one host.
+# examples/full/flake.nix
 {
-  habit,
-  nixpkgs,
-  home-manager,
-}:
-let
-  inherit (nixpkgs) lib;
-  composition = habit.lib.composition { inherit lib; };
-  catalogues = habit.lib.catalogues { inherit lib; };
-in
-composition.mkNixosHost {
-  inherit nixpkgs;
-  hostName = "box";
-  registry = catalogues.mergeRegistries [
-    (import ./shared/registry.nix // { name = "shared"; })
-    (import ./personal/registry.nix // { name = "personal"; })
-  ];
-  host = ./hosts/box.nix;
-  homeManagerModule = home-manager.nixosModules.home-manager;
+  description = "A desk, a server and a standalone home, one registry and two sources: the habit template";
+
+  inputs = {
+    habit.url = "github:dxcently/habit";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    habit.inputs.nixpkgs.follows = "nixpkgs";
+    home-manager.url = "github:nix-community/home-manager";
+    home-manager.inputs.nixpkgs.follows = "nixpkgs";
+  };
+
+  outputs =
+    {
+      habit,
+      nixpkgs,
+      home-manager,
+      ...
+    }:
+    let
+      inherit (nixpkgs) lib;
+      composition = habit.lib.composition { inherit lib; };
+      catalogues = habit.lib.catalogues { inherit lib; };
+      registry = catalogues.mergeRegistries [
+        (import ./modules/default.nix // { name = "core"; })
+        (import ./modules/personal/default.nix // { name = "personal"; })
+      ];
+      nixosHost =
+        name:
+        (composition.mkNixosHost {
+          inherit nixpkgs registry;
+          hostName = name;
+          host = ./hosts + "/${name}/default.nix";
+          homeManagerModule = home-manager.nixosModules.home-manager;
+        }).system;
+    in
+    {
+      nixosConfigurations = {
+        desk = nixosHost "desk";
+        server = nixosHost "server";
+      };
+
+      homeConfigurations.alice =
+        (composition.mkHome {
+          inherit home-manager registry;
+          pkgs = nixpkgs.legacyPackages.x86_64-linux;
+          hostName = "alice";
+          host = ./hosts/alice/default.nix;
+        }).home;
+    };
 }
 ```
-
-`dev` lives in `personal` and names `git`, which lives in `shared`. Names
-resolve in the merged registry, so a group in one source may group
-capabilities from another. The host selects `dev` and `ssh` and gets `git`,
-`ssh` and `tmux`.
 
 ## The result
 

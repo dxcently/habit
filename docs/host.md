@@ -6,18 +6,22 @@ evaluates it whole, like any module, and habit reads the keys it wrote under
 `host`: a path, or a module value.
 
 ```nix
-# examples/workstation/hosts/desk.nix
+# examples/steps/4-users/hosts/desk/default.nix
 {
-  habit.aggregation.desktop.enable = true;
-  habit.dendrites.printing.enable = false;
+  habit.dendrites.shell = {
+    enable = true;
+    provider = "zsh";
+  };
 
   habit.users.alice = {
-    definition = ../users/alice.nix;
+    definition = ../../users/alice.nix;
     home.enable = true;
-    aggregation.desktop = {
-      enable = true;
-      notifications.provider = "dunst";
-    };
+  };
+
+  habit.users.bob = {
+    definition = ../../users/bob.nix;
+    home.enable = true;
+    dendrites.shell.enable = false;
   };
 
   networking.hostName = "desk";
@@ -150,13 +154,9 @@ Each `habit.users.<user>` is a scope of its own.
 | `aggregation.<group>.<member>.provider`      | null or string  | the body's | which provider answers a provider-bearing member for this user |
 
 ```nix
-# examples/workstation/users/alice.nix
+# examples/full/users/alice.nix
 {
   users.users.alice.isNormalUser = true;
-
-  habit.home = {
-    home.stateVersion = "26.11";
-  };
 }
 ```
 
@@ -253,9 +253,14 @@ A standalone home is a Home Manager configuration with no system around it, and
 its host module is the home's own module:
 
 ```nix
-# examples/home/hosts/alice.nix
+# examples/full/hosts/alice/default.nix — a standalone home: its own selection, its own provider.
 {
-  habit.dendrites.ssh.enable = true;
+  habit.aggregation.base.enable = true;
+
+  habit.dendrites.shell = {
+    enable = true;
+    provider = "fish";
+  };
 
   home.username = "alice";
   home.homeDirectory = "/home/alice";

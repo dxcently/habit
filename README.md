@@ -187,76 +187,85 @@ import "${sources.nixpkgs}/nixos/lib/eval-config.nix" {
 
 ## Quick start
 
-A capability (a "dendrite") is a plain NixOS module:
+Start from the template with `nix flake init -t github:dxcently/habit`. It copies
+[`examples/full`](examples/full), which is the walkthrough's last step, and adds
+no input to your flake. The smallest complete flake is
+[step 1](docs/growing-a-capability.md#1-one-file): a capability is a plain NixOS
+module, the registry names it, a host selects it by name, and the flake's
+outputs call the constructor.
 
 ```nix
-# examples/minimal/dendrites/ssh.nix
+# examples/steps/1-file/modules/dendrites/shell.nix
+{ pkgs, ... }:
 {
-  services.openssh.enable = true;
+  programs.zsh.enable = true;
+  users.defaultUserShell = pkgs.zsh;
 }
 ```
 
-A registry names capabilities and groups; nothing in it is imported until a
-host selects it:
-
 ```nix
-# examples/minimal/registry.nix
+# examples/steps/1-file/modules/default.nix
 {
   catalogue = {
-    ssh = ./dendrites/ssh.nix;
+    shell = ./dendrites/shell.nix;
   };
   aggregations = { };
+  overrides = { };
 }
 ```
 
-A host is one module. Its `habit.*` keys select from the registry; everything
-else in it is the host's own NixOS configuration:
-
 ```nix
-# examples/minimal/hosts/box.nix
+# examples/steps/1-file/hosts/desk/default.nix
 {
-  habit.dendrites.ssh.enable = true;
+  habit.dendrites.shell.enable = true;
 
-  networking.hostName = "box";
+  networking.hostName = "desk";
   nixpkgs.hostPlatform = "x86_64-linux";
   boot.isContainer = true;
   system.stateVersion = "26.11";
 }
 ```
 
-The constructor turns that into a NixOS system:
-
 ```nix
-# examples/minimal/default.nix — one capability, one host.
+# examples/steps/1-file/flake.nix
 {
-  habit,
-  nixpkgs,
-  home-manager,
-}:
-let
-  composition = habit.lib.composition { inherit (nixpkgs) lib; };
-in
-composition.mkNixosHost {
-  inherit nixpkgs;
-  hostName = "box";
-  registry = import ./registry.nix;
-  host = ./hosts/box.nix;
-  homeManagerModule = home-manager.nixosModules.home-manager;
+  description = "habit, step 1: one capability, one file";
+
+  inputs = {
+    habit.url = "github:dxcently/habit";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    habit.inputs.nixpkgs.follows = "nixpkgs";
+  };
+
+  outputs =
+    { habit, nixpkgs, ... }:
+    let
+      composition = habit.lib.composition { inherit (nixpkgs) lib; };
+    in
+    {
+      nixosConfigurations.desk =
+        (composition.mkNixosHost {
+          inherit nixpkgs;
+          hostName = "desk";
+          registry = import ./modules/default.nix;
+          host = ./hosts/desk/default.nix;
+        }).system;
+    };
 }
 ```
 
-```nix
-nixosConfigurations.box = (import ./box { inherit habit nixpkgs home-manager; }).system;
-```
+Nothing in the registry is imported until a host selects it, and a host is one
+module: its `habit.*` keys select, and everything else is the host's own NixOS
+configuration.
 
-That directory is [`examples/minimal`](examples/minimal); the test suite
-evaluates it, down to `config.services.openssh.enable`. Groups, providers,
-pieces several entries share, users and merged registries are in
-[`examples/`](examples).
+[Growing a capability](docs/growing-a-capability.md) takes that one capability
+through providers, users, a group, a shared piece and an override, and
+[What a capability can be](docs/forms.md) lists each form it takes.
 
 The same registry builds for nix-darwin with `mkDarwinHost` and as a standalone
-Home Manager configuration with `mkHome`, each taking its evaluator from you ([The constructor](docs/constructor.md#classes),
-[`examples/home`](examples/home)).
+Home Manager configuration with `mkHome`, each taking its evaluator from you
+([The constructor](docs/constructor.md#classes)); `examples/full` has the standalone
+one as `homeConfigurations.alice`.
 
 ## Targets and how they are checked
 
@@ -285,6 +294,8 @@ The book: <https://dxcently.github.io/habit/> (the same pages are in
 | page | covers |
 |---|---|
 | [habit](docs/README.md) | the words, the ideas, the examples, the tests |
+| [Growing a capability](docs/growing-a-capability.md) | one capability from a file to providers, users, a group, a shared piece and an override |
+| [What a capability can be](docs/forms.md) | each form a catalogue entry takes, and the step that shows it |
 | [The two passes](docs/two-passes.md) | why selection runs first; gate and select; what is read when |
 | [Dendrites](docs/dendrites.md) | plain modules, `habit.home`, `habit.selected`, several providers |
 | [Aggregations](docs/aggregations.md) | groups, membership by priority, provider choices |

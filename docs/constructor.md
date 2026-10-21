@@ -54,16 +54,30 @@ Nothing is imported or applied at registry time.
 | `overrides`    | record name      | a file holding a capability-scoped fix ([Override records](overrides.md)); optional |
 
 ```nix
-# examples/workstation/registry.nix
+# examples/steps/5-terminal/modules/default.nix
 {
   catalogue = {
-    bluetooth = ./dendrites/bluetooth;
-    notifications = ./dendrites/notifications;
-    printing = ./dendrites/printing;
+    shell = {
+      providers = {
+        bash = ./dendrites/shell/bash.nix;
+        zsh = ./dendrites/shell/zsh.nix;
+        fish = {
+          programs.fish.enable = true;
+          habit.home.programs.fish.enable = true;
+        };
+      };
+    };
+    terminal = {
+      providers = {
+        kitty = ./dendrites/terminal/kitty.nix;
+        foot = ./dendrites/terminal/foot.nix;
+      };
+    };
   };
   aggregations = {
-    desktop = ./aggregations/desktop;
+    terminal = ./aggregations/terminal;
   };
+  overrides = { };
 }
 ```
 
@@ -184,8 +198,8 @@ definition made by the wrapped module in item 4 or 5, merged by that module's
 position, so it comes before the wiring's own per-user imports
 ([The host module](host.md#what-a-users-home-is-made-of)).
 
-The minimal example's list is three entries: `habit`, the wrapped `ssh`
-module, the host module.
+[Step 1](growing-a-capability.md#1-one-file)'s list is three entries: `habit`,
+the wrapped `shell` module, the host module.
 
 ## The two hooks
 
@@ -223,26 +237,30 @@ The host then writes `habit.role = "laptop";`.
 
 `inventoryOf`, also `mkModules`'s and every builder's `inventory`, is what
 a host resolved, derived from its selection and never maintained by hand. For
-the workstation example (paths shortened to the repository root):
+[step 4](growing-a-capability.md#4-users)'s `desk` (paths shortened to the repository root):
 
 ```json
 {
-  "host": "desk",
-  "aggregation": [ "desktop" ],
+  "aggregation": [],
   "dendrites": {
-    "bluetooth": { "provider": null, "system": true, "source": "./examples/workstation/dendrites/bluetooth" }
+    "shell": { "provider": "zsh", "system": true, "source": "<value 'shell'>" }
   },
+  "host": "desk",
+  "overrides": [],
   "users": {
     "alice": {
-      "definition": "./examples/workstation/users/alice.nix",
-      "home": true,
-      "aggregation": [ "desktop" ],
-      "dendrites": {
-        "notifications": { "provider": "dunst", "system": true, "source": "./examples/workstation/dendrites/notifications" }
-      }
+      "aggregation": [],
+      "definition": "./examples/steps/4-users/users/alice.nix",
+      "dendrites": {},
+      "home": true
+    },
+    "bob": {
+      "aggregation": [],
+      "definition": "./examples/steps/4-users/users/bob.nix",
+      "dendrites": {},
+      "home": true
     }
-  },
-  "overrides": []
+  }
 }
 ```
 
@@ -254,38 +272,43 @@ the workstation example (paths shortened to the repository root):
 | `users`       | per user: `definition`, `home` (whether Home Manager is on), its groups and its capabilities; `{ }` for a home |
 | `overrides`   | the override records that matched this host (`mkModules` and the builders only; `inventoryOf` alone has no records to match) |
 
-`printing` is absent: the host switched it off, so it is not part of what the
-host is. The inventory says what each selection asked of a module's halves, `system`,
+`bob` opted out of the shell's home half, which is not a selection, so `users.bob`
+names nothing: the opt-out is in the host module, and the inventory describes
+selections only. The inventory says what each selection asked of a module's halves, `system`,
 and nothing of the halves themselves: whether a module has a home half is known
 only by importing it, which the inventory never does.
 
 ## Wiring a consumer
 
-Each example's `default.nix` is the call a consumer makes:
+The flake's outputs are the call a consumer makes; [step 1](growing-a-capability.md#1-one-file)
+is the whole of one:
 
 ```nix
-# examples/minimal/default.nix — one capability, one host.
+# examples/steps/1-file/flake.nix
 {
-  habit,
-  nixpkgs,
-  home-manager,
-}:
-let
-  composition = habit.lib.composition { inherit (nixpkgs) lib; };
-in
-composition.mkNixosHost {
-  inherit nixpkgs;
-  hostName = "box";
-  registry = import ./registry.nix;
-  host = ./hosts/box.nix;
-  homeManagerModule = home-manager.nixosModules.home-manager;
+  description = "habit, step 1: one capability, one file";
+
+  inputs = {
+    habit.url = "github:dxcently/habit";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    habit.inputs.nixpkgs.follows = "nixpkgs";
+  };
+
+  outputs =
+    { habit, nixpkgs, ... }:
+    let
+      composition = habit.lib.composition { inherit (nixpkgs) lib; };
+    in
+    {
+      nixosConfigurations.desk =
+        (composition.mkNixosHost {
+          inherit nixpkgs;
+          hostName = "desk";
+          registry = import ./modules/default.nix;
+          host = ./hosts/desk/default.nix;
+        }).system;
+    };
 }
-```
-
-From a flake, with that file copied to `./box`:
-
-```nix
-nixosConfigurations.box = (import ./box { inherit habit nixpkgs home-manager; }).system;
 ```
 
 `habit.lib.composition` is unapplied; the consumer applies it with the `lib`
@@ -318,24 +341,55 @@ host module is the home's own module, so it sets `home.username`,
 ([The host module](host.md#a-standalone-home)):
 
 ```nix
-# examples/home/default.nix — a standalone Home Manager configuration.
+# examples/full/flake.nix
 {
-  habit,
-  nixpkgs,
-  home-manager,
-}:
-let
-  composition = habit.lib.composition { inherit (nixpkgs) lib; };
-in
-composition.mkHome {
-  inherit home-manager;
-  pkgs = nixpkgs.legacyPackages.x86_64-linux;
-  hostName = "alice";
-  registry = import ./registry.nix;
-  host = ./hosts/alice.nix;
-}
-```
+  description = "A desk, a server and a standalone home, one registry and two sources: the habit template";
 
-```nix
-homeConfigurations.alice = (import ./home { inherit habit nixpkgs home-manager; }).home;
+  inputs = {
+    habit.url = "github:dxcently/habit";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    habit.inputs.nixpkgs.follows = "nixpkgs";
+    home-manager.url = "github:nix-community/home-manager";
+    home-manager.inputs.nixpkgs.follows = "nixpkgs";
+  };
+
+  outputs =
+    {
+      habit,
+      nixpkgs,
+      home-manager,
+      ...
+    }:
+    let
+      inherit (nixpkgs) lib;
+      composition = habit.lib.composition { inherit lib; };
+      catalogues = habit.lib.catalogues { inherit lib; };
+      registry = catalogues.mergeRegistries [
+        (import ./modules/default.nix // { name = "core"; })
+        (import ./modules/personal/default.nix // { name = "personal"; })
+      ];
+      nixosHost =
+        name:
+        (composition.mkNixosHost {
+          inherit nixpkgs registry;
+          hostName = name;
+          host = ./hosts + "/${name}/default.nix";
+          homeManagerModule = home-manager.nixosModules.home-manager;
+        }).system;
+    in
+    {
+      nixosConfigurations = {
+        desk = nixosHost "desk";
+        server = nixosHost "server";
+      };
+
+      homeConfigurations.alice =
+        (composition.mkHome {
+          inherit home-manager registry;
+          pkgs = nixpkgs.legacyPackages.x86_64-linux;
+          hostName = "alice";
+          host = ./hosts/alice/default.nix;
+        }).home;
+    };
+}
 ```

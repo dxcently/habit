@@ -5,7 +5,7 @@ directory holding its body, `default.nix`:
 
 ```nix
 aggregations = {
-  desktop = ./aggregations/desktop;
+  base = ./aggregations/base;
 };
 ```
 
@@ -14,22 +14,16 @@ The body is data, read only when a host or one of its users selects the group.
 ## The body
 
 ```nix
-# examples/workstation/aggregations/desktop/default.nix
+# examples/full/modules/aggregations/base/default.nix
 {
-  description = "A machine someone sits at.";
+  description = "What every machine here carries: ssh, for the system and for each home.";
 
   system = {
-    members = [
-      "bluetooth"
-      "printing"
-    ];
-    module = {
-      services.xserver.xkb.layout = "de";
-    };
+    members = [ "ssh" ];
   };
 
   home = {
-    providers.notifications = "mako";
+    members = [ "ssh" ];
   };
 }
 ```
@@ -67,22 +61,23 @@ A body nobody selected is never read, so it is never validated either.
 
 The two halves reach different evaluators, and one body serves both:
 
-- the host selects it with `habit.aggregation.desktop.enable = true`. The host
+- the host selects it with `habit.aggregation.base.enable = true`. The host
   applies the `system` half, and every user with `home.enable = true` gets the
   `home` half, exactly as if each had selected the group with
-  `habit.users.<name>.aggregation.desktop.enable = true`.
-- a user selects it for herself with `habit.users.<name>.aggregation.desktop.enable
+  `habit.users.<name>.aggregation.base.enable = true`.
+- a user selects it for herself with `habit.users.<name>.aggregation.base.enable
   = true`. Only that user gets the `home` half.
 - both routes together merge: the group's membership and its `home` module apply
   once for the user.
 - a user opts out of a group the host sent with
-  `habit.users.<name>.aggregation.desktop.enable = false`. That withholds the
+  `habit.users.<name>.aggregation.base.enable = false`. That withholds the
   group's `home` half for that user alone; the `system` half is the host's and
   stays ([Opting out](host.md#opting-out)).
 
 A standalone home has no users. It selects with
-`habit.aggregation.desktop.enable = true` too, and gets the `home` half, so the
-group's `system` half is not read there.
+`habit.aggregation.base.enable = true` too, and gets the `home` half, so the
+group's `system` half is not read there. `examples/full`'s `hosts/alice` does
+this.
 
 A host's group sends its home members to users, and their system halves are
 the host's. Whenever the host selects the group, each home member's system half
@@ -114,31 +109,36 @@ Everything about membership follows from that priority.
 
 | situation                                              | outcome                                                       |
 | ------------------------------------------------------ | ------------------------------------------------------------- |
-| host sets `habit.dendrites.printing.enable = false`    | `false` (priority 100) beats the group's `true` (1000): printing is never imported |
-| a layer above sets `habit.dendrites.printing.enable = mkForce true` | back on: `mkForce` (50) beats the host's `false`   |
+| host sets `habit.dendrites.tmux.enable = false`        | `false` (priority 100) beats the group's `true` (1000): tmux is never imported |
+| a layer above sets `habit.dendrites.tmux.enable = mkForce true` | back on: `mkForce` (50) beats the host's `false`   |
 | two selected groups name the same member, same terms   | they merge into one selection; the module is imported once    |
 | two selected groups choose different providers for it  | error: `habit.dendrites.<member>.provider` has conflicting definition values |
-| host sets `habit.dendrites.notifications.provider = "x"` | the host's choice beats the group's default                 |
+| host sets `habit.dendrites.shell.provider = "fish"`    | the host's choice beats the group's default                   |
 
 A group writes only `enable` and `provider`, so the rest of a member's selection
 is the host's: `habit.dendrites.<member>.system = false` keeps the member and
 asks for its home half alone ([Dendrites](dendrites.md#halves-and-scopes)).
 
-The workstation example switches a member off:
+`examples/full`'s `dev` group has `tmux` as a member, and its desk switches that
+member off:
 
 ```nix
-# examples/workstation/hosts/desk.nix
+# examples/full/hosts/desk/default.nix
 {
-  habit.aggregation.desktop.enable = true;
-  habit.dendrites.printing.enable = false;
+  habit.aggregation.base.enable = true;
+  habit.aggregation.terminal.enable = true;
+  habit.aggregation.dev.enable = true;
+  habit.dendrites.tmux.enable = false;
 
   habit.users.alice = {
-    definition = ../users/alice.nix;
+    definition = ../../users/alice.nix;
     home.enable = true;
-    aggregation.desktop = {
-      enable = true;
-      notifications.provider = "dunst";
-    };
+  };
+
+  habit.users.bob = {
+    definition = ../../users/bob.nix;
+    home.enable = true;
+    dendrites.shell.enable = false;
   };
 
   networking.hostName = "desk";
@@ -148,24 +148,25 @@ The workstation example switches a member off:
 }
 ```
 
-`desk` gets `bluetooth` and not `printing`; the suite replaces `printing`'s
-body with one that throws on import and the host still builds, then sets
-`habit.dendrites.printing.enable = lib.mkForce true` on top, from a
-`selectionModules` module, and the throwing body is reached. Two groups that disagree on a provider collide instead of letting
-import order pick a winner.
+`desk` gets `ssh` and not `tmux`. The suite replaces `tmux`'s file with one that
+throws on import and the host still builds, then sets
+`habit.dendrites.tmux.enable = lib.mkForce true` on top, from a
+`selectionModules` module, and the throwing file is reached. Two groups that
+disagree on a provider collide instead of letting import order pick a winner.
 
 ## Choosing a provider
 
 A provider-bearing member gets a selector under the group that owns it, in
 that scope: `habit.aggregation.<group>.<member>.provider`. Its default is the
-body's `providers.<member>`. In `desk.nix` above, alice takes `desktop`'s home
-half and picks `dunst` over the body's `mako`. A single-implementation member
-gets no selector at all.
+body's `providers.<member>`. In [`terminal`](growing-a-capability.md#5-terminal)
+the member `terminal` has the default `kitty`, so a host that wants `foot` writes
+`habit.aggregation.terminal.terminal.provider = "foot";`. A single-implementation
+member gets no selector at all.
 
 The selector is typed only in the select step, once the body is read
 ([The two passes](two-passes.md#selection-gate-then-select)). Before that it is
 accepted untyped, so a selector the group does not own
-(`habit.aggregation.desktop.compositor.provider`) fails in the select step as an
+(`habit.aggregation.terminal.compositor.provider`) fails in the select step as an
 option that does not exist.
 
 ## A group cannot select a group
