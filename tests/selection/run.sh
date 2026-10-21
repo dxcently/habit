@@ -271,27 +271,34 @@ mergeFieldNotAnAttrset              throws  registry source 'nulled': `catalogue
 overlayOrder                        ok      "dendrite,dendrite,record,caller"
 recordOverlayBeatsDendrite          ok      "record"
 callerOverlayBeatsRecord            ok      "caller"
-exampleMinimalInventory             ok      "box:ssh=ssh.nix"
-exampleMinimalModules               ok      ["lambda","set{_class,_file,config,disabledModules,imports,key,options}","path"]
-exampleMinimalConfig                ok      "box ssh=true"
-exampleMinimalAssertionsHold        ok      "none"
+step1Selected                       ok      "shell"
+step1Config                         ok      "desk zsh=true shell=zsh"
+step1AssertionsHold                 ok      "none"
+step2Selected                       ok      "shell"
+step2Alice                          ok      "sys=true alice=true ll=ls -l"
+step3Selected                       ok      "shell/zsh"
+step3Config                         ok      "sys=true fish=false alice=true"
+step3UnchosenFileIsNeverRead        ok      "built"
+step3UnchosenValueIsNeverApplied    ok      "built"
+step3ChosenFileIsRead               throws  landmine/default.nix was imported
+step4Selected                       ok      "shell/zsh"
+step4Homes                          ok      "sys=true alice=true bob=false"
+step4AliceChoosesFishIsRefused      throws  dendrite 'shell' is selected with different providers (host: zsh; user 'alice': fish)
+step5Desk                           ok      "shell/zsh,terminal/kitty"
+step5Kitty                          ok      "alice=zsh bob=none"
+step5Server                         ok      "shell/zsh terminal=false"
+step6Desk                           ok      "shell/zsh,terminal/kitty"
+step6Server                         ok      "shell/zsh"
+step6BareHost                       ok      "overrides=0"
+step7Desk                           ok      "1 alice=true"
+fullDesk                            ok      "shell/zsh,ssh,terminal/kitty tmux=false"
+fullHomes                           ok      "alice=zsh bob=none"
+fullServer                          ok      "shell/zsh,ssh"
+fullStandalone                      ok      "shell/fish,ssh fish=true"
+fullTmuxIsNeverImported             ok      "built"
+fullTmuxSwitchedBackOnIsImported    throws  landmine/default.nix was imported
+fullClash                           throws  catalogue names defined by more than one source: 'ssh' by core and upstream
 realSystemFailsTheAssertionForAnImportedSelection throws hosts/selectsSshInImport.nix but the host scan never saw it (scans do not follow `imports`)
-exampleWorkstationInventory         ok      "bluetooth alice=notifications/dunst"
-exampleWorkstationModules           ok      ["lambda","set{_class,_file,config,disabledModules,imports,key,options}","set{_class,_file,config,disabledModules,imports,key,options}","set{_class,_file,config,disabledModules,imports,key,options}","set{home-manager,imports}","set{services}","path"]
-exampleWorkstationConfig            ok      "desk bluetooth=true printing=false layout=de alice=true dunst=true mako=false"
-exampleWorkstationSelected          ok      "sys=bluetooth alice=notifications/dunst"
-exampleWorkstationSwitchedOffIsNeverImported ok 7
-exampleWorkstationSwitchedBackOnIsImported throws landmine/default.nix was imported
-exampleMergedInventory              ok      "dev:git,ssh,tmux"
-exampleMergedModules                ok      ["lambda","set{_class,_file,config,disabledModules,imports,key,options}","set{_class,_file,config,disabledModules,imports,key,options}","set{_class,_file,config,disabledModules,imports,key,options}","path"]
-exampleMergedConfig                 ok      "git=true ssh=true tmux=true"
-exampleMergedClash                  throws  catalogue names defined by more than one source: 'ssh' by shared and upstream
-exampleHomeInventory                ok      "alice:ssh=ssh.nix"
-exampleHomeModules                  ok      ["lambda","set{_class,_file,config,disabledModules,imports,key,options}","path"]
-exampleHomeConfig                   ok      "alice ssh=true"
-exampleHomeSelected                 ok      "ssh"
-exampleSharedInventory              ok      "desk:bar=bar.nix,dock=dock.nix"
-exampleSharedConfig                 ok      "desk sys=runtime alice=runtime"
 sharedBareHomeIsRefused             throws  is already declared
 sharedInlineSystemIsRefused         throws  is already declared
 valueAttrsEntryApplies              ok      "sys=attrs"

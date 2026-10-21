@@ -2029,6 +2029,14 @@ selectionCases
         type = lib.types.bool;
         default = false;
       };
+      options.programs.fish.enable = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+      };
+      options.programs.starship.enable = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+      };
     }
   ];
 
@@ -2279,7 +2287,7 @@ selectionCases
 
   standaloneHomeFailsTheAssertionForAnImportedSelection = failedAssertions (homeConfigOf {
     host = ./hosts/homeImportsASelection.nix;
-    args.registry = import ../../examples/minimal/registry.nix;
+    args.registry = import ../../examples/full/modules/default.nix;
   });
 
   unknownClassIsRefused =
@@ -2301,37 +2309,341 @@ selectionCases
   standaloneHomeTakesNoHomeManagerModule =
     (homeModules { args.homeManagerModule = homeManagerStub; }).inventory.host;
 
-  # ── The example (examples/home) ────────────────────────────────────────────
-  exampleHomeInventory =
-    let
-      inv = (example ../../examples/home).inventory;
-    in
-    "${inv.host}:${
-      builtins.concatStringsSep "," (
-        lib.mapAttrsToList (n: d: "${n}=${baseNameOf d.source}") inv.dendrites
-      )
-    }";
+  # ── The examples (examples/steps, examples/full) ───────────────────────────
+  # Each example is a flake, and its `outputs` take `habit`, `nixpkgs` and
+  # `home-manager`. They are called here with the suite's stand-ins: `nixpkgs`
+  # carries this suite's own `lib` with `nixosSystem`, and Home Manager's
+  # standalone evaluator is the stub below. Nothing is fetched, and the flake's
+  # `inputs` are never read.
+  habit.lib = {
+    composition = import ../../lib/composition.nix;
+    catalogues = import ../../lib/catalogues.nix;
+  };
 
-  exampleHomeModules = fingerprint (
-    (import ../../examples/home {
-      inherit habit;
-      home-manager.lib.homeManagerConfiguration = args: args;
-      nixpkgs = {
+  nixosSystem =
+    let
+      nixpkgsTree = dirOf (dirOf (builtins.unsafeGetAttrPos "evalModules" lib).file);
+    in
+    args:
+    import (nixpkgsTree + "/nixos/lib/eval-config.nix") (
+      {
         inherit lib;
+        system = null;
+      }
+      // args
+    );
+
+  home-manager.nixosModules.home-manager = homeManagerStub;
+
+  flakeOf =
+    dir:
+    (import (dir + "/flake.nix")).outputs {
+      inherit habit home-manager;
+      nixpkgs = {
+        lib = lib // {
+          inherit nixosSystem;
+        };
         legacyPackages.x86_64-linux = { };
       };
-    }).home.modules
-  );
+    };
 
-  # The system half of `ssh` sets `services.openssh`, which a home does not
-  # have: the home evaluates and carries the home half.
-  exampleHomeConfig =
+  # A desk built the way the flakes build one, from a registry and a host
+  # module, so a case can swap either.
+  deskOf =
+    {
+      registry,
+      host,
+      hostName ? "desk",
+    }:
+    composition.mkNixosHost {
+      nixpkgs.lib = lib // {
+        inherit nixosSystem;
+      };
+      inherit registry host hostName;
+      homeManagerModule = home-manager.nixosModules.home-manager;
+    };
+
+  # The module list of a desk, every element forced: a selected file that
+  # throws is reached, and one that was switched off is not.
+  forcedDesk =
+    registry: host: selectionModules:
+    forceEach
+      (composition.mkNixosModules {
+        hostName = "desk";
+        inherit registry host selectionModules;
+        homeManagerModule = home-manager.nixosModules.home-manager;
+      }).modules
+      "built";
+
+  # habit's own entries of a real NixOS evaluation's `assertions`: NixOS's
+  # others are not forced, since some need a store to answer.
+  habitAssertionsOf =
+    system:
+    failedAssertions {
+      assertions = lib.concatMap (d: d.value) (
+        lib.filter (
+          d: d.file == toString ../../lib/composition.nix
+        ) system.options.assertions.definitionsWithLocations
+      );
+    };
+
+  # A step's registry with one shell provider replaced. Steps 3 to 7 write
+  # `shell` as a provider set, so a provider can be swapped for a file that throws.
+  shellProviderIs =
+    dir: name: target:
     let
-      inherit ((example ../../examples/home).home) config;
+      reg = import (dir + "/modules/default.nix");
     in
-    "${config.home.username} ssh=${lib.boolToString config.programs.ssh.enable}";
+    reg
+    // {
+      catalogue = reg.catalogue // {
+        shell = {
+          providers = reg.catalogue.shell.providers // {
+            ${name} = target;
+          };
+        };
+      };
+    };
 
-  exampleHomeSelected = selectedBy (example ../../examples/home).home.config;
+  steps = ../../examples/steps;
+  full = ../../examples/full;
+
+  # ── Step 1: one file (steps/1-file) ────────────────────────────────────────
+  step1Selected = selectedBy (flakeOf (steps + "/1-file")).nixosConfigurations.desk.config;
+
+  step1Config =
+    let
+      inherit ((flakeOf (steps + "/1-file")).nixosConfigurations.desk) config;
+    in
+    builtins.concatStringsSep " " [
+      config.networking.hostName
+      "zsh=${lib.boolToString config.programs.zsh.enable}"
+      "shell=${config.users.defaultUserShell.pname}"
+    ];
+
+  step1AssertionsHold = habitAssertionsOf (flakeOf (steps + "/1-file")).nixosConfigurations.desk;
+
+  # ── Step 2: a home half (steps/2-home) ─────────────────────────────────────
+  step2Selected = selectedBy (flakeOf (steps + "/2-home")).nixosConfigurations.desk.config;
+
+  step2Alice =
+    let
+      inherit ((flakeOf (steps + "/2-home")).nixosConfigurations.desk) config;
+      alice = config.home-manager.users.alice;
+    in
+    builtins.concatStringsSep " " [
+      "sys=${lib.boolToString config.programs.zsh.enable}"
+      "alice=${lib.boolToString alice.programs.zsh.enable}"
+      "ll=${alice.programs.zsh.shellAliases.ll}"
+    ];
+
+  # ── Step 3: providers (steps/3-providers) ──────────────────────────────────
+  step3Selected = selectedBy (flakeOf (steps + "/3-providers")).nixosConfigurations.desk.config;
+
+  step3Config =
+    let
+      inherit ((flakeOf (steps + "/3-providers")).nixosConfigurations.desk) config;
+    in
+    builtins.concatStringsSep " " [
+      "sys=${lib.boolToString config.programs.zsh.enable}"
+      "fish=${lib.boolToString config.programs.fish.enable}"
+      "alice=${lib.boolToString config.home-manager.users.alice.programs.zsh.enable}"
+    ];
+
+  # The bash file is the one nothing selects, so a throw in it is never reached.
+  step3UnchosenFileIsNeverRead = forcedDesk (shellProviderIs (steps + "/3-providers") "bash" ./dendrites/landmine) (steps + "/3-providers/hosts/desk/default.nix") [ ];
+
+  # The fish value is the other one: a value that throws when applied.
+  step3UnchosenValueIsNeverApplied = forcedDesk (shellProviderIs (steps + "/3-providers") "fish" (throw "fish value applied")) (steps + "/3-providers/hosts/desk/default.nix") [ ];
+
+  step3ChosenFileIsRead = forcedDesk (shellProviderIs (steps + "/3-providers") "zsh" ./dendrites/landmine) (steps + "/3-providers/hosts/desk/default.nix") [ ];
+
+  # ── Step 4: users, one opts out (steps/4-users) ────────────────────────────
+  step4Selected = selectedBy (flakeOf (steps + "/4-users")).nixosConfigurations.desk.config;
+
+  step4Homes =
+    let
+      inherit ((flakeOf (steps + "/4-users")).nixosConfigurations.desk) config;
+      users = config.home-manager.users;
+    in
+    builtins.concatStringsSep " " [
+      "sys=${lib.boolToString config.programs.zsh.enable}"
+      "alice=${lib.boolToString users.alice.programs.zsh.enable}"
+      "bob=${lib.boolToString (users.bob.programs.zsh.enable or false)}"
+    ];
+
+  # Alice may not pick another provider than the host's on the same system.
+  step4AliceChoosesFishIsRefused =
+    (deskOf {
+      registry = import (steps + "/4-users/modules/default.nix");
+      host = selecting {
+        dendrites.shell = {
+          enable = true;
+          provider = "zsh";
+        };
+        users.alice = {
+          definition = steps + "/4-users/users/alice.nix";
+          home.enable = true;
+          dendrites.shell = {
+            enable = true;
+            provider = "fish";
+          };
+        };
+      };
+    }).system.config.habit.selected.shell.provider;
+
+  # ── Step 5: a terminal and its group, a second host (steps/5-terminal) ─────
+  step5Desk =
+    let
+      inherit ((flakeOf (steps + "/5-terminal")).nixosConfigurations) desk;
+    in
+    selectedBy desk.config;
+
+  step5Kitty =
+    let
+      inherit ((flakeOf (steps + "/5-terminal")).nixosConfigurations.desk) config;
+      users = config.home-manager.users;
+    in
+    builtins.concatStringsSep " " [
+      "alice=${users.alice.programs.kitty.settings.shell}"
+      "bob=${if users.bob.programs.kitty.settings ? shell then "set" else "none"}"
+    ];
+
+  step5Server =
+    let
+      server = (flakeOf (steps + "/5-terminal")).nixosConfigurations.server.config;
+    in
+    "${selectedBy server} terminal=${lib.boolToString server.habit.selected.terminal.enable}";
+
+  # ── Step 6: a fix that belongs to a capability (steps/6-override) ──────────
+  # The override's variable is read from the real NixOS evaluation in tests/real;
+  # forcing `environment.variables` here needs a store this sandbox does not have.
+  step6Desk = selectedBy (flakeOf (steps + "/6-override")).nixosConfigurations.desk.config;
+
+  step6Server = selectedBy (flakeOf (steps + "/6-override")).nixosConfigurations.server.config;
+
+  # A host that selects no shell is not touched, and its inventory names no record.
+  step6BareHost =
+    let
+      bare = deskOf {
+        registry = import (steps + "/6-override/modules/default.nix");
+        hostName = "bare";
+        host = {
+          networking.hostName = "bare";
+          nixpkgs.hostPlatform = "x86_64-linux";
+          boot.isContainer = true;
+          system.stateVersion = "26.11";
+        };
+      };
+    in
+    "overrides=${toString (builtins.length bare.inventory.overrides)}";
+
+  # ── Step 7: a piece two providers share (steps/7-shared) ───────────────────
+  step7Desk =
+    let
+      inherit ((flakeOf (steps + "/7-shared")).nixosConfigurations.desk) config;
+      starship = lib.filter (p: (p.pname or "") == "starship") config.environment.systemPackages;
+    in
+    "${toString (builtins.length starship)} alice=${lib.boolToString config.home-manager.users.alice.programs.starship.enable}";
+
+  # ── The full example (examples/full) ───────────────────────────────────────
+  fullDesk =
+    let
+      inherit ((flakeOf (full)).nixosConfigurations) desk;
+    in
+    "${selectedBy desk.config} tmux=${lib.boolToString desk.config.habit.selected.tmux.enable}";
+
+  fullHomes =
+    let
+      inherit ((flakeOf (full)).nixosConfigurations.desk) config;
+      users = config.home-manager.users;
+    in
+    builtins.concatStringsSep " " [
+      "alice=${users.alice.programs.kitty.settings.shell}"
+      "bob=${if users.bob.programs.kitty.settings ? shell then "set" else "none"}"
+    ];
+
+  fullServer =
+    let
+      server = (flakeOf (full)).nixosConfigurations.server.config;
+    in
+    selectedBy server;
+
+  # A standalone home with its own provider. ssh's system half sets
+  # `services.openssh`, which a home does not have, so the home evaluates only
+  # if that half is dropped.
+  fullStandalone =
+    let
+      home = (flakeOf (full)).homeConfigurations.alice.config;
+    in
+    "${selectedBy home} fish=${lib.boolToString home.programs.fish.enable}";
+
+  fullRegistry =
+    personal:
+    catalogues.mergeRegistries [
+      ((import (full + "/modules/default.nix")) // { name = "core"; })
+      (personal // { name = "personal"; })
+    ];
+
+  fullPersonal = import (full + "/modules/personal/default.nix");
+
+  fullDeskHost = full + "/hosts/desk/default.nix";
+
+  fullTmuxIsNeverImported = forcedDesk (fullRegistry (fullPersonal // { catalogue.tmux = ./dendrites/landmine; })) fullDeskHost [ ];
+
+  fullTmuxSwitchedBackOnIsImported = forcedDesk (fullRegistry (fullPersonal // { catalogue.tmux = ./dendrites/landmine; })) fullDeskHost [
+    { dendrites.tmux.enable = lib.mkForce true; }
+  ];
+
+  fullClash =
+    (catalogues.mergeRegistries [
+      ((import (full + "/modules/default.nix")) // { name = "core"; })
+      (fullPersonal // { name = "personal"; })
+      {
+        name = "upstream";
+        catalogue.ssh = full + "/modules/dendrites/ssh.nix";
+      }
+    ]).catalogue;
+
+  # One fails for a host whose selection sits in a file it imports.
+  realSystemFailsTheAssertionForAnImportedSelection = habitAssertionsOf (deskOf {
+    registry = import (full + "/modules/default.nix");
+    hostName = "box";
+    host = ./hosts/importsSshOnARealSystem.nix;
+  }).system;
+
+  # Two entries sharing one piece, with each half declared once. `dir` holds one
+  # entry file that both catalogue names point at; the bare path declares the
+  # home options twice, the inline import the system options.
+  sharedHost =
+    dir:
+    (composition.mkNixosHost {
+      nixpkgs.lib = lib // {
+        inherit nixosSystem;
+      };
+      hostName = "desk";
+      registry = {
+        catalogue = {
+          bar = dir + "/entry.nix";
+          dock = dir + "/entry.nix";
+        };
+        aggregations = { };
+      };
+      host = ./shared/desk.nix;
+      homeManagerModule = home-manager.nixosModules.home-manager;
+    }).system;
+
+  sharedBareHomeIsRefused =
+    let
+      inherit ((sharedHost ./shared/bareHome)) config;
+    in
+    builtins.concatStringsSep "," config.home-manager.users.alice.example.runtime.home;
+
+  sharedInlineSystemIsRefused =
+    let
+      inherit ((sharedHost ./shared/inlineSys)) config;
+    in
+    builtins.concatStringsSep "," config.example.runtime.system;
 
   # ── Merging registries (lib/catalogues.nix) ────────────────────────────────
   # Two sources that share no name merge into the union; one that shares a name
@@ -2609,247 +2921,6 @@ selectionCases
     "record"
     "caller"
   ];
-
-  # ── The examples (examples/) ───────────────────────────────────────────────
-  # Each example's `default.nix` is called as a consumer's flake would call it:
-  # habit's exports unapplied, a `nixpkgs` whose lib carries `nixosSystem`, and
-  # Home Manager. The NixOS tree is the one this suite's own `lib` came from,
-  # so a real `nixosSystem` evaluates against it and nothing is fetched. Home
-  # Manager is not in that tree: `homeManagerStub` stands in for it, so the
-  # system half still evaluates for real and each user's home is a submodule
-  # that collects what was routed to it.
-  habit.lib = {
-    composition = import ../../lib/composition.nix;
-    catalogues = import ../../lib/catalogues.nix;
-  };
-
-  nixosSystem =
-    let
-      nixpkgsTree = dirOf (dirOf (builtins.unsafeGetAttrPos "evalModules" lib).file);
-    in
-    args:
-    import (nixpkgsTree + "/nixos/lib/eval-config.nix") (
-      {
-        inherit lib;
-        system = null;
-      }
-      // args
-    );
-
-  home-manager.nixosModules.home-manager = homeManagerStub;
-
-  example =
-    dir:
-    import dir {
-      inherit habit home-manager;
-      nixpkgs = {
-        lib = lib // {
-          inherit nixosSystem;
-        };
-        legacyPackages.x86_64-linux = { };
-      };
-    };
-
-  # The module list an example hands `nixosSystem`, without evaluating NixOS.
-  exampleModules =
-    dir:
-    (import dir {
-      inherit habit home-manager;
-      nixpkgs.lib = lib // {
-        nixosSystem = args: args;
-      };
-    }).system.modules;
-
-  # The example's own registry and host with one catalogue entry swapped for a
-  # body that throws on import, and the module list forced element by element:
-  # a wrapped module is a lazy list element, so a length alone would never reach
-  # it. `selectionModules` join the scan beside the host.
-  workstationWithLandmine =
-    selectionModules:
-    let
-      own = import ../../examples/workstation/registry.nix;
-      resolved = composition.mkNixosModules {
-        hostName = "desk";
-        registry = own // {
-          catalogue = own.catalogue // {
-            printing = ./dendrites/landmine;
-          };
-        };
-        host = ../../examples/workstation/hosts/desk.nix;
-        inherit selectionModules;
-        homeManagerModule = home-manager.nixosModules.home-manager;
-      };
-    in
-    forceEach resolved.modules (builtins.length resolved.modules);
-
-  # A single-file dendrite: the inventory names the file that answered.
-  exampleMinimalInventory =
-    let
-      inv = (example ../../examples/minimal).inventory;
-    in
-    "${inv.host}:${
-      builtins.concatStringsSep "," (lib.mapAttrsToList (n: d: "${n}=${baseNameOf d.source}") inv.dendrites)
-    }";
-
-  exampleMinimalModules = fingerprint (exampleModules ../../examples/minimal);
-
-  # habit's own entries of a real NixOS evaluation's `assertions`: NixOS's
-  # others are not forced, since some need a store to answer.
-  habitAssertionsOf =
-    system:
-    failedAssertions {
-      assertions = lib.concatMap (d: d.value) (
-        lib.filter (
-          d: d.file == toString ../../lib/composition.nix
-        ) system.options.assertions.definitionsWithLocations
-      );
-    };
-
-  exampleMinimalAssertionsHold = habitAssertionsOf (example ../../examples/minimal).system;
-
-  # One fails for a host whose selection sits in a file it imports.
-  realSystemFailsTheAssertionForAnImportedSelection =
-    habitAssertionsOf
-      (composition.mkNixosHost {
-        nixpkgs.lib = lib // {
-          inherit nixosSystem;
-        };
-        hostName = "box";
-        registry = import ../../examples/minimal/registry.nix;
-        host = ./hosts/importsSshOnARealSystem.nix;
-        homeManagerModule = home-manager.nixosModules.home-manager;
-      }).system;
-
-  exampleMinimalConfig =
-    let
-      inherit ((example ../../examples/minimal).system) config;
-    in
-    "${config.networking.hostName} ssh=${lib.boolToString config.services.openssh.enable}";
-
-  exampleWorkstationInventory =
-    let
-      inv = (example ../../examples/workstation).inventory;
-      names = d: builtins.concatStringsSep "," (lib.attrNames d);
-    in
-    "${names inv.dendrites} alice=${names inv.users.alice.dendrites}/${inv.users.alice.dendrites.notifications.provider}";
-
-  exampleWorkstationModules = fingerprint (exampleModules ../../examples/workstation);
-
-  exampleWorkstationConfig =
-    let
-      inherit ((example ../../examples/workstation).system) config;
-      home = config.home-manager.users.alice;
-    in
-    builtins.concatStringsSep " " [
-      config.networking.hostName
-      "bluetooth=${lib.boolToString config.hardware.bluetooth.enable}"
-      "printing=${lib.boolToString config.services.printing.enable}"
-      "layout=${config.services.xserver.xkb.layout}"
-      "alice=${lib.boolToString config.users.users.alice.isNormalUser}"
-      "dunst=${lib.boolToString (home.services.dunst.enable or false)}"
-      "mako=${lib.boolToString (home.services.mako.enable or false)}"
-    ];
-
-  # `habit.selected` in the example's real system evaluation and in alice's
-  # home: the host's own scope in one, hers in the other.
-  exampleWorkstationSelected =
-    let
-      inherit ((example ../../examples/workstation).system) config;
-    in
-    "sys=${selectedBy config} alice=${selectedBy config.home-manager.users.alice}";
-
-  # `printing` is a member of `desktop` and the host switched it off: with its
-  # body replaced by one that throws on import, the whole module list is still
-  # built. The complement turns it back on above the host's `false`, and the
-  # same body is reached.
-  exampleWorkstationSwitchedOffIsNeverImported = workstationWithLandmine [ ];
-
-  exampleWorkstationSwitchedBackOnIsImported = workstationWithLandmine [
-    { dendrites.printing.enable = lib.mkForce true; }
-  ];
-
-  exampleMergedInventory =
-    let
-      inv = (example ../../examples/merged).inventory;
-    in
-    "${builtins.concatStringsSep "," inv.aggregation}:${builtins.concatStringsSep "," (lib.attrNames inv.dendrites)}";
-
-  exampleMergedModules = fingerprint (exampleModules ../../examples/merged);
-
-  exampleMergedConfig =
-    let
-      inherit ((example ../../examples/merged).system) config;
-    in
-    builtins.concatStringsSep " " [
-      "git=${lib.boolToString config.programs.git.enable}"
-      "ssh=${lib.boolToString config.services.openssh.enable}"
-      "tmux=${lib.boolToString config.programs.tmux.enable}"
-    ];
-
-  # The example's two sources and a third that also defines `ssh`.
-  exampleMergedClash =
-    (catalogues.mergeRegistries [
-      (import ../../examples/merged/shared/registry.nix // { name = "shared"; })
-      (import ../../examples/merged/personal/registry.nix // { name = "personal"; })
-      {
-        name = "upstream";
-        catalogue.ssh = ../../examples/minimal/dendrites/ssh.nix;
-      }
-    ]).catalogue;
-
-  # Two entries sharing one piece, with each half declared once.
-  exampleSharedInventory =
-    let
-      inv = (example ../../examples/shared).inventory;
-    in
-    "${inv.host}:${
-      builtins.concatStringsSep "," (
-        lib.mapAttrsToList (n: d: "${n}=${baseNameOf d.source}") inv.dendrites
-      )
-    }";
-
-  exampleSharedConfig =
-    let
-      inherit ((example ../../examples/shared).system) config;
-    in
-    builtins.concatStringsSep " " [
-      config.networking.hostName
-      "sys=${builtins.concatStringsSep "," config.example.runtime.system}"
-      "alice=${builtins.concatStringsSep "," config.home-manager.users.alice.example.runtime.home}"
-    ];
-
-  # The two forms the docs call a trap, with two entries selecting the piece.
-  # `dir` holds one entry file that both catalogue names point at; the bare path
-  # declares the home options twice, the inline import the system options.
-  sharedHost =
-    dir:
-    (composition.mkNixosHost {
-      nixpkgs.lib = lib // {
-        inherit nixosSystem;
-      };
-      hostName = "desk";
-      registry = {
-        catalogue = {
-          bar = dir + "/entry.nix";
-          dock = dir + "/entry.nix";
-        };
-        aggregations = { };
-      };
-      host = ../../examples/shared/hosts/desk.nix;
-      homeManagerModule = home-manager.nixosModules.home-manager;
-    }).system;
-
-  sharedBareHomeIsRefused =
-    let
-      inherit ((sharedHost ./shared/bareHome)) config;
-    in
-    builtins.concatStringsSep "," config.home-manager.users.alice.example.runtime.home;
-
-  sharedInlineSystemIsRefused =
-    let
-      inherit ((sharedHost ./shared/inlineSys)) config;
-    in
-    builtins.concatStringsSep "," config.example.runtime.system;
 
   # ── Catalogue values (tests/selection/values) ──────────────────────────────
   # An entry may be a module value as well as a path. A selected value is applied

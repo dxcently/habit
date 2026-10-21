@@ -47,6 +47,21 @@ let
 
 in
 {
+  stepSixOverrideReachesItsHosts = {
+    got =
+      let
+        steps = (import "${habit}/examples/steps/6-override/flake.nix").outputs { inherit habit nixpkgs home-manager; };
+      in
+      {
+        desk = steps.nixosConfigurations.desk.config.environment.variables.ZSH_DISABLE_COMPFIX;
+        server = steps.nixosConfigurations.server.config.environment.variables.ZSH_DISABLE_COMPFIX;
+      };
+    want = {
+      desk = "true";
+      server = "true";
+    };
+  };
+
   nixosHostSelectionReachesEveryUser = {
     got = {
       system = config.programs.zsh.enable;

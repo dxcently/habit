@@ -69,10 +69,17 @@ suite evaluates. This file holds the invariants to keep while editing them.
   together.
 - A new registry field to merge: `lib/catalogues.nix`, a line in `mergeRegistries`
   through `mergeField`.
-- A new example: a directory under `examples/` whose `default.nix` takes
-  `{ habit, nixpkgs, home-manager }`, its cases in the examples section of
-  `tests/selection/cases.nix` (inventory, module list, an option value) and their
-  rows in `tests/selection/run.sh`. Each file starts `# examples/<its path>`.
+- A new example: a directory under `examples/` holding a `flake.nix` whose
+  `outputs` take `{ habit, nixpkgs, home-manager }` (`home-manager` may be unused),
+  laid out as a repository: `flake.nix`, `modules/default.nix` (the registry, with
+  its `catalogue`, `aggregations` and `overrides` fields all present), `modules/`
+  for the dendrites, groups and records, `hosts/<host>/default.nix` and
+  `users/<user>.nix`. Its cases are in the examples section of
+  `tests/selection/cases.nix`, built with `flakeOf`, and their rows in
+  `tests/selection/run.sh`. Each file starts `# examples/<its path>`. A step that
+  grows the walkthrough is a new `examples/steps/<n>-<name>/` and a section in
+  `docs/growing-a-capability.md`; `examples/full` is the template and changes with
+  the walkthrough's last step.
 - A new docs page: the file in `docs/` and its line in `docs/SUMMARY.md`.
 
 ## Docs ride with code

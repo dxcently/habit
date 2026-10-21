@@ -27,7 +27,8 @@ let
 
   inherit (home.home) config;
 
-  example = (import "${habit}/examples/home" { inherit habit nixpkgs home-manager; }).home;
+  example =
+    ((import "${habit}/examples/full/flake.nix").outputs { inherit habit nixpkgs home-manager; }).homeConfigurations.alice;
 in
 {
   homeDropsTheSystemLaneAndLandsTheHomeHalf = {
@@ -86,12 +87,17 @@ in
   exampleHomeEvaluates = {
     got = {
       ssh = example.config.programs.ssh.enable;
+      fish = example.config.programs.fish.enable;
       selected = enabled example.config.habit.selected;
       drv = lib.hasSuffix ".drv" example.activationPackage.drvPath;
     };
     want = {
       ssh = true;
-      selected = [ "ssh" ];
+      fish = true;
+      selected = [
+        "shell"
+        "ssh"
+      ];
       drv = true;
     };
   };
