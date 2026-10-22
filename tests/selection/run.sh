@@ -93,6 +93,13 @@ autoHomeOnlyWithoutAHomeHalfIsRefused throws selects only the home half of 'choi
 userGroupPickWithGroupOffIsRefused  throws aggregation 'desk': `habit.users.alice.aggregation.desk.notifications` sets provider 'mako' and enable = false
 userEnabledWithoutProviderTakesTheHostsProvider ok "sys=dunst alice=dunst bob=dunst"
 userEnabledWithoutProviderAndNoHolderIsRefused throws dendrite 'notifications' is enabled but chose no provider
+hostSystemOffUserEnabledTakesHostProvider ok "sys= alice=dunst bob=dunst"
+hostSystemOffUserPickIsHomeOnly     ok      "sys= alice=herald bob=dunst"
+hostSystemOffUserExplicitSystemTakesIt ok   "sys=herald alice=herald bob=dunst"
+hostUnselectedUserPickTakesTheSystemHalf ok "sys=herald alice=herald"
+homeWithoutUsersNamesAnotherProvider throws every user with home.enable opts out of it or names another provider of it
+userDirectPickBeatsOwnGroupPick     ok      "sys=herald alice=herald"
+providerKeysFollowTheHolder         ok      true
 hostSentMemberIsNotAHostSelection   ok      "false"
 unnamedThirdProviderIsNeverImported ok      "dunst+herald"
 chosenThirdProviderIsImported       throws  notifications/landmine.nix was imported

@@ -939,44 +939,49 @@ rec {
         n: lib.findFirst (p: p != null) null (map (g: ((homeHalfOf g).providers or { }).${n} or null) hostGroups)
       );
 
+      # The host's claim on one dendrite: its own selection, or else the home
+      # member a host group sent. Null where the host reaches it no way. A
+      # host-sent member's system half is the host's, so its `asks` is too.
+      hostClaimOf =
+        n:
+        if resolved.dendrites ? ${n} && resolved.dendrites.${n}.enable then
+          {
+            provider = resolved.dendrites.${n}.provider;
+            asks = resolved.dendrites.${n}.system;
+            selected = true;
+          }
+        else if hostHome ? ${n} then
+          {
+            provider = hostHome.${n};
+            asks = resolved.dendrites.${n}.system;
+            selected = false;
+          }
+        else
+          null;
+
       # What a user's own `enable` resolves to once the host's groups are in: a
-      # bool for selection, `optOut` for an explicit `false`, and `fromHost` for
-      # a dendrite that only a host group's home half brought to this user. Its
-      # `system` is what the user wrote. Where the user wrote none for a host-sent
-      # member, it is the host's wish: null (the default ask) where the host
-      # applies the system half, false where the host turned it off (`hostOff`).
+      # bool for selection and `optOut` for an explicit `false`. Turned on with no
+      # provider, a user takes the host's provider for that dendrite. Where she
+      # wrote no `system` and the host turned the system half off, she gets the
+      # home half only (`hostOff`); otherwise her unset `system` asks.
       normalizeUser =
-        name: u:
-        let
-          gateUser = gate.users.${name};
-          explicit = lib.filter (n: userOn gateUser.dendrites.${n}) (lib.attrNames gateUser.dendrites);
-          ownGroups = lib.filter (g: gateUser.aggregation.${g}.enable == true) (lib.attrNames gateUser.aggregation);
-          hostOnlyGroups = lib.filter (
-            g: lib.elem g hostGroups && gateUser.aggregation.${g}.enable == null
-          ) (lib.attrNames gateUser.aggregation);
-          hostSentMembers = homeMembersOfGroups (lib.optionals u.home.enable hostOnlyGroups);
-          ownMembers = explicit ++ homeMembersOfGroups ownGroups;
-          hostSent = n: lib.elem n hostSentMembers && !(lib.elem n ownMembers);
-        in
+        u:
         u
         // {
           dendrites = lib.mapAttrs (
             n: d:
             let
-              hostSys = resolved.dendrites.${n}.system;
-              fromHost = userOn d && hostSent n;
-              unwritten = fromHost && d.system == null;
+              hostClaim = hostClaimOf n;
+              hostOff = d.system == null && hostClaim != null && !hostClaim.asks;
             in
             d
             // {
               enable = userOn d;
               optOut = d.enable == false;
-              # Turned on with no provider, a user takes the one the host's system
-              # half holds, which is the same as naming it.
-              provider = if d.provider == null && userOn d then holdProvider n else d.provider;
-              inherit fromHost;
-              hostOff = unwritten && !hostSys;
-              system = if unwritten then (if hostSys then null else false) else d.system;
+              provider =
+                if d.provider == null && userOn d && hostClaim != null then hostClaim.provider else d.provider;
+              inherit hostOff;
+              system = if hostOff then false else d.system;
             }
           ) u.dendrites;
           aggregation = lib.mapAttrs (
@@ -988,29 +993,15 @@ rec {
             }
           ) u.aggregation;
         };
-      # The provider of the host's system half for one dendrite, when the host
-      # asks for it: its own selection, or the home member a group sent.
-      holdProvider =
-        n:
-        let
-          hostDendrite = resolved.dendrites.${n};
-        in
-        if !hostDendrite.system then
-          null
-        else if hostDendrite.enable then
-          hostDendrite.provider
-        else
-          hostHome.${n} or null;
 
-      usersRaw = lib.mapAttrs normalizeUser resolved.users;
+      usersRaw = lib.mapAttrs (_: normalizeUser) resolved.users;
       homeUsers = lib.filter (u: usersRaw.${u}.home.enable) (lib.attrNames usersRaw);
 
       # Every claim on one dendrite, and the provider whose system half applies
-      # (`holder`). The host's claim is its own selection, or else the home half a
-      # host group sent: a host-sent member's system half is the host's, whichever
-      # provider a user then takes for its home. A user's claim is each enabled
-      # user's selection, or the host-sent member it took. A claim asks for the
-      # system half unless it says `false`; an unwritten `system` asks.
+      # (`holder`). The host's claim comes from `hostClaimOf`; a user's claim is
+      # each enabled user's selection. A claim asks for the system half unless it
+      # says `false`; an unwritten `system` asks, unless the host turned the system
+      # half off, which makes her home-only.
       #   - The host holds the system half when it asks for it; then the holder is
       #     its provider, and a user's other provider is home only, automatically.
       #   - Otherwise the holder is the one provider every asking user names.
@@ -1021,7 +1012,7 @@ rec {
       claimsOf =
         name:
         let
-          hostDendrite = resolved.dendrites.${name};
+          hostClaim = hostClaimOf name;
           userDendrite = u: usersRaw.${u}.dendrites.${name};
           enabledUsers = lib.filter (u: (userDendrite u).enable) (lib.attrNames usersRaw);
 
@@ -1030,52 +1021,32 @@ rec {
           reachedByHost = lib.filter (
             u:
             !(userDendrite u).optOut
-            && !((userDendrite u).enable && (userDendrite u).provider != hostDendrite.provider)
+            && !((userDendrite u).enable && (userDendrite u).provider != hostClaim.provider)
           ) homeUsers;
+          hostUsers = if hostClaim != null && hostClaim.selected then reachedByHost else [ ];
+          hostHolds = hostClaim != null && hostClaim.asks;
 
-          hostClaims =
-            if hostDendrite.enable then
-              [
-                {
-                  kind = "host";
-                  userName = null;
-                  provider = hostDendrite.provider;
-                  asks = hostDendrite.system;
-                  users = reachedByHost;
-                  fromHost = false;
-                  hostOff = false;
-                }
-              ]
-            else if lib.hasAttr name hostHome then
-              [
-                {
-                  kind = "host";
-                  userName = null;
-                  provider = hostHome.${name};
-                  asks = hostDendrite.system;
-                  users = [ ];
-                  fromHost = false;
-                  hostOff = false;
-                }
-              ]
-            else
-              [ ];
-
+          hostEntry = lib.optional (hostClaim != null) {
+            kind = "host";
+            provider = hostClaim.provider;
+            asks = hostClaim.asks;
+            system = hostClaim.asks;
+            users = hostUsers;
+          };
           userClaims = map (u: {
             kind = "user";
             userName = u;
             provider = (userDendrite u).provider;
             asks = (userDendrite u).system;
             users = [ u ];
-            inherit (userDendrite u) fromHost hostOff;
+            inherit (userDendrite u) hostOff;
           }) enabledUsers;
 
-          hostHolds = lib.filter (c: c.asks == true) hostClaims;
           asking = lib.filter (c: c.asks != false) userClaims;
           askers = lib.unique (map (c: c.provider) asking);
           holder =
-            if hostHolds != [ ] then
-              (lib.head hostHolds).provider
+            if hostHolds then
+              hostClaim.provider
             else if lib.length askers == 1 then
               lib.head askers
             else
@@ -1088,35 +1059,33 @@ rec {
           ) asking;
 
           claims = map (
-            c:
-            c
-            // {
-              system = if c.kind == "host" then c.asks else systemFor holder c.asks c.provider;
-            }
-          ) (hostClaims ++ userClaims);
+            c: if c.kind == "host" then c else c // { system = systemFor holder c.asks c.provider; }
+          ) (hostEntry ++ userClaims);
         in
-        if hostHolds != [ ] && clashing != [ ] then
+        if hostHolds && clashing != [ ] then
           let
             c = lib.head clashing;
           in
           throw "user '${c.userName}' sets `habit.users.${c.userName}.dendrites.${name}.system = true` with provider ${providerText c.provider}, but the host holds the system half of '${name}' with ${providerText holder}; one system takes one implementation. Drop that `system = true` to take the home half alone, or name ${providerText holder}"
-        else if hostHolds == [ ] && lib.length askers > 1 then
+        else if !hostHolds && lib.length askers > 1 then
           throw "dendrite '${name}' is wanted with different providers for its system half (${claimantList}); one system takes one implementation. Either set `habit.users.<u>.dendrites.${name}.system = false` on one so it lives in that user's home only, or, if both need the system half, they are not alternatives: make them two dendrites"
         else
           {
-            inherit holder claims;
-            hostUsers = if hostClaims == [ ] then [ ] else (lib.head hostClaims).users;
+            inherit holder claims hostUsers;
           };
+
+      # Each dendrite's claims, for the users and for the module list.
+      claims = lib.genAttrs (lib.attrNames resolved.dendrites) claimsOf;
 
       # A user's dendrite with its system half settled: the claims decide it.
       users = lib.mapAttrs (
-        name: u:
+        _: u:
         u
         // {
           dendrites = lib.mapAttrs (
             n: d:
             if d.enable then
-              d // { system = systemFor (claimsOf n).holder d.system d.provider; }
+              d // { system = systemFor claims.${n}.holder d.system d.provider; }
             else
               d
           ) u.dendrites;
@@ -1183,10 +1152,7 @@ rec {
       else
         resolved
         // {
-          inherit users hostHome;
-          # What each dendrite's claimants ask for, and which provider holds its
-          # system half. dendriteModules builds one module per provider from it.
-          claims = lib.genAttrs (lib.attrNames resolved.dendrites) claimsOf;
+          inherit users hostHome claims;
           # The gate's answer to each user's `enable`, as written: the platform
           # pass checks the host's and imports' writes against it.
           scanned = gate;
@@ -1360,7 +1326,13 @@ rec {
           in
           lanes.wrap {
             inherit name;
-            key = if provider == null then name else "${name}.${provider}";
+            # The system half's module, and a single one, keeps the name as v0.5 had
+            # it; each other provider's home-only module is `name/provider`.
+            key =
+              if provider == null || provider == sel.holder || lib.length providers == 1 then
+                name
+              else
+                "${name}/${provider}";
             inherit (impl) path value valueName;
             standalone = isHome;
             homeFor = lib.unique (lib.concatMap (c: c.users) claimed);

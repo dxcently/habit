@@ -99,10 +99,13 @@ passes ([The constructor](constructor.md#the-two-hooks)).
 ## Platform: import what was kept
 
 The platform pass walks the resolved selection and imports each selected
-capability once, wrapped ([Dendrites](dendrites.md#a-plain-module)): its system
-half applies in the host's evaluation unless every selection of it has
-`system = false`, and its home half goes to the users it was selected for, which is every Home Manager user when the host selected it
-and the one user when a user did. A user who named another provider than the one holding the system half gets that provider's home half and none of the holder's. Each user's module is wrapped the same way.
+capability once, wrapped ([Dendrites](dendrites.md#a-plain-module)). Its system
+half applies in the host's evaluation through the one provider that holds it,
+and nothing is applied when no provider holds it. Its home half goes to the users
+it was selected for: every Home Manager user when the host selected it, and the
+one user when a user did. A user who named another provider than the holder gets
+that provider's home half and none of the holder's. Each user's module is wrapped
+the same way.
 A standalone home has no system and no users: the platform pass drops each
 capability's system half and imports its home half into the home itself
 ([The constructor](constructor.md#classes)). It is the only place anything from

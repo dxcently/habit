@@ -134,9 +134,11 @@ that opted out ([Opting out](host.md#opting-out)):
 | a host-selected group, and user `U` writes `enable = false` for the member | applied, as the host's (whatever the users do) | every user with a home except `U` |
 
 A selection's `system` says whether it asks for the module's system half. A
-host's is `true` by default; a user's is unset, which asks too. The system half
-is applied by the one provider that holds it: the host's, when the host asks, and
-otherwise the provider every asking user names ([Several providers](#several-providers)).
+host's is `true` by default. A user's is unset, which asks, unless the host turned
+the half off with `system = false`: then an unset user is home only, and only an
+explicit `system = true` takes it. The system half is applied by the one provider
+that holds it: the host's, when the host asks, and otherwise the provider every
+asking user names ([Several providers](#several-providers)).
 Where the home half goes does not depend on it. A user's selection applies the
 system half by default because some modules need both sides (a screen locker's
 PAM service). A module reached by several selections is wrapped once per
@@ -378,8 +380,10 @@ package from a list of names. A capability written by hand stays a file.
 
 A selected value is applied exactly where a file's module would be: it takes
 the same `habit:<name>` key, its `habit.home` half goes to the users it reaches
-by the same rules, and its conditions and priorities behave as in a file. Two
-names for one value are two entries, each applied under its own key.
+by the same rules, and its conditions and priorities behave as in a file. The key
+is `habit:<name>` for the module holding the system half, or for the only module a
+capability has; each other provider's home-only module is `habit:<name>/<provider>`.
+Two names for one value are two entries, each applied under its own key.
 
 The read boundary is exact. Every catalogue entry is read to weak head normal
 form to learn its kind (a path, an attrset or a function), so an entry that is

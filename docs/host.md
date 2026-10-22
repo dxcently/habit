@@ -150,10 +150,10 @@ Each `habit.users.<user>` is a scope of its own.
 | `home.enable`                                | bool            | `false` | give this user a Home Manager configuration; off imports no Home Manager for them, and nothing the host selected reaches the user's home |
 | `home.config`                                | deferred module | `{ }`   | extra home settings, evaluated only in the user's Home Manager configuration |
 | `dendrites.<name>.enable`                    | null or bool    | `null`  | `true` selects the capability for this user's home; naming a `provider` implies it; `false` withholds the home half the host sent ([Opting out](#opting-out)) |
-| `dendrites.<name>.provider`                  | null or string  | `null`  | which provider answers it for this user's home; it beats the host's for that home alone ([Choosing a provider per user](#choosing-a-provider-per-user)) |
-| `dendrites.<name>.system`                    | null or bool    | `null`  | `null` asks for the system half, which the holder keeps; `false` asks for the home half alone; `true` asks, and must name the holder's provider |
+| `dendrites.<name>.provider`                  | null or string  | `null`  | which provider answers it for this user's home; it beats the host's and the one her group names, for that home alone ([Choosing a provider per user](#choosing-a-provider-per-user)) |
+| `dendrites.<name>.system`                    | null or bool    | `null`  | `null` asks for the system half, which the holder keeps, unless the host turned it off with `system = false`, then the home half alone; `false` asks for the home half alone; `true` asks, and takes it when the host does not hold it |
 | `aggregation.<group>.enable`                 | null or bool    | `null`  | `true` selects the group's `home` half for this user; `false` withholds the one the host sent |
-| `aggregation.<group>.<member>.provider`      | null or string  | the body's | which provider answers a provider-bearing member for this user |
+| `aggregation.<group>.<member>.provider`      | null or string  | the body's | which provider answers a provider-bearing member for this user; her direct `dendrites.<name>.provider` beats it |
 
 ```nix
 # examples/full/users/alice.nix
@@ -189,6 +189,8 @@ changed; what the host holds decides the system half:
 | nothing      | fish                       | fish, alice's     | fish         | none                  |
 | nothing      | fish, `system = false`     | none              | fish         | none                  |
 | nothing      | fish, and bob names zsh    | refused           |              |                       |
+| zsh, `system = false` | fish                  | none              | fish         | zsh, home only        |
+| zsh, `system = false` | fish, `system = true` | fish, alice's     | fish         | zsh, home only        |
 
 The rule, for one capability on one system:
 
@@ -196,15 +198,22 @@ The rule, for one capability on one system:
 claims on the capability
 ├── the host holds the system half (it asks, and it has a provider)?
 │     yes ──► its provider holds it; a user's other provider is her home alone
-│     no  ──► the users who ask for the system half (`system` unset or true)
+│     no  ──► the users who ask: `system = true`, or unset unless the host wrote `system = false`
 │               ├── one provider between them ──► it holds the system half
 │               └── two or more providers ──► refused, naming each user
-└── `system = true` naming another provider than the holder ──► refused
+└── under a host that holds it: `system = true` naming another provider ──► refused
 ```
 
 A host-sent member, one a group's home half brings, is the host's the same way:
 the group's provider holds the system half, and a user's own pick for the member
 is her home alone.
+
+A host that turns the system half off with `system = false` holds nothing, so a
+user's unset `system` is home only, and only her explicit `system = true` takes
+it. A user turned on with no provider takes the host's provider for that
+dendrite, whether or not the host asks for the system half. A user's direct
+`dendrites.<name>.provider` beats the provider her group names for the same
+dendrite, for her home alone.
 
 ### What a user's home is made of
 

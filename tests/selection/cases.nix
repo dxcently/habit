@@ -557,7 +557,7 @@ let
       dendrites.notifications = dunst // {
         system = false;
       };
-      users.alice = homeUser "alice" { dendrites.notifications = dunst; };
+      users.alice = homeUser "alice" { dendrites.notifications = dunst // { system = true; }; };
       users.bob = homeUser "bob" { };
     };
 
@@ -613,7 +613,7 @@ let
         enable = true;
         system = false;
       };
-      users.alice = homeUser "alice" { dendrites.splitLandmine.enable = true; };
+      users.alice = homeUser "alice" { dendrites.splitLandmine = { enable = true; system = true; }; };
     };
 
     # A member of an aggregation is switched to the home half alone by the host,
@@ -693,7 +693,7 @@ let
             dendrites.notifications = dunst // {
               system = false;
             };
-            users.alice = homeUser "alice" { dendrites.notifications = dunst; };
+            users.alice = homeUser "alice" { dendrites.notifications = dunst // { system = true; }; };
           };
         };
       in
@@ -793,6 +793,84 @@ let
     userEnabledWithoutProviderAndNoHolderIsRefused = assembled {
       users.alice = homeUser "alice" { dendrites.notifications.enable = true; };
     };
+
+    # The host selects a provider for its home alone. A user turned on with no
+    # provider takes the host's, so her home gets it; nothing holds the system
+    # half, and her unset `system` is home only.
+    hostSystemOffUserEnabledTakesHostProvider = assembled {
+      dendrites.notifications = dunst // {
+        system = false;
+      };
+      users.alice = homeUser "alice" { dendrites.notifications.enable = true; };
+      users.bob = homeUser "bob" { };
+    };
+
+    # The host turned the system half off, so the user's pick is her home alone:
+    # her unset `system` does not take the system half.
+    hostSystemOffUserPickIsHomeOnly = assembled {
+      dendrites.notifications = dunst // {
+        system = false;
+      };
+      users.alice = homeUser "alice" { dendrites.notifications.provider = "herald"; };
+      users.bob = homeUser "bob" { };
+    };
+
+    # Only an explicit `system = true` takes the system half when the host has
+    # turned it off.
+    hostSystemOffUserExplicitSystemTakesIt = assembled {
+      dendrites.notifications = dunst // {
+        system = false;
+      };
+      users.alice = homeUser "alice" {
+        dendrites.notifications = {
+          provider = "herald";
+          system = true;
+        };
+      };
+      users.bob = homeUser "bob" { };
+    };
+
+    # The host does not select the dendrite at all: a user's pick with `system`
+    # unset takes the system half, as in v0.5.
+    hostUnselectedUserPickTakesTheSystemHalf = assembled {
+      users.alice = homeUser "alice" { dendrites.notifications.provider = "herald"; };
+    };
+
+    # A host with `system = false` and no user reached by its home half: the
+    # refusal names the user who names another provider.
+    homeWithoutUsersNamesAnotherProvider = assembled {
+      dendrites.notifications = dunst // {
+        system = false;
+      };
+      users.alice = homeUser "alice" { dendrites.notifications.provider = "mako"; };
+    };
+
+    # A user's own provider for a dendrite beats the provider her group names for
+    # it: the direct pick is the one she gets.
+    userDirectPickBeatsOwnGroupPick = assembled {
+      users.alice = homeUser "alice" {
+        dendrites.notifications.provider = "herald";
+        aggregation.desk = {
+          enable = true;
+          notifications.provider = "mako";
+        };
+      };
+    };
+
+    # A module key is the dendrite's name for the module holding its system half,
+    # or for the only module it has; every other provider is `name/provider`.
+    providerKeysFollowTheHolder =
+      let
+        r = resolve {
+          dendrites.notifications = dunst;
+          users.alice = homeUser "alice" { dendrites.notifications.provider = "herald"; };
+        };
+      in
+      builtins.concatStringsSep " " (
+        lib.sort lib.lessThan (
+          map (m: m.key) (builtins.filter (m: lib.hasPrefix "habit:notifications" (m.key or "")) r.modules)
+        )
+      ) == "habit:notifications habit:notifications/herald";
 
     # A host-sent member is not a host selection: the host's own `selected` does
     # not list it, while the system half it carries is the host's.
@@ -1196,7 +1274,7 @@ selectionCases
           };
         }
         {
-          users.alice = homeUser "alice" { dendrites.notifications = dunst; };
+          users.alice = homeUser "alice" { dendrites.notifications = dunst // { system = true; }; };
         };
 
   # A record with no `hosts` reaches every host that selected a target — and
