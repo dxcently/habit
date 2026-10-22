@@ -701,7 +701,7 @@ let
         lib.boolToString inv.users.alice.dendrites.notifications.system
       }";
 
-    # ── Per-user providers (v0.6) ──────────────────────────────────────────────
+    # ── Per-user providers ─────────────────────────────────────────────────────
     # The host holds the system half with dunst. A user's own provider is her
     # home alone; the others keep the host's home.
     userPickMod = {
@@ -795,7 +795,7 @@ let
     };
 
     # A user turned on with no provider takes the host's, the same provider, so
-    # her unset `system` applies the system half, as in v0.5.1.
+    # her unset `system` applies the system half, since it defaults to `true`.
     hostSystemOffUserEnabledTakesHostProvider = assembled {
       dendrites.notifications = dunst // {
         system = false;
@@ -830,9 +830,46 @@ let
     };
 
     # The host does not select the dendrite at all: a user's pick with `system`
-    # unset takes the system half, as in v0.5.
+    # unset takes the system half.
     hostUnselectedUserPickTakesTheSystemHalf = assembled {
       users.alice = homeUser "alice" { dendrites.notifications.provider = "herald"; };
+    };
+
+    # The host's home-only provider is refused by name when a user names a provider
+    # with no home half, and the host's `system = false` gives the home half nowhere.
+    homeOnlyHostWithAUserWithoutAHomeHalfIsRefused = assembledIn registryWithModules {
+      dendrites.choice = {
+        enable = true;
+        provider = "homeonly";
+        system = false;
+      };
+      users.alice = homeUser "alice" { dendrites.choice.provider = "systemonly"; };
+      users.bob = homeUser "bob" { };
+    };
+
+    # A user's `system` written under a wrapper cannot be read. Where the host
+    # selected the dendrite and the user names another provider, that decides the
+    # system half, so the refusal names the wrapper to remove.
+    wrappedSystemWhereItMattersIsRefused = assembled {
+      dendrites.notifications = dunst;
+      users = lib.mkIf true {
+        alice = homeUser "alice" {
+          dendrites.notifications = {
+            provider = "herald";
+            system = true;
+          };
+        };
+        bob = homeUser "bob" { };
+      };
+    };
+
+    # The same wrapper where the user names the host's provider: nothing needs the
+    # written value, so nothing is refused.
+    wrappedUsersWithTheHostsProviderAreFine = assembled {
+      dendrites.notifications = dunst;
+      users = lib.mkIf true {
+        alice = homeUser "alice" { dendrites.notifications.provider = "dunst"; };
+      };
     };
 
     # A host with `system = false` and no user reached by its home half: the

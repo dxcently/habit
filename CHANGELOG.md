@@ -4,40 +4,33 @@ Append-only. Newest first.
 
 ## Unreleased
 
-- A user's provider beats the host's for her home. `habit.users.<u>.dendrites.<n>.provider
+- A user names a provider for her own home: `habit.users.<u>.dendrites.<n>.provider
   = "fish";` gives her fish, while the host's zsh keeps the system half and every
-  other home user keeps zsh. A user's per-group pick, `habit.users.<u>.aggregation.<g>.<member>.provider`,
-  works the same way. Before, any disagreement on a provider was refused.
-- Naming a provider implies enable: `dendrites.<n>.provider = "fish";` alone
-  selects it. Beside `enable = false` it is refused, naming the user, the dendrite
-  and the line.
-- A user's `dendrites.<n>.system` defaults to `true`, as in v0.5.1. The provider
-  that holds the system half keeps it: the host's when the host asks, otherwise the
-  one provider every asking user names. Where the host selected the dendrite, a user
-  who names another provider than the host's is home only, unless she writes
-  `system = true` and no other user holds the half.
-- Refused: two users naming different providers with the host holding no system
-  half, naming each claimant and both fixes; and a user's `system = true` for a
-  provider other than the holder's.
-- A host-sent group member's system half is the host's: the group's home provider
-  holds it, and a user's own pick for the member is her home alone. Changed
-  result: a user's pick for a host-sent member no longer sets the system half
-  (`userChoosesProviderForHostGroup` is `sys=dunst alice=mako`, was `sys=`). The
-  host scope's `habit.selected` is unchanged: a member the group sends only as its
-  home half is not a host selection, so it does not list the member.
-- A user who turns a dendrite on with no provider takes the host's provider for
-  it, whether or not the host asks for the system half, the same as naming it. With
-  no host provider to take, the error "is enabled but chose no provider" stands.
-- A host's `system = false` holds the system half for nobody. A user who names the
-  host's provider still applies the half, as in v0.5.1.
-- A user's direct `dendrites.<n>.provider` beats the provider her group names for
-  the same dendrite, for her home alone.
-- A user's provider under an aggregation she switched off (`aggregation.<g>.enable
-  = false`) is refused, naming the user, the group, the member and the line.
-- `lanes.wrap` takes a `key`, defaulting to its name. A capability's module keys
-  are `habit:<name>` for the one holding the system half, or the only one; each
-  other provider's home-only module is `habit:<name>/<provider>`. A capability with
-  one implementation keeps its key as v0.5 had it.
+  other home user keeps zsh. A user's direct provider beats the one her group names
+  for the same dendrite, for her home alone.
+- Differences from 0.5.1:
+  - A provider named without `enable` now selects the dendrite; before it was
+    ignored.
+  - `enable = true` with no provider, under a host that selected the dendrite, now
+    takes the host's provider; before it was refused.
+  - A user who names a provider different from the host's, where the host selected
+    the dendrite, now gets that provider for her home; before it was refused. The
+    user's `system` is the host's, unless she writes `system = true` and no other
+    user holds the half.
+  - A host-sent group member's system half is the host's, and a user's pick for the
+    member is her home alone. `userChoosesProviderForHostGroup` is now
+    `sys=dunst alice=mako`, was `sys=`. The host scope's `habit.selected` is
+    unchanged.
+  - A host's `system = false`: the host does not apply it; a user naming the host's
+    provider still does.
+  - Reworded refusals: two users naming different providers now name each claimant
+    and both fixes; `homeWithoutUsers` now ends "or names another provider of it".
+  - New refusals: a provider written beside `enable = false`, and a provider under a
+    group the user switched off, each naming the user, the dendrite or group, and
+    the line.
+- A capability's module keys are `habit:<name>` for the one holding the system half,
+  or the only one, and `habit:<name>/<provider>` for each other provider's home-only
+  module.
 - The step 4 example is one desk: alice names fish beside the host's zsh, and bob
   opts out. The `laptop` host is removed. Steps 5 to 7 keep alice's pick, so each
   step still diffs cleanly against the one before.

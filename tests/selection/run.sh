@@ -98,6 +98,9 @@ hostSystemOffUserPickIsHomeOnly     ok      "sys= alice=herald bob=dunst"
 hostSystemOffUserExplicitSystemTakesIt ok   "sys=herald alice=herald bob=dunst"
 hostUnselectedUserPickTakesTheSystemHalf ok "sys=herald alice=herald"
 homeWithoutUsersNamesAnotherProvider throws every user with home.enable opts out of it or names another provider of it
+homeOnlyHostWithAUserWithoutAHomeHalfIsRefused throws selects only the home half of 'choice', which has none
+wrappedSystemWhereItMattersIsRefused throws is written under a wrapper (mkIf, mkForce or mkMerge) above it
+wrappedUsersWithTheHostsProviderAreFine ok "sys=dunst alice=dunst"
 userDirectPickBeatsOwnGroupPick     ok      "sys=herald alice=herald"
 providerKeysFollowTheHolder         ok      true
 hostSentMemberIsNotAHostSelection   ok      "false"

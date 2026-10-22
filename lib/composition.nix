@@ -293,6 +293,7 @@ let
   # Whether a claim applies its system half: it asks for it (null is the default
   # ask), and its provider is the one holding the system half.
   systemFor = holder: asks: provider: asks != false && provider == holder;
+  systemOf = holder: c: systemFor holder c.asks c.provider;
 
   # The keys a host writes under `habit`. `inert` declares the same ones for the
   # platform evaluation, where nothing reads a body and a key nobody wrote is
@@ -958,14 +959,37 @@ rec {
         else
           null;
 
-      # Whether the host wrote a user's `system` in its own literal `habit.users`.
-      # The default `true` is no write, so an explicit value is told from it. The
-      # gate's definitions are the host's text, not platform configuration.
+      # Whether the literal `habit` values that every file wrote, the host's and
+      # the selection modules', set a user's `system`. The default `true` is no
+      # write, so an explicit value is told from it. These are the text as
+      # written, read before any module system merge, not platform configuration.
+      # A wrapper (`mkIf`, `mkForce`, `mkMerge`) above the leaf hides what is
+      # written beneath it: `wrapped`, which the caller refuses when it matters.
+      writtenAt =
+        path: v:
+        if path == [ ] then
+          "written"
+        else if !lib.isAttrs v then
+          "absent"
+        else if v ? _type then
+          "wrapped"
+        else if v ? ${lib.head path} then
+          writtenAt (lib.tail path) v.${lib.head path}
+        else
+          "absent";
       systemWritten =
         name: n:
-        lib.any (
-          def: lib.isAttrs def.value && lib.hasAttrByPath [ "users" name "dendrites" n "system" ] def.value
-        ) gateEvaluation.options.habit.definitionsWithLocations;
+        let
+          states = map (
+            def: writtenAt [ "users" name "dendrites" n "system" ] def.value
+          ) gateEvaluation.options.habit.definitionsWithLocations;
+        in
+        if lib.elem "written" states then
+          "written"
+        else if lib.elem "wrapped" states then
+          "wrapped"
+        else
+          "absent";
 
       # What a user's own `enable` resolves to once the host's groups are in: a
       # bool for selection and `optOut` for an explicit `false`. Turned on with no
@@ -985,13 +1009,16 @@ rec {
               provider =
                 if d.provider == null && userOn d && hostClaim != null then hostClaim.provider else d.provider;
               sameAsHost = hostClaim != null && provider == hostClaim.provider;
+              written = systemWritten name n;
               asks =
                 if d.system == false then
                   false
-                else if hostClaim == null || systemWritten name n then
+                else if hostClaim == null || (sameAsHost && hostClaim.selected) then
                   true
-                else if hostClaim.selected then
-                  sameAsHost
+                else if hostClaim.selected && written == "wrapped" then
+                  throw "habit: host ${hostModule._file} selects dendrite '${n}', and user '${name}' names provider '${provider}' for it, so the user's `system` decides whether its system half applies; but `habit.users.${name}.dendrites.${n}.system` is written under a wrapper (mkIf, mkForce or mkMerge) above it, which hides it. Write `habit.users.${name}.dendrites.${n}.system` without a wrapper above it"
+                else if written == "written" then
+                  true
                 else
                   sameAsHost && hostClaim.asks;
             in
@@ -1045,7 +1072,6 @@ rec {
           hostEntry = lib.optional (hostClaim != null) {
             kind = "host";
             provider = hostClaim.provider;
-            asks = hostClaim.asks;
             system = hostClaim.asks;
             users = hostUsers;
           };
@@ -1075,7 +1101,7 @@ rec {
           ) asking;
 
           claims = map (
-            c: if c.kind == "host" then c else c // { system = systemFor holder c.asks c.provider; }
+            c: if c.kind == "host" then c else c // { system = systemOf holder c; }
           ) (hostEntry ++ userClaims);
         in
         if hostHolds && clashing != [ ] then
@@ -1101,7 +1127,7 @@ rec {
           dendrites = lib.mapAttrs (
             n: d:
             if d.enable then
-              d // { system = systemFor claims.${n}.holder d.asks d.provider; }
+              d // { system = systemOf claims.${n}.holder d; }
             else
               d
           ) u.dendrites;
@@ -1332,7 +1358,9 @@ rec {
             else if c.off then
               "user '${c.userName}' of host '${hostName}' `habit.users.${c.userName}.dendrites.${name}.system = false`"
             else
-              "user '${c.userName}' of host '${hostName}' `habit.users.${c.userName}.dendrites.${name}.provider = \"${c.provider}\"` (the system half is taken by '${sel.holder}')";
+              "user '${c.userName}' of host '${hostName}' `habit.users.${c.userName}.dendrites.${name}.provider = \"${c.provider}\"` (${
+                if sel.holder == null then "no provider holds the system half" else "the system half is taken by '${sel.holder}'"
+              })";
         in
         map (
           provider:
@@ -1342,8 +1370,8 @@ rec {
           in
           lanes.wrap {
             inherit name;
-            # The system half's module, and a single one, keeps the name as v0.5 had
-            # it; each other provider's home-only module is `name/provider`.
+            # The system half's module, and a single one, keeps the plain name; each
+            # other provider's home-only module is `name/provider`.
             key =
               if provider == null || provider == sel.holder || lib.length providers == 1 then
                 name
