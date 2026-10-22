@@ -187,7 +187,7 @@ gains the `home-manager` input for it.
 }
 ```
 
-habit puts `habit.home` into `alice`'s Home Manager configuration, since she is
+habit puts `habit.home` into `alice`'s Home Manager configuration, since alice is
 a user with `home.enable = true`. The system half stays on the host, and
 `aliases.nix` is an ordinary file the home half reads.
 
@@ -318,7 +318,7 @@ home half.
 Alice's `dendrites.shell.provider = "fish";` is one line. It selects `shell` for
 Alice, since naming a provider implies enable. The host holds the system half with
 zsh, so Alice's fish is Alice's home alone: Alice gets fish in Alice's Home Manager, and the
-system keeps zsh. Bob's opt-out withholds only his home half, so he gets no zsh
+system keeps zsh. Bob's opt-out withholds only Bob's home half, so Bob gets no zsh
 home, and the system still has zsh.
 
 ```

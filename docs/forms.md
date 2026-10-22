@@ -47,3 +47,20 @@ catalogue entry
 - **A shared piece with a bare or inline import is declared twice.** The file
   is one identity only when it is imported by path
   ([A piece several entries share](dendrites.md#a-piece-several-entries-share)).
+
+## Deselecting, by level
+
+Each level can take a thing away. The host writes for the system, and a user
+writes for their own home only.
+
+| what | the host writes | a user writes (their home only) |
+| --- | --- | --- |
+| a whole group ([Membership](aggregations.md#membership-is-mkdefault)) | nothing, or `habit.aggregation.<g>.enable = false;` | `habit.users.<u>.aggregation.<g>.enable = false;` ([Opting out](host.md#opting-out)) |
+| one member of a group ([Membership](aggregations.md#membership-is-mkdefault)) | `habit.dendrites.<m>.enable = false;`, which beats the group's `mkDefault true` | `habit.users.<u>.dendrites.<m>.enable = false;` ([Opting out](host.md#opting-out)) |
+| one package, when each is its own catalogue entry | as a member: `habit.dendrites.<pkg>.enable = false;` | `habit.users.<u>.dendrites.<pkg>.enable = false;` ([Opting out](host.md#opting-out)) |
+| a member's provider ([Choosing a provider](aggregations.md#choosing-a-provider)) | `habit.dendrites.<m>.provider = "x";`, or `habit.aggregation.<g>.<m>.provider = "x";` | `habit.users.<u>.dendrites.<m>.provider = "x";` ([Choosing a provider per user](host.md#choosing-a-provider-per-user)) |
+| a value a group's `module` sets ([the body](aggregations.md#the-body)) | overrides it by priority, with `mkForce` on the option it sets | `home.config`, in the user's home only ([Users](host.md#users)) |
+| one item of a list a group's `module` sets | not by habit: make the item a member instead ([Membership](aggregations.md#membership-is-mkdefault)) | not by habit: make the item a member instead ([Membership](aggregations.md#membership-is-mkdefault)) |
+
+The rule: anything someone may want gone is a member, not a value in a group's
+`module`.

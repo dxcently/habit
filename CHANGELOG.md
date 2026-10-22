@@ -33,6 +33,7 @@ Append-only. Newest first.
 - The step 4 example is one desk: alice names fish beside the host's zsh, and bob
   opts out. The `laptop` host is removed. Steps 5 to 7 keep alice's pick, so each
   step still diffs cleanly against the one before.
+- docs/forms.md lists how to deselect at each level.
 
 ## 0.5.1
 
