@@ -11,8 +11,8 @@ Append-only. Newest first.
   `modules/`, `hosts/`, `users/`), and the suite calls each one's `outputs`
   without fetching anything. `examples/minimal`, `workstation`, `merged`, `home`
   and `shared` are removed. What remains is `examples/steps`, seven flakes each
-  the one before plus one addition, and `examples/full`, the template they add up
-  to. The removed examples' cases were not all ported to these.
+  building on the one before, and `examples/full`, the template they add up to.
+  The switched-off-member case now lives in `tests/selection/switchoff`.
 - A walkthrough, [Growing a capability](docs/growing-a-capability.md), grows one
   capability across seven steps, and [What a capability can be](docs/forms.md)
   lists each form it takes.

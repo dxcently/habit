@@ -250,8 +250,6 @@ let
     catalogue = registry.catalogue // import ./values/providers.nix;
   };
 
-  # The fixture registry plus the two entries the class cases select: one whose
-  # system half only NixOS declares, one whose only nix-darwin does.
   # A group whose one member throws on import, beside the registry: a host that
   # switches that member off must never import it.
   switchReg = registry // {
@@ -260,6 +258,8 @@ let
     };
   };
 
+  # The fixture registry plus the two entries the class cases select: one whose
+  # system half only NixOS declares, one whose only nix-darwin does.
   registryWithTargets = registry // {
     catalogue = registry.catalogue // {
       homebrew = ./dendrites/homebrew;

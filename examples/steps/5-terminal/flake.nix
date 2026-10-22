@@ -19,15 +19,19 @@
     }:
     let
       composition = habit.lib.composition { inherit (nixpkgs) lib; };
-    in
-    {
-      nixosConfigurations.desk =
+      build =
+        host:
         (composition.mkNixosHost {
           inherit nixpkgs;
-          hostName = "desk";
+          hostName = host;
           registry = import ./modules/default.nix;
-          host = ./hosts/desk/default.nix;
+          host = ./hosts + "/${host}/default.nix";
           homeManagerModule = home-manager.nixosModules.home-manager;
         }).system;
+    in
+    {
+      nixosConfigurations = {
+        desk = build "desk";
+      };
     };
 }

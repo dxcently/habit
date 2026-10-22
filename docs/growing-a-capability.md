@@ -2,7 +2,7 @@
 
 One capability, `shell`, grown from one file to a provider set with a home
 half, a piece two providers share, a terminal that reads it, and an override.
-Each step is the previous one plus what it adds, and each is a complete flake
+Each step builds on the one before, and each is a complete flake
 under [`examples/steps`](https://github.com/dxcently/habit/tree/main/examples/steps).
 The forms a capability can take, each with the step that shows it, are on
 [What a capability can be](forms.md).
@@ -14,7 +14,7 @@ The forms a capability can take, each with the step that shows it, are on
 | [3](#3-providers) | two providers and a value | a provider set, as files and as a value |
 | [4](#4-users) | a second user, who opts out; a host that picks no shell | per-user homes, an opt-out, and a user's own provider |
 | [5](#5-terminal) | `terminal` and a group | a group, and a module that reads `habit.selected` |
-| [6](#6-override) | an override record | a fix that belongs to `shell` |
+| [6](#6-override) | an override record, and a second host | a fix that belongs to `shell` |
 | [7](#7-shared) | a piece two providers share | the two-file pattern |
 
 ## 1. One file
@@ -317,7 +317,10 @@ bob's opt-out withholds only his home half. The system half stays, so the host
 is still zsh, and alice keeps hers.
 
 The other direction is `laptop`. It selects no shell, so alice picks one for
-herself, and her home and the system both take fish:
+herself. A user's selection applies the system half by default
+([Dendrites](dendrites.md#halves-and-scopes)), so fish is set on the system as
+well as in her home. The system's `habit.selected` holds only the host's
+selection, which is why it is empty there:
 
 ```nix
 # examples/steps/4-users/hosts/laptop/default.nix
@@ -340,7 +343,7 @@ herself, and her home and the system both take fish:
 
 The limit: one system takes one shell. A user cannot pick another provider than
 the host's on the same system, and the build refuses it, naming every claimant.
-The suite builds a `desk` with alice's fish added and checks that refusal:
+The suite builds a host with zsh and alice's fish and checks that refusal:
 
 ```
 dendrite 'shell' is selected with different providers (host: zsh; user 'alice': fish); one system takes one implementation
@@ -468,11 +471,12 @@ so kitty then starts its own default.
 }
 ```
 
-
 ## 6. Override
 
 A fix belongs to `shell`, wherever `shell` is selected, and not to any one host.
-An override record names the capability it is about.
+An override record names the capability it is about. This step adds `server`,
+which selects zsh, so the override reaches a second host. A host that selects no
+shell is left alone, as the real-platform suite checks with a host of that kind.
 
 ```nix
 # examples/steps/6-override/modules/default.nix
@@ -607,7 +611,7 @@ directories shows the shared piece, and the override stays.
 ## The full example
 
 [`examples/full`](https://github.com/dxcently/habit/tree/main/examples/full) is
-these steps as one flake, laid out as a repository: a desk, a standalone home,
+these seven steps as one flake, laid out as a repository: a desk, a standalone home,
 two users, a second registry merged in, and the override. `nix flake init -t
 github:dxcently/habit` copies it. Its desk reads like a config someone keeps:
 
