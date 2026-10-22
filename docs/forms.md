@@ -13,7 +13,7 @@ whether it wants it. Each row is one form, with the place that shows it.
 | a family of values | `lib.genAttrs names (name: { … })` | one entry per name | not in a step: [value entries](dendrites.md#value-entries) |
 | a provider set in files | `providers = { bash = ./bash.nix; zsh = ./zsh.nix; };` | several implementations, each a file | [step 3](growing-a-capability.md#3-providers) |
 | a provider set as a value | `shell = { providers = { …; }; };` in the registry | a set whose inputs are in scope where it is written | [step 3](growing-a-capability.md#3-providers) |
-| chosen per user | `habit.users.alice.dendrites.shell.provider` | a host that picks no provider; refused where the host picks one | [step 4](growing-a-capability.md#4-users), the laptop, and the refusal |
+| named per user | `habit.users.alice.dendrites.shell.provider = "fish";` | a user's own home differs from the host's | [step 4](growing-a-capability.md#4-users) |
 | per home, by a standalone home | `habit.dendrites.shell.provider = "fish";` in the home's host | each home is its own selection | [`examples/full`](https://github.com/dxcently/habit/tree/main/examples/full), `hosts/alice` |
 | opted out | `habit.users.bob.dendrites.shell.enable = false;` | a user without a home half the host sent | [step 4](growing-a-capability.md#4-users) |
 | grouped in an aggregation | `habit.aggregation.terminal.enable = true;` | several capabilities selected together | [step 5](growing-a-capability.md#5-terminal) |
@@ -36,9 +36,12 @@ catalogue entry
 
 ## Branches
 
-- **One provider per system.** Host and users agree on a provider, or the build
-  refuses, naming every claimant ([step 4](growing-a-capability.md#4-users)).
-  A different provider per home needs a home of its own.
+- **One system, one provider.** The provider that holds the system half is the
+  host's, when the host selects it; a user's other provider is her home alone.
+  Where the host selects nothing, users who ask for the system half must agree,
+  or the build refuses, naming every claimant
+  ([step 4](growing-a-capability.md#4-users)). A different provider for the whole
+  system is a different system: a standalone home has its own selection.
 - **A group sends its home half to users; a user opts out of it.** The system
   half stays on the host ([Opting out](host.md#opting-out)).
 - **A shared piece with a bare or inline import is declared twice.** The file

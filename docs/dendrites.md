@@ -121,6 +121,7 @@ Who selected a module decides where its halves go:
 | the host and `U`                  | applied once               | `U` once                                       |
 | the host and `U`, both `system = false` | not applied          | `U` once                                       |
 | the host, `system = false`, and `U` | applied once             | `U` once                                       |
+| the host, `zsh`, and `U`, `fish`  | applied, `zsh` (the host's) | `U` gets `fish`; every other home user gets `zsh` |
 | a standalone home                 | dropped, `imports` with it | the home itself                                |
 
 A user withholds the home half the host sent it with `enable = false`, and a
@@ -132,15 +133,17 @@ that opted out ([Opting out](host.md#opting-out)):
 | the host, and user `U` writes `enable = false`      | applied           | every user with `home.enable = true` except `U` |
 | a host-selected group, and user `U` writes `enable = false` for the member | applied, as the host's (whatever the users do) | every user with a home except `U` |
 
-A selection's `system` (a bool, default `true`) says whether it asks for the
-module's system half. The system half is applied iff at least one enabled
-selection of the module, the host's or any user's, has `system = true`; where
-the home half goes does not depend on it. A user's selection applies the system
-half by default because some modules need both sides (a screen locker's PAM
-service). A module reached by several selections is wrapped once, so its system
-half is applied once however many users chose it, and each user's home gets the
-half once. A user with `home.enable = false` receives no home half; selecting a
-module for that user's home is an error ([Errors](errors.md#users)).
+A selection's `system` says whether it asks for the module's system half. A
+host's is `true` by default; a user's is unset, which asks too. The system half
+is applied by the one provider that holds it: the host's, when the host asks, and
+otherwise the provider every asking user names ([Several providers](#several-providers)).
+Where the home half goes does not depend on it. A user's selection applies the
+system half by default because some modules need both sides (a screen locker's
+PAM service). A module reached by several selections is wrapped once per
+provider, so its system half is applied once however many users chose it, and
+each user's home gets the half once. A user with `home.enable = false` receives
+no home half; selecting a module for that user's home is an error
+([Errors](errors.md#users)).
 
 `system = false` is written beside `enable` in either scope:
 
@@ -162,7 +165,8 @@ the system evaluation; only its `config` and `imports` are dropped.
 
 Two refusals keep `system = false` honest ([Errors](errors.md#modules)): a
 module with no `habit.home` has no home half to select, whichever scope or
-provider asked; and the host's own `system = false`, on a host where no user has
+provider asked, a user's provider that the host's system half displaces to the
+home alone included; and the host's own `system = false`, on a host where no user has
 `home.enable = true`, has no home to receive the half.
 
 A home half configures `$HOME`. A bare package belongs in the system half
@@ -268,9 +272,12 @@ one is read: a path is imported and a module value is applied, and the rest are
 never read, so a target that throws sits unchosen harmlessly. The set's
 `providers` attribute is read only when the capability is enabled; an unselected
 set's `providers` is never forced. A target may not itself be a provider set. One
-system takes one implementation of a capability: the host and every user that
-select it must name the same provider, and a selector that names another is an
-error naming every claimant ([Errors](errors.md#selecting-capabilities)).
+system takes one implementation of a capability. The host's provider holds the
+system half when the host selects it, and a user who names another provider gets
+that provider's home alone. Where the host selects nothing, the users who ask for
+the system half must name one provider between them: two that name different
+ones are refused, naming each claimant
+([Errors](errors.md#selecting-capabilities)).
 
 | selection                                     | result                                                     |
 | --------------------------------------------- | ---------------------------------------------------------- |

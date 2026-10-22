@@ -84,10 +84,11 @@ the host's. Whenever the host selects the group, each home member's system half
 applies on the host with its host-level `system` (default `true`), whatever the
 users do, including when there are no users with a home. A user's opt-out
 withholds only that user's home half ([Opting out](host.md#opting-out)). A
-member's provider for its system half is the provider the users' home claims
-name, or the group's default when none of them is active; users who choose
-different providers for one member are refused, as they are for user
-selections ([Errors](errors.md#selecting-capabilities)).
+member's provider for its system half is the group's, the host's choice or the
+group's default, whatever a user names for her home: a user's own pick for a
+member is her home alone. Users who ask for the member's system half with
+different providers are refused, as they are for user selections
+([Errors](errors.md#selecting-capabilities)).
 
 ## What every host carries
 

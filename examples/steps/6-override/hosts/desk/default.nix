@@ -5,6 +5,7 @@
   habit.users.alice = {
     definition = ../../users/alice.nix;
     home.enable = true;
+    dendrites.shell.provider = "fish";
   };
 
   habit.users.bob = {

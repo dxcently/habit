@@ -277,8 +277,9 @@ throws in their place.
 
 ## 4. Users
 
-Alice and bob both get a home on `desk`, and bob opts out of the shell's home
-half. The host picks zsh, so alice has zsh too.
+Alice and bob both get a home on `desk`. The host picks zsh, so zsh holds the
+system half. Alice names fish for her own home, and bob opts out of the shell's
+home half.
 
 ```nix
 # examples/steps/4-users/hosts/desk/default.nix
@@ -291,6 +292,7 @@ half. The host picks zsh, so alice has zsh too.
   habit.users.alice = {
     definition = ../../users/alice.nix;
     home.enable = true;
+    dendrites.shell.provider = "fish";
   };
 
   habit.users.bob = {
@@ -313,44 +315,33 @@ half. The host picks zsh, so alice has zsh too.
 }
 ```
 
-bob's opt-out withholds only his home half. The system half stays, so the host
-is still zsh, and alice keeps hers.
-
-The other direction is `laptop`. It selects no shell, so alice picks one for
-herself. A user's selection applies the system half by default
-([Dendrites](dendrites.md#halves-and-scopes)), so fish is set on the system as
-well as in her home. The system's `habit.selected` holds only the host's
-selection, which is why it is empty there:
-
-```nix
-# examples/steps/4-users/hosts/laptop/default.nix
-{
-  habit.users.alice = {
-    definition = ../../users/alice.nix;
-    home.enable = true;
-    dendrites.shell = {
-      enable = true;
-      provider = "fish";
-    };
-  };
-
-  networking.hostName = "laptop";
-  nixpkgs.hostPlatform = "x86_64-linux";
-  boot.isContainer = true;
-  system.stateVersion = "26.11";
-}
-```
-
-The limit: one system takes one shell. A user cannot pick another provider than
-the host's on the same system, and the build refuses it, naming every claimant.
-The suite builds a host with zsh and alice's fish and checks that refusal:
+Alice's `dendrites.shell.provider = "fish";` is one line. It selects `shell` for
+her, since naming a provider implies enable. The host holds the system half with
+zsh, so her fish is her home alone: she gets fish in her Home Manager, and the
+system keeps zsh. Bob's opt-out withholds only his home half, so he gets no zsh
+home, and the system still has zsh.
 
 ```
-dendrite 'shell' is selected with different providers (host: zsh; user 'alice': fish); one system takes one implementation
+desk
+├── system ─────────── zsh     the host's, which holds the system half
+├── alice's home ───── fish    her own provider, home only
+└── bob's home ─────── none    opted out of the shell's home half
 ```
 
-A different provider per user is a different system: a standalone home has its
-own selection, as [`examples/full`](#the-full-example) shows.
+Each scope's `habit.selected` reports its own selection: the system's names zsh,
+and alice's names fish.
+
+The limit is the system half. With the host selecting no shell, a user's
+provider takes the system half, since nothing else holds it. Two users who name
+different providers then both want it, and the build refuses, naming each
+claimant and both fixes:
+
+```
+dendrite 'shell' is wanted with different providers for its system half (user 'alice': 'fish'; user 'bob': 'zsh'); one system takes one implementation. ...
+```
+
+A different provider for the whole system is a different system: a standalone
+home has its own selection, as [`examples/full`](#the-full-example) shows.
 
 ## 5. Terminal
 
@@ -446,7 +437,7 @@ from the user's own home, where the shell the group sent is selected, so kitty
 launches the shell that user has. `optionalAttrs` keeps the setting out when the user opted out of the shell,
 so kitty then starts its own default.
 
-`desk` selects the group and nothing else.
+`desk` selects the group, and alice keeps the fish she named in step 4.
 
 ```nix
 # examples/steps/5-terminal/hosts/desk/default.nix
@@ -456,6 +447,7 @@ so kitty then starts its own default.
   habit.users.alice = {
     definition = ../../users/alice.nix;
     home.enable = true;
+    dendrites.shell.provider = "fish";
   };
 
   habit.users.bob = {
@@ -600,7 +592,9 @@ The fish value imports the same two files from the registry:
 }
 ```
 
-Only one provider is chosen, so the prompt lands once in each half. Naming the
+The host's zsh holds the system half, so the system file lands once, from zsh.
+Alice's fish is her home alone, so the fish value's system import is not applied,
+and only its home file lands in her home. Naming the
 home file as a bare path, or importing the system file inline, makes the options
 declared twice; that trap is in
 [A piece several entries share](dendrites.md#a-piece-several-entries-share).

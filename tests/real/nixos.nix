@@ -41,6 +41,14 @@ let
     host = ./hosts/providerSet.nix;
   };
 
+  shellSplit = composition.mkNixosHost {
+    inherit nixpkgs;
+    registry = import ./registry.nix;
+    hostName = "shellSplit";
+    host = ./hosts/shellSplit.nix;
+    homeManagerModule = home-manager.nixosModules.home-manager;
+  };
+
   inherit (desk.system) config;
   alice = config.home-manager.users.alice;
   bob = config.home-manager.users.bob;
@@ -273,4 +281,27 @@ in
       zsh = false;
     };
   };
+
+  # A user's provider beats the host's for her home alone: alice's fish is her
+  # home, the system keeps the host's zsh, and bob keeps the host's zsh home.
+  nixosUserProviderSplitsTheShellHome =
+    let
+      c = shellSplit.system.config;
+    in
+    {
+      got = {
+        system = c.programs.zsh.enable;
+        systemFish = c.programs.fish.enable;
+        aliceFish = c.home-manager.users.alice.programs.fish.enable;
+        aliceZsh = c.home-manager.users.alice.programs.zsh.enable;
+        bobZsh = c.home-manager.users.bob.programs.zsh.enable;
+      };
+      want = {
+        system = true;
+        systemFish = false;
+        aliceFish = true;
+        aliceZsh = false;
+        bobZsh = true;
+      };
+    };
 }

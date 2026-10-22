@@ -701,19 +701,178 @@ let
         lib.boolToString inv.users.alice.dendrites.notifications.system
       }";
 
-    # One system takes one implementation of a capability: selectors that name
-    # different providers are refused, naming every claimant, whether the
-    # disagreement is the host's with a user or one user's with another.
-    hostAndUserWithDifferentProvidersAreRefused = assembled {
+    # ── Per-user providers (v0.6) ──────────────────────────────────────────────
+    # The host holds the system half with dunst. A user's own provider is her
+    # home alone; the others keep the host's home.
+    userPickMod = {
+      dendrites.notifications = dunst;
+      users.alice = homeUser "alice" { dendrites.notifications.provider = "herald"; };
+      users.bob = homeUser "bob" { };
+    };
+
+    userPickBeatsHostForItsHome = assembled userPickMod;
+
+    # Naming a provider in a user's scope selects it; no `enable` is needed.
+    oneLineProviderSelects = assembled {
+      users.alice = homeUser "alice" { dendrites.notifications.provider = "herald"; };
+    };
+
+    # A home-only provider named by a user is that user's home alone: nothing
+    # holds the system half, so the system half is not applied.
+    oneLineHomeOnlyProvider = assembled {
+      users.alice = homeUser "alice" { dendrites.notifications.provider = "mako"; };
+    };
+
+    # A user naming the host's own provider is the same application, not two.
+    sameProviderAsHostIsOneApplication = assembled {
+      dendrites.notifications = dunst;
+      users.alice = homeUser "alice" { dendrites.notifications.provider = "dunst"; };
+      users.bob = homeUser "bob" { };
+    };
+
+    # The host's group sends its home provider; a user's own pick for the member
+    # wins for her home, and the host's provider keeps the system half.
+    userGroupPickBeatsHostGroupForItsHome = assembled {
+      aggregation.desk.enable = true;
+      users.alice = homeUser "alice" { aggregation.desk.notifications.provider = "mako"; };
+      users.bob = homeUser "bob" { };
+    };
+
+    # A user who is home only frees the system half for another user's provider.
+    homeOnlyUserLetsAnotherProviderHoldTheSystemHalf = assembled {
+      users.alice = homeUser "alice" {
+        dendrites.notifications = {
+          provider = "mako";
+          system = false;
+        };
+      };
+      users.bob = homeUser "bob" { dendrites.notifications = dunst; };
+    };
+
+    # A user's `system = true` for another provider than the host's is refused.
+    explicitSystemForAnotherProviderIsRefused = assembled {
       dendrites.notifications = dunst;
       users.alice = homeUser "alice" {
         dendrites.notifications = {
-          enable = true;
+          provider = "herald";
+          system = true;
+        };
+      };
+    };
+
+    # A provider implies enable, so naming one beside `enable = false` contradicts.
+    providerWithEnableOffIsRefused = assembled {
+      users.alice = homeUser "alice" {
+        dendrites.notifications = {
+          enable = false;
           provider = "herald";
         };
       };
     };
 
+    # A user's pick under a group she switched off would select nothing: refused.
+    userGroupPickWithGroupOffIsRefused = assembled {
+      users.alice = homeUser "alice" {
+        aggregation.desk = {
+          enable = false;
+          notifications.provider = "mako";
+        };
+      };
+    };
+
+    # Turned on with no provider, a user takes the provider the host's system
+    # half holds: the same as naming it, so one system half, once.
+    userEnabledWithoutProviderTakesTheHostsProvider = assembled {
+      dendrites.notifications = dunst;
+      users.alice = homeUser "alice" { dendrites.notifications.enable = true; };
+      users.bob = homeUser "bob" { };
+    };
+
+    # With nobody holding a provider, a user who enables with none chosen is the
+    # existing error: there is no provider to take.
+    userEnabledWithoutProviderAndNoHolderIsRefused = assembled {
+      users.alice = homeUser "alice" { dendrites.notifications.enable = true; };
+    };
+
+    # A host-sent member is not a host selection: the host's own `selected` does
+    # not list it, while the system half it carries is the host's.
+    hostSentMemberIsNotAHostSelection =
+      let
+        r = resolve {
+          aggregation.desk.enable = true;
+          users.alice = homeUser "alice" { aggregation.desk.notifications.provider = "mako"; };
+        };
+      in
+      lib.boolToString (r.inv.dendrites ? notifications);
+
+    # A home-only provider chosen by a user under a host that holds the system
+    # half: that provider has no home half to give, so it is refused.
+    autoHomeOnlyWithoutAHomeHalfIsRefused = assembledIn registryWithModules {
+      dendrites.choice = {
+        enable = true;
+        provider = "homeonly";
+      };
+      users.alice = homeUser "alice" { dendrites.choice.provider = "systemonly"; };
+    };
+
+    # The three providers of notifications: the two named are the ones imported,
+    # and the third, which throws on import, is not.
+    unnamedThirdProviderIsNeverImported =
+      let
+        r = resolve userPickMod;
+      in
+      "${r.inv.dendrites.notifications.provider}+${r.inv.users.alice.dendrites.notifications.provider}";
+    chosenThirdProviderIsImported = resolve {
+      dendrites.notifications = {
+        enable = true;
+        provider = "landmine";
+      };
+    };
+
+    # What each scope selected, as `habit.selected` reports it: the host's
+    # provider, then each user's own.
+    selectedPerScope =
+      let
+        c = evalAssembled { mod = userPickMod; };
+        providerIn =
+          s: if s.notifications.provider == null then "none" else s.notifications.provider;
+      in
+      builtins.concatStringsSep " " [
+        "host=${providerIn c.habit.selected}"
+        "alice=${providerIn c.home-manager.users.alice.habit.selected}"
+        "bob=${providerIn c.home-manager.users.bob.habit.selected}"
+      ];
+
+    # The inventory names each user's provider, and a file-set provider's source.
+    inventoryPerUser =
+      let
+        r = mkModules {
+          host = selecting userPickMod;
+        };
+        inv = r.inventory;
+      in
+      builtins.concatStringsSep " " [
+        "host=${inv.dendrites.notifications.provider}"
+        "alice=${inv.users.alice.dendrites.notifications.provider}"
+      ];
+
+    # A record that targets the dendrite rides the home of each user its target
+    # reaches, whichever provider that user takes.
+    overrideHomeRidesEachUsersProvider =
+      let
+        c = evalAssembled {
+          args.registry = registry // {
+            overrides.notify = ./overrides/notifyHome.nix;
+          };
+          mod = userPickMod;
+        };
+        marksOf' = n: builtins.concatStringsSep "+" (lib.sort lib.lessThan c.home-manager.users.${n}.fixture.marks);
+      in
+      "alice=${marksOf' "alice"} bob=${marksOf' "bob"}";
+
+    # One system takes one implementation of a capability: two users naming
+    # different providers, with the host holding no system half, are refused,
+    # naming every claimant and both fixes.
     usersWithDifferentProvidersAreRefused = assembled {
       users.alice = homeUser "alice" {
         dendrites.notifications = {
@@ -2480,23 +2639,11 @@ selectionCases
 
   step3ChosenFileIsRead = forcedDesk (shellProviderIs (steps + "/3-providers") "zsh" ./dendrites/landmine) (steps + "/3-providers/hosts/desk/default.nix") [ ];
 
-  # ── Step 4: users, one opts out (steps/4-users) ────────────────────────────
+  # ── Step 4: users, one picks a shell, one opts out (steps/4-users) ─────────
   step4Selected = selectedBy (flakeOf (steps + "/4-users")).nixosConfigurations.desk.config;
 
-  # The laptop selects no shell; alice picks fish for herself. The host's
-  # selection is empty, her home's names fish, and the system half is applied.
-  step4Laptop =
-    let
-      inherit ((flakeOf (steps + "/4-users")).nixosConfigurations.laptop) config;
-      alice = config.home-manager.users.alice;
-    in
-    builtins.concatStringsSep " " [
-      "sys=${selectedBy config}"
-      "sysFish=${lib.boolToString config.programs.fish.enable}"
-      "alice=${selectedBy alice}"
-      "aliceFish=${lib.boolToString alice.programs.fish.enable}"
-    ];
-
+  # The host picks zsh for the system. Alice's fish is her home alone, so the
+  # system has no fish and her home has no zsh; bob opted out of the home half.
   step4Homes =
     let
       inherit ((flakeOf (steps + "/4-users")).nixosConfigurations.desk) config;
@@ -2504,29 +2651,14 @@ selectionCases
     in
     builtins.concatStringsSep " " [
       "sys=${lib.boolToString config.programs.zsh.enable}"
-      "alice=${lib.boolToString users.alice.programs.zsh.enable}"
+      "sysFish=${lib.boolToString config.programs.fish.enable}"
+      "aliceZsh=${lib.boolToString (users.alice.programs.zsh.enable or false)}"
+      "aliceFish=${lib.boolToString users.alice.programs.fish.enable}"
       "bob=${lib.boolToString (users.bob.programs.zsh.enable or false)}"
     ];
 
-  # Alice may not pick another provider than the host's on the same system.
-  step4AliceChoosesFishIsRefused =
-    (deskOf {
-      registry = import (steps + "/4-users/modules/default.nix");
-      host = selecting {
-        dendrites.shell = {
-          enable = true;
-          provider = "zsh";
-        };
-        users.alice = {
-          definition = steps + "/4-users/users/alice.nix";
-          home.enable = true;
-          dendrites.shell = {
-            enable = true;
-            provider = "fish";
-          };
-        };
-      };
-    }).system.config.habit.selected.shell.provider;
+  # Alice's own selection, as her home scope reports it.
+  step4AliceSelects = selectedBy (flakeOf (steps + "/4-users")).nixosConfigurations.desk.config.home-manager.users.alice;
 
   # ── Step 5: a terminal and its group, a second host (steps/5-terminal) ─────
   step5Desk =

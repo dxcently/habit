@@ -1,6 +1,6 @@
 # examples/steps/4-users/flake.nix
 {
-  description = "habit, step 4: users, one who opts out, one who picks a shell";
+  description = "habit, step 4: users, one who picks a shell, one who opts out";
 
   inputs = {
     habit.url = "github:dxcently/habit";
@@ -32,7 +32,6 @@
     {
       nixosConfigurations = {
         desk = build "desk";
-        laptop = build "laptop";
       };
     };
 }

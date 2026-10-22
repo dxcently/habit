@@ -63,9 +63,11 @@ record ──► hosts admits this host? ──no──► not applied
   `system = false` still draws the `overlay` and the `home` module, since the
   home draws from the host's package set, but not the `system` module.
 - Its `home` module rides exactly the users the target's home half reaches:
-  every user with Home Manager when the host selected the target, the selecting
-  user alone when a user did, and not a user who opted out of the target
-  ([Opting out](host.md#opting-out)), so the fix travels with the thing it fixes.
+  every user with Home Manager when the host selected the target, the user who
+  named the target alone when only a user did, and not a user who opted out of
+  it ([Opting out](host.md#opting-out)). A user who named another provider for
+  the target is reached too: her home has the target's home half, so the fix
+  travels with the thing it fixes.
 - A standalone home has no users and no system half: a record that matches its
   own selection applies its `overlay` and its `home` module to the home, and its
   `system` module to nothing.

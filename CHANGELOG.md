@@ -2,6 +2,39 @@
 
 Append-only. Newest first.
 
+## Unreleased
+
+- A user's provider beats the host's for her home. `habit.users.<u>.dendrites.<n>.provider
+  = "fish";` gives her fish, while the host's zsh keeps the system half and every
+  other home user keeps zsh. A user's per-group pick, `habit.users.<u>.aggregation.<g>.<member>.provider`,
+  works the same way. Before, any disagreement on a provider was refused.
+- Naming a provider implies enable: `dendrites.<n>.provider = "fish";` alone
+  selects it. Beside `enable = false` it is refused, naming the user, the dendrite
+  and the line.
+- A user's `dendrites.<n>.system` is unset by default, not `true`. Unset asks for
+  the system half, and the provider that holds it keeps it: the host's when the
+  host asks, otherwise the one provider every asking user names. A user who names
+  another provider while the host holds the system half is home only.
+- Refused: two users naming different providers with the host holding no system
+  half, naming each claimant and both fixes; and a user's `system = true` for a
+  provider other than the holder's.
+- A host-sent group member's system half is the host's: the group's home provider
+  holds it, and a user's own pick for the member is her home alone. Changed
+  result: a user's pick for a host-sent member no longer sets the system half
+  (`userChoosesProviderForHostGroup` is `sys=dunst alice=mako`, was `sys=`). The
+  host scope's `habit.selected` is unchanged: a member the group sends only as its
+  home half is not a host selection, so it does not list the member.
+- A user who turns a dendrite on with no provider takes the provider the host's
+  system half holds, the same as naming it. With nobody holding one, the error
+  "is enabled but chose no provider" stands.
+- A user's provider under an aggregation she switched off (`aggregation.<g>.enable
+  = false`) is refused, naming the user, the group, the member and the line.
+- `lanes.wrap` takes a `key`, defaulting to its name. A capability's wrap is keyed
+  by provider, so two providers of one capability are two modules.
+- The step 4 example is one desk: alice names fish beside the host's zsh, and bob
+  opts out. The `laptop` host is removed. Steps 5 to 7 keep alice's pick, so each
+  step still diffs cleanly against the one before.
+
 ## 0.5.1
 
 - Docs on a piece several entries share: two files, one per half, imported by

@@ -15,6 +15,12 @@
     gated = ./dendrites/gated.nix;
     bluetooth = ./dendrites/bluetooth;
     udev = ./dendrites/udev.nix;
+    shell = {
+      providers = {
+        zsh = ./dendrites/zsh.nix;
+        fish = ./dendrites/fish.nix;
+      };
+    };
   };
 
   aggregations = {

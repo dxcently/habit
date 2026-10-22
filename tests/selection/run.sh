@@ -81,8 +81,25 @@ standaloneHomeAcceptsSystemOff      ok      "dunst"
 standaloneHomeAcceptsSystemOffOnAModuleWithoutAHomeHalf ok ""
 systemInAnImportedFileFailsAnAssertion throws `habit.dendrites.systemonly.system` is set in
 systemInAnInlineImportIsCaughtByItsValue throws `habit.dendrites.systemonly.system` is set in
-hostAndUserWithDifferentProvidersAreRefused throws dendrite 'notifications' is selected with different providers (host: dunst; user 'alice': herald); one system takes one implementation
-usersWithDifferentProvidersAreRefused throws dendrite 'notifications' is selected with different providers (user 'alice': mako; user 'bob': dunst); one system takes one implementation
+userPickBeatsHostForItsHome         ok      "sys=dunst alice=herald bob=dunst"
+oneLineProviderSelects              ok      "sys=herald alice=herald"
+oneLineHomeOnlyProvider             ok      "sys= alice=mako"
+sameProviderAsHostIsOneApplication  ok      "sys=dunst alice=dunst bob=dunst"
+userGroupPickBeatsHostGroupForItsHome ok    "sys=dunst alice=mako bob=dunst"
+homeOnlyUserLetsAnotherProviderHoldTheSystemHalf ok "sys=dunst alice=mako bob=dunst"
+explicitSystemForAnotherProviderIsRefused throws user 'alice' sets `habit.users.alice.dendrites.notifications.system = true` with provider 'herald', but the host holds the system half of 'notifications' with 'dunst'; one system takes one implementation
+providerWithEnableOffIsRefused      throws  user 'alice', dendrite 'notifications': `habit.users.alice.dendrites.notifications` sets provider 'herald' and enable = false
+autoHomeOnlyWithoutAHomeHalfIsRefused throws selects only the home half of 'choice', which has none
+userGroupPickWithGroupOffIsRefused  throws aggregation 'desk': `habit.users.alice.aggregation.desk.notifications` sets provider 'mako' and enable = false
+userEnabledWithoutProviderTakesTheHostsProvider ok "sys=dunst alice=dunst bob=dunst"
+userEnabledWithoutProviderAndNoHolderIsRefused throws dendrite 'notifications' is enabled but chose no provider
+hostSentMemberIsNotAHostSelection   ok      "false"
+unnamedThirdProviderIsNeverImported ok      "dunst+herald"
+chosenThirdProviderIsImported       throws  notifications/landmine.nix was imported
+selectedPerScope                    ok      "host=dunst alice=herald bob=none"
+inventoryPerUser                    ok      "host=dunst alice=herald"
+overrideHomeRidesEachUsersProvider  ok      "alice=herald+notify bob=dunst+notify"
+usersWithDifferentProvidersAreRefused throws dendrite 'notifications' is wanted with different providers for its system half (user 'alice': 'mako'; user 'bob': 'dunst'); one system takes one implementation. Either set `habit.users.<u>.dendrites.notifications.system = false` on one so it lives in that user's home only, or, if both need the system half, they are not alternatives: make them two dendrites
 hostSelectionSkipsAUserWithoutHomeManager ok "sys=dunst alice=dunst"
 hostSelectionWithoutHomeUsersEmitsNoHomeHalf ok "dunst"
 userModuleRoutesItsHalves           ok      "accounts=alice,bob alice=true homes=alice"
@@ -284,11 +301,10 @@ step3UnchosenFileIsNeverRead        ok      "built"
 step3UnchosenValueIsNeverApplied    ok      "built"
 step3ChosenFileIsRead               throws  landmine/default.nix was imported
 step4Selected                       ok      "shell/zsh"
-step4Homes                          ok      "sys=true alice=true bob=false"
-step4Laptop                         ok      "sys= sysFish=true alice=shell/fish aliceFish=true"
-step4AliceChoosesFishIsRefused      throws  dendrite 'shell' is selected with different providers (host: zsh; user 'alice': fish)
+step4Homes                          ok      "sys=true sysFish=false aliceZsh=false aliceFish=true bob=false"
+step4AliceSelects                   ok      "shell/fish"
 step5Desk                           ok      "shell/zsh,terminal/kitty"
-step5Kitty                          ok      "alice=zsh bob=none"
+step5Kitty                          ok      "alice=fish bob=none"
 step6Desk                           ok      "shell/zsh,terminal/kitty"
 step6Server                         ok      "shell/zsh"
 step6BareHost                       ok      "overrides=0"
@@ -353,7 +369,7 @@ householdHomeHalfReachesEveryHomeUser ok "sys=systemonly alice=household+homeonl
 householdHomeHalfSkipsAUserWithoutHome ok "sys=systemonly alice=household+homeonly"
 hostAndUserSelectingAGroupApplyItOnce ok "sys=systemonly alice=household+homeonly"
 hostGroupHomeProviderReachesTheUser ok "sys=dunst alice=dunst"
-userChoosesProviderForHostGroup ok "sys= alice=mako"
+userChoosesProviderForHostGroup ok "sys=dunst alice=mako"
 userOptsOutOfHostGroup ok "sys=systemonly alice= bob=household+homeonly"
 userOptOutOfGroupKeepsAHostDendrite ok "sys=systemonly alice=homeonly"
 userOptsOutOfAGroupsHomeMemberDendrite ok "sys=systemonly alice=household bob=household+homeonly"

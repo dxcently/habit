@@ -126,7 +126,7 @@ suite evaluates.
 | [`steps/1-file`](https://github.com/dxcently/habit/tree/main/examples/steps/1-file)    | a capability that is one file                                |
 | [`steps/2-home`](https://github.com/dxcently/habit/tree/main/examples/steps/2-home)    | a home half, and a file beside the module                     |
 | [`steps/3-providers`](https://github.com/dxcently/habit/tree/main/examples/steps/3-providers) | a provider set, as files and as a value              |
-| [`steps/4-users`](https://github.com/dxcently/habit/tree/main/examples/steps/4-users)  | two users' homes, one opting out; a host with no shell, where a user picks one |
+| [`steps/4-users`](https://github.com/dxcently/habit/tree/main/examples/steps/4-users)  | two users' homes, one opting out, one naming her own provider beside the host's |
 | [`steps/5-terminal`](https://github.com/dxcently/habit/tree/main/examples/steps/5-terminal) | a group, and a module reading `habit.selected` |
 | [`steps/6-override`](https://github.com/dxcently/habit/tree/main/examples/steps/6-override) | an override record                                      |
 | [`steps/7-shared`](https://github.com/dxcently/habit/tree/main/examples/steps/7-shared) | a piece two providers share, with a system half and a home half |

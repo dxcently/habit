@@ -141,10 +141,12 @@ registry ─────┘     gate:   which groups are selected
 
 ### One rule worth knowing
 
-- **One provider per capability per system.** The host, its groups and its users
-  must agree. A host or user clash is an error naming every claimant; two groups
-  choosing different providers give the module system's "conflicting definition
-  values" error ([Dendrites](docs/dendrites.md#several-providers),
+- **One system, one provider.** The provider holding the system half is the
+  host's when the host selects it, and a user's other provider is her home alone.
+  Users who ask for the system half with different providers are an error naming
+  every claimant; two groups choosing different providers give the module
+  system's "conflicting definition values" error
+  ([Dendrites](docs/dendrites.md#several-providers),
   [Aggregations](docs/aggregations.md)).
 
 ## Installation
