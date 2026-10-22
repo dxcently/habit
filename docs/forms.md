@@ -37,7 +37,7 @@ catalogue entry
 ## Branches
 
 - **One system, one provider.** The provider that holds the system half is the
-  host's, when the host selects it; a user's other provider is her home alone.
+  host's, when the host selects it; a user's other provider is their home alone.
   Where the host selects nothing, users who ask for the system half must agree,
   or the build refuses, naming every claimant
   ([step 4](growing-a-capability.md#4-users)). A different provider for the whole

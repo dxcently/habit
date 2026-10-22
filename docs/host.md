@@ -150,10 +150,10 @@ Each `habit.users.<user>` is a scope of its own.
 | `home.enable`                                | bool            | `false` | give this user a Home Manager configuration; off imports no Home Manager for them, and nothing the host selected reaches the user's home |
 | `home.config`                                | deferred module | `{ }`   | extra home settings, evaluated only in the user's Home Manager configuration |
 | `dendrites.<name>.enable`                    | null or bool    | `null`  | `true` selects the capability for this user's home; naming a `provider` implies it; `false` withholds the home half the host sent ([Opting out](#opting-out)) |
-| `dendrites.<name>.provider`                  | null or string  | `null`  | which provider answers it for this user's home; it beats the host's and the one her group names, for that home alone ([Choosing a provider per user](#choosing-a-provider-per-user)) |
+| `dendrites.<name>.provider`                  | null or string  | `null`  | which provider answers it for this user's home; it beats the host's and the one their group names, for that home alone ([Choosing a provider per user](#choosing-a-provider-per-user)) |
 | `dendrites.<name>.system`                    | bool            | `true`  | asks for the system half, which the holder keeps; `false` asks for the home half alone. Naming a provider other than the host's, where the host selected the dendrite, is home only unless `true` is written and no other user holds the half |
 | `aggregation.<group>.enable`                 | null or bool    | `null`  | `true` selects the group's `home` half for this user; `false` withholds the one the host sent |
-| `aggregation.<group>.<member>.provider`      | null or string  | the body's | which provider answers a provider-bearing member for this user; her direct `dendrites.<name>.provider` beats it |
+| `aggregation.<group>.<member>.provider`      | null or string  | the body's | which provider answers a provider-bearing member for this user; the user's direct `dendrites.<name>.provider` beats it |
 
 ```nix
 # examples/full/users/alice.nix
@@ -171,7 +171,7 @@ refused by name.
 
 ### Choosing a provider per user
 
-A user names a provider for her own home in one line:
+A user names a provider for their own home in one line:
 
 ```
 habit.users.alice.dendrites.shell.provider = "fish";
@@ -197,7 +197,7 @@ The rule, for one capability on one system:
 ```
 claims on the capability
 ├── the host holds the system half (it asks, and it has a provider)?
-│     yes ──► its provider holds it; a user's other provider is her home alone
+│     yes ──► its provider holds it; a user's other provider is their home alone
 │     no  ──► the users who ask: all of them if the host selected nothing; else those naming the host's provider, and any provider written `system = true`
 │               ├── one provider between them ──► it holds the system half
 │               └── two or more providers ──► refused, naming each user
@@ -206,15 +206,15 @@ claims on the capability
 
 A host-sent member, one a group's home half brings, is the host's the same way:
 the group's provider holds the system half, and a user's own pick for the member
-is her home alone.
+is their home alone.
 
 A host that writes `system = false` holds nothing. A user who names the host's
-provider still applies the system half, since her `system` defaults to `true`; a
-user who names another provider is home only, unless she writes `system = true`
+provider still applies the system half, since their `system` defaults to `true`; a
+user who names another provider is home only, unless they write `system = true`
 and no other user holds the half. A user turned on with no provider takes the
 host's provider for that dendrite, whether or not the host asks for the system
-half. A user's direct `dendrites.<name>.provider` beats the provider her group
-names for the same dendrite, for her home alone.
+half. A user's direct `dendrites.<name>.provider` beats the provider their group
+names for the same dendrite, for their home alone.
 
 ### What a user's home is made of
 

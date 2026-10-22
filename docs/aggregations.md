@@ -85,8 +85,8 @@ applies on the host with its host-level `system` (default `true`), whatever the
 users do, including when there are no users with a home. A user's opt-out
 withholds only that user's home half ([Opting out](host.md#opting-out)). A
 member's provider for its system half is the group's, the host's choice or the
-group's default, whatever a user names for her home: a user's own pick for a
-member is her home alone. Users who ask for the member's system half with
+group's default, whatever a user names for their home: a user's own pick for a
+member is their home alone. Users who ask for the member's system half with
 different providers are refused, as they are for user selections
 ([Errors](errors.md#selecting-capabilities)).
 

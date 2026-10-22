@@ -136,7 +136,7 @@ that opted out ([Opting out](host.md#opting-out)):
 A selection's `system` says whether it asks for the module's system half. It
 defaults to `true`, for the host and for a user. Where the host selected the
 dendrite, a user who names another provider than the host's is home only, unless
-she writes `system = true` and no other user holds the half. The system half is
+they write `system = true` and no other user holds the half. The system half is
 applied by the one provider that holds it: the host's, when the host asks, and
 otherwise the provider every asking user names
 ([Several providers](#several-providers)).

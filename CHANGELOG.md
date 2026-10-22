@@ -4,23 +4,22 @@ Append-only. Newest first.
 
 ## Unreleased
 
-- A user names a provider for her own home: `habit.users.<u>.dendrites.<n>.provider
-  = "fish";` gives her fish, while the host's zsh keeps the system half and every
-  other home user keeps zsh. A user's direct provider beats the one her group names
-  for the same dendrite, for her home alone.
+- A user names a provider for their own home: `habit.users.<u>.dendrites.<n>.provider
+  = "fish";` gives that user fish, while the host's zsh keeps the system half and every
+  other home user keeps zsh. A user's direct provider beats the one their group names
+  for the same dendrite, for that user's home alone.
 - Differences from 0.5.1:
   - A provider named without `enable` now selects the dendrite; before it was
     ignored.
   - `enable = true` with no provider, under a host that selected the dendrite, now
     takes the host's provider; before it was refused.
   - A user who names a provider different from the host's, where the host selected
-    the dendrite, now gets that provider for her home; before it was refused. The
-    user's `system` is the host's, unless she writes `system = true` and no other
+    the dendrite, now gets that provider for their home; before it was refused. The
+    user's `system` is the host's, unless they write `system = true` and no other
     user holds the half.
-  - A host-sent group member's system half is the host's, and a user's pick for the
-    member is her home alone. `userChoosesProviderForHostGroup` is now
-    `sys=dunst alice=mako`, was `sys=`. The host scope's `habit.selected` is
-    unchanged.
+  - A host group's member now applies its system half on the host even when a user
+    picks another provider for their home; before, a user's pick for the member
+    dropped the system half. The host scope's `habit.selected` is unchanged.
   - A host's `system = false`: the host does not apply it; a user naming the host's
     provider still does.
   - Reworded refusals: two users naming different providers now name each claimant

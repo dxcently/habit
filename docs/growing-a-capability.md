@@ -278,7 +278,7 @@ throws in their place.
 ## 4. Users
 
 Alice and bob both get a home on `desk`. The host picks zsh, so zsh holds the
-system half. Alice names fish for her own home, and bob opts out of the shell's
+system half. Alice names fish for their own home, and bob opts out of the shell's
 home half.
 
 ```nix
@@ -316,15 +316,15 @@ home half.
 ```
 
 Alice's `dendrites.shell.provider = "fish";` is one line. It selects `shell` for
-her, since naming a provider implies enable. The host holds the system half with
-zsh, so her fish is her home alone: she gets fish in her Home Manager, and the
+Alice, since naming a provider implies enable. The host holds the system half with
+zsh, so Alice's fish is Alice's home alone: Alice gets fish in Alice's Home Manager, and the
 system keeps zsh. Bob's opt-out withholds only his home half, so he gets no zsh
 home, and the system still has zsh.
 
 ```
 desk
 ├── system ─────────── zsh     the host's, which holds the system half
-├── alice's home ───── fish    her own provider, home only
+├── alice's home ───── fish    own provider, home only
 └── bob's home ─────── none    opted out of the shell's home half
 ```
 
@@ -437,7 +437,7 @@ from the user's own home, where the shell the group sent is selected, so kitty
 launches the shell that user has. `optionalAttrs` keeps the setting out when the user opted out of the shell,
 so kitty then starts its own default.
 
-`desk` selects the group, and alice keeps the fish she named in step 4.
+`desk` selects the group, and alice keeps the fish named in step 4.
 
 ```nix
 # examples/steps/5-terminal/hosts/desk/default.nix
@@ -593,8 +593,8 @@ The fish value imports the same two files from the registry:
 ```
 
 The host's zsh holds the system half, so the system file lands once, from zsh.
-Alice's fish is her home alone, so the fish value's system import is not applied,
-and only its home file lands in her home. Naming the
+Alice's fish is Alice's home alone, so the fish value's system import is not applied,
+and only its home file lands in Alice's home. Naming the
 home file as a bare path, or importing the system file inline, makes the options
 declared twice; that trap is in
 [A piece several entries share](dendrites.md#a-piece-several-entries-share).
