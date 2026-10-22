@@ -2,7 +2,7 @@
 
 Append-only. Newest first.
 
-## Unreleased
+## 0.6.0
 
 - A user names a provider for their own home: `habit.users.<u>.dendrites.<n>.provider
   = "fish";` gives that user fish, while the host's zsh keeps the system half and every
