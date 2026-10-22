@@ -166,6 +166,8 @@ let
   #
   # `system = false`: the selection asks for the home half alone, so the system
   # half is not applied and nothing of it is imported, as in a standalone home.
+  # `key` names the module for deduplication, and defaults to `name`. Two wraps
+  # of one dendrite, one per provider, differ by key and share their `name`.
   # `homeOnlyBy` names each selection that asked for it; a module with no home
   # half is refused, since there is nothing for them to select.
   #
@@ -178,6 +180,7 @@ let
   wrap =
     {
       name,
+      key ? name,
       path ? null,
       value ? null,
       valueName ? name,
@@ -230,7 +233,7 @@ let
         else
           m
           // {
-            key = "habit:${name}";
+            key = "habit:${key}";
             imports = optionals applySystem m.imports ++ optional standalone home;
             config = mkMerge [
               (optionalAttrs applySystem sys)
