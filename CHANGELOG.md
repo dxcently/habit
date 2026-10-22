@@ -2,7 +2,7 @@
 
 Append-only. Newest first.
 
-## Unreleased
+## 0.5.1
 
 - Docs on a piece several entries share: two files, one per half, imported by
   path (`imports` for the system half, `habit.home.imports` for the home half).
