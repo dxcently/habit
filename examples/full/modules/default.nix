@@ -21,6 +21,7 @@
         foot = ./dendrites/terminal/foot.nix;
       };
     };
+    git = ./dendrites/git.nix;
     ssh = ./dendrites/ssh.nix;
   };
   aggregations = {

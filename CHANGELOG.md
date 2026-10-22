@@ -4,15 +4,15 @@ Append-only. Newest first.
 
 ## Unreleased
 
-- `examples/shared` and docs on a piece several entries share: two files, one
-  per half, imported by path (`imports` for the system half, `habit.home.imports`
-  for the home half). The bare-path and inline forms are shown to fail as
-  `already declared`.
+- Docs on a piece several entries share: two files, one per half, imported by
+  path (`imports` for the system half, `habit.home.imports` for the home half).
+  The bare-path and inline forms are shown to fail as `already declared`.
 - The examples are real flakes, laid out as a repository (`flake.nix`,
   `modules/`, `hosts/`, `users/`), and the suite calls each one's `outputs`
   without fetching anything. `examples/minimal`, `workstation`, `merged`, `home`
-  and `shared` are replaced by `examples/steps` and `examples/full`; each of
-  their cases is carried by a step or by `full`.
+  and `shared` are removed. What remains is `examples/steps`, seven flakes each
+  the one before plus one addition, and `examples/full`, the template they add up
+  to. The removed examples' cases were not all ported to these.
 - A walkthrough, [Growing a capability](docs/growing-a-capability.md), grows one
   capability across seven steps, and [What a capability can be](docs/forms.md)
   lists each form it takes.

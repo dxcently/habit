@@ -4,7 +4,7 @@
 
   system = {
     members = [
-      "ssh"
+      "git"
       "tmux"
     ];
   };

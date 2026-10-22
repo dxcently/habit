@@ -29,7 +29,7 @@ would otherwise drop a group without a trace, so it is an error.
 
 [`examples/full`](https://github.com/dxcently/habit/tree/main/examples/full) merges
 two sources. The core registry is the flake's own modules, and the personal one
-adds `tmux` and a group that names `ssh`, which only the core defines.
+adds `tmux` and a group, `dev`, that names `git` from core and `tmux` from itself.
 
 ```nix
 # examples/full/modules/default.nix — the core registry; personal/ adds a second one.
@@ -55,6 +55,7 @@ adds `tmux` and a group that names `ssh`, which only the core defines.
         foot = ./dendrites/terminal/foot.nix;
       };
     };
+    git = ./dendrites/git.nix;
     ssh = ./dendrites/ssh.nix;
   };
   aggregations = {
@@ -68,7 +69,7 @@ adds `tmux` and a group that names `ssh`, which only the core defines.
 ```
 
 ```nix
-# examples/full/modules/personal/default.nix — a second registry; `dev` groups `ssh`, which only the core registry defines.
+# examples/full/modules/personal/default.nix — a second registry; `dev` groups `git`, from the core registry, and `tmux`, which lives here.
 {
   catalogue = {
     tmux = ./dendrites/tmux.nix;
@@ -80,12 +81,11 @@ adds `tmux` and a group that names `ssh`, which only the core defines.
 }
 ```
 
-`dev` lives in `personal` and names `ssh`, which lives in `core`. Names resolve
+`dev` lives in `personal` and names `git`, which lives in `core`. Names resolve
 in the merged registry, so a group in one source may group capabilities from
-another. `desk` selects `dev` and gets `ssh` and `tmux`, then switches `tmux` off
-for itself, which a host may do over any group
-([Membership is mkDefault](aggregations.md#membership-is-mkdefault)). The flake
-merges the two and hands the result to both hosts and the standalone home:
+another. `desk` selects `dev` and gets `git` and `tmux`, and `ssh` comes from
+`base`. The flake merges the two and hands the result to both hosts and the
+standalone home:
 
 ```nix
 # examples/full/flake.nix
@@ -149,7 +149,7 @@ one source is an error naming the field, the name and every source defining
 it:
 
 ```
-catalogue names defined by more than one source: 'ssh' by shared and upstream
+catalogue names defined by more than one source: 'ssh' by core and upstream
 ```
 
 Because a clash is an error, the result does not depend on source order.

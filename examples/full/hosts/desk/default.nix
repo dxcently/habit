@@ -3,7 +3,6 @@
   habit.aggregation.base.enable = true;
   habit.aggregation.terminal.enable = true;
   habit.aggregation.dev.enable = true;
-  habit.dendrites.tmux.enable = false;
 
   habit.users.alice = {
     definition = ../../users/alice.nix;

@@ -119,40 +119,14 @@ A group writes only `enable` and `provider`, so the rest of a member's selection
 is the host's: `habit.dendrites.<member>.system = false` keeps the member and
 asks for its home half alone ([Dendrites](dendrites.md#halves-and-scopes)).
 
-`examples/full`'s `dev` group has `tmux` as a member, and its desk switches that
-member off:
+A host switches a member off with `enable = false` under the group that selects
+it. The suite proves it with [`tests/selection/switchoff`](https://github.com/dxcently/habit/tree/main/tests/selection/switchoff):
+a group whose one member throws on import, which a host switching it off never
+reaches, and which the same group, with nothing switched off, does reach. The
+switch is not in any example host, so the examples stay what a machine carries.
 
-```nix
-# examples/full/hosts/desk/default.nix
-{
-  habit.aggregation.base.enable = true;
-  habit.aggregation.terminal.enable = true;
-  habit.aggregation.dev.enable = true;
-  habit.dendrites.tmux.enable = false;
-
-  habit.users.alice = {
-    definition = ../../users/alice.nix;
-    home.enable = true;
-  };
-
-  habit.users.bob = {
-    definition = ../../users/bob.nix;
-    home.enable = true;
-    dendrites.shell.enable = false;
-  };
-
-  networking.hostName = "desk";
-  nixpkgs.hostPlatform = "x86_64-linux";
-  boot.isContainer = true;
-  system.stateVersion = "26.11";
-}
-```
-
-`desk` gets `ssh` and not `tmux`. The suite replaces `tmux`'s file with one that
-throws on import and the host still builds, then sets
-`habit.dendrites.tmux.enable = lib.mkForce true` on top, from a
-`selectionModules` module, and the throwing file is reached. Two groups that
-disagree on a provider collide instead of letting import order pick a winner.
+Two groups that disagree on a provider collide instead of letting import order
+pick a winner.
 
 ## Choosing a provider
 

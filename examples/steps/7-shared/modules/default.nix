@@ -25,5 +25,7 @@
   aggregations = {
     terminal = ./aggregations/terminal;
   };
-  overrides = { };
+  overrides = {
+    zsh-quiet-compaudit = ./overrides/zsh-quiet-compaudit.nix;
+  };
 }

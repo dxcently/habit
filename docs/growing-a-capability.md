@@ -12,8 +12,8 @@ The forms a capability can take, each with the step that shows it, are on
 | [1](#1-one-file) | a file | a plain module, selected by name |
 | [2](#2-a-home-half) | a directory, `habit.home`, a user | a module with a home half, and files beside it |
 | [3](#3-providers) | two providers and a value | a provider set, as files and as a value |
-| [4](#4-users) | a second user, who opts out | per-user homes and an opt-out |
-| [5](#5-terminal) | `terminal`, a group, a second host | a group, and a module that reads `habit.selected` |
+| [4](#4-users) | a second user, who opts out; a host that picks no shell | per-user homes, an opt-out, and a user's own provider |
+| [5](#5-terminal) | `terminal` and a group | a group, and a module that reads `habit.selected` |
 | [6](#6-override) | an override record | a fix that belongs to `shell` |
 | [7](#7-shared) | a piece two providers share | the two-file pattern |
 
@@ -277,7 +277,8 @@ throws in their place.
 
 ## 4. Users
 
-Alice and bob both get a home, and bob opts out of the shell's home half.
+Alice and bob both get a home on `desk`, and bob opts out of the shell's home
+half. The host picks zsh, so alice has zsh too.
 
 ```nix
 # examples/steps/4-users/hosts/desk/default.nix
@@ -315,8 +316,31 @@ Alice and bob both get a home, and bob opts out of the shell's home half.
 bob's opt-out withholds only his home half. The system half stays, so the host
 is still zsh, and alice keeps hers.
 
-A user cannot pick another provider than the host's on the same system, and
-the build refuses it, naming every claimant:
+The other direction is `laptop`. It selects no shell, so alice picks one for
+herself, and her home and the system both take fish:
+
+```nix
+# examples/steps/4-users/hosts/laptop/default.nix
+{
+  habit.users.alice = {
+    definition = ../../users/alice.nix;
+    home.enable = true;
+    dendrites.shell = {
+      enable = true;
+      provider = "fish";
+    };
+  };
+
+  networking.hostName = "laptop";
+  nixpkgs.hostPlatform = "x86_64-linux";
+  boot.isContainer = true;
+  system.stateVersion = "26.11";
+}
+```
+
+The limit: one system takes one shell. A user cannot pick another provider than
+the host's on the same system, and the build refuses it, naming every claimant.
+The suite builds a `desk` with alice's fish added and checks that refusal:
 
 ```
 dendrite 'shell' is selected with different providers (host: zsh; user 'alice': fish); one system takes one implementation
@@ -419,8 +443,7 @@ from the user's own home, where the shell the group sent is selected, so kitty
 launches the shell that user has. `optionalAttrs` keeps the setting out when the user opted out of the shell,
 so kitty then starts its own default.
 
-`desk` selects the group and nothing else, and `server` selects `shell` alone,
-with no terminal.
+`desk` selects the group and nothing else.
 
 ```nix
 # examples/steps/5-terminal/hosts/desk/default.nix
@@ -445,20 +468,6 @@ with no terminal.
 }
 ```
 
-```nix
-# examples/steps/5-terminal/hosts/server/default.nix
-{
-  habit.dendrites.shell = {
-    enable = true;
-    provider = "zsh";
-  };
-
-  networking.hostName = "server";
-  nixpkgs.hostPlatform = "x86_64-linux";
-  boot.isContainer = true;
-  system.stateVersion = "26.11";
-}
-```
 
 ## 6. Override
 
@@ -507,8 +516,9 @@ An override record names the capability it is about.
 ```
 
 The record's `system` module applies once to each host that selected `shell`
-with `system = true`. A host that selects no shell is untouched, and the suite
-checks that with a host that selects nothing.
+with `system = true`. A host that selects no shell is untouched: its
+`environment.variables` has no `ZSH_DISABLE_COMPFIX`, which `tests/real/nixos.nix`
+checks on a host of that kind.
 
 ## 7. Shared
 
@@ -580,7 +590,9 @@ The fish value imports the same two files from the registry:
   aggregations = {
     terminal = ./aggregations/terminal;
   };
-  overrides = { };
+  overrides = {
+    zsh-quiet-compaudit = ./overrides/zsh-quiet-compaudit.nix;
+  };
 }
 ```
 
@@ -589,13 +601,15 @@ home file as a bare path, or importing the system file inline, makes the options
 declared twice; that trap is in
 [A piece several entries share](dendrites.md#a-piece-several-entries-share).
 
+Step 7 is step 6 with that change and nothing else: `diff -r` of the two
+directories shows the shared piece, and the override stays.
+
 ## The full example
 
 [`examples/full`](https://github.com/dxcently/habit/tree/main/examples/full) is
-these seven steps as one flake, laid out as a repository: a desk and a server,
-two users, a second registry merged in, a standalone home, and the override.
-`nix flake init -t github:dxcently/habit` copies it. Its desk reads like a
-config someone keeps:
+these steps as one flake, laid out as a repository: a desk, a standalone home,
+two users, a second registry merged in, and the override. `nix flake init -t
+github:dxcently/habit` copies it. Its desk reads like a config someone keeps:
 
 ```nix
 # examples/full/hosts/desk/default.nix
@@ -603,7 +617,6 @@ config someone keeps:
   habit.aggregation.base.enable = true;
   habit.aggregation.terminal.enable = true;
   habit.aggregation.dev.enable = true;
-  habit.dendrites.tmux.enable = false;
 
   habit.users.alice = {
     definition = ../../users/alice.nix;
@@ -623,6 +636,11 @@ config someone keeps:
 }
 ```
 
-The second registry's `dev` group names `ssh`, which only the core registry
-defines, and it switches off `tmux` on `desk`. The standalone home takes its own
-`fish` provider, which is the per-user choice a shared system cannot make.
+`ssh` lives in `base`, which every machine carries. `dev` is the second
+registry's group: it names `git`, which the core registry defines, and `tmux`,
+which the personal registry does, so one group reaches across both sources and
+the desk switches nothing off. The standalone home takes its own `fish`
+provider, which is the per-user choice a shared system cannot make.
+
+The server is [`hosts/server`](https://github.com/dxcently/habit/blob/main/examples/full/hosts/server/default.nix),
+the minimal server example: `base` and zsh, nothing else.

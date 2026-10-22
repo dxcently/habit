@@ -252,6 +252,14 @@ let
 
   # The fixture registry plus the two entries the class cases select: one whose
   # system half only NixOS declares, one whose only nix-darwin does.
+  # A group whose one member throws on import, beside the registry: a host that
+  # switches that member off must never import it.
+  switchReg = registry // {
+    aggregations = registry.aggregations // {
+      switched = ./switchoff/group;
+    };
+  };
+
   registryWithTargets = registry // {
     catalogue = registry.catalogue // {
       homebrew = ./dendrites/homebrew;
@@ -398,6 +406,20 @@ let
         dendrites.systemonly.enable = false;
       }).inv.dendrites
         ? systemonly;
+
+    # A host switches one member of a group off: the group's mkDefault `true`
+    # loses to the host's `false`, so the member's file is never imported. Its
+    # pair is the same group with nothing switched off, which reaches the file.
+    switchedOffMemberIsNeverImported =
+      (resolveIn switchReg {
+        aggregation.switched.enable = true;
+        dendrites.landmine.enable = false;
+      }).inv.host;
+
+    switchedOnMemberIsImported =
+      (resolveIn switchReg {
+        aggregation.switched.enable = true;
+      }).inv.host;
 
     # A preference that rides along reaches the platform pass as a module, not as
     # something the selection pass evaluated.
@@ -2461,6 +2483,20 @@ selectionCases
   # ── Step 4: users, one opts out (steps/4-users) ────────────────────────────
   step4Selected = selectedBy (flakeOf (steps + "/4-users")).nixosConfigurations.desk.config;
 
+  # The laptop selects no shell; alice picks fish for herself. The host's
+  # selection is empty, her home's names fish, and the system half is applied.
+  step4Laptop =
+    let
+      inherit ((flakeOf (steps + "/4-users")).nixosConfigurations.laptop) config;
+      alice = config.home-manager.users.alice;
+    in
+    builtins.concatStringsSep " " [
+      "sys=${selectedBy config}"
+      "sysFish=${lib.boolToString config.programs.fish.enable}"
+      "alice=${selectedBy alice}"
+      "aliceFish=${lib.boolToString alice.programs.fish.enable}"
+    ];
+
   step4Homes =
     let
       inherit ((flakeOf (steps + "/4-users")).nixosConfigurations.desk) config;
@@ -2509,12 +2545,6 @@ selectionCases
       "bob=${if users.bob.programs.kitty.settings ? shell then "set" else "none"}"
     ];
 
-  step5Server =
-    let
-      server = (flakeOf (steps + "/5-terminal")).nixosConfigurations.server.config;
-    in
-    "${selectedBy server} terminal=${lib.boolToString server.habit.selected.terminal.enable}";
-
   # ── Step 6: a fix that belongs to a capability (steps/6-override) ──────────
   # The override's variable is read from the real NixOS evaluation in tests/real;
   # forcing `environment.variables` here needs a store this sandbox does not have.
@@ -2547,11 +2577,33 @@ selectionCases
     "${toString (builtins.length starship)} alice=${lib.boolToString config.home-manager.users.alice.programs.starship.enable}";
 
   # ── The full example (examples/full) ───────────────────────────────────────
+  # git is in the core registry and tmux in the personal one; both arrive
+  # through `dev`, which the desk selects.
   fullDesk =
     let
       inherit ((flakeOf (full)).nixosConfigurations) desk;
     in
-    "${selectedBy desk.config} tmux=${lib.boolToString desk.config.habit.selected.tmux.enable}";
+    "${selectedBy desk.config} git=${lib.boolToString desk.config.habit.selected.git.enable} tmux=${lib.boolToString desk.config.habit.selected.tmux.enable}";
+
+  # The same desk without `dev` selects neither git nor tmux, which proves git
+  # is reached through the group alone.
+  fullWithoutDevHasNoGit =
+    let
+      desk =
+        (deskOf {
+          registry = fullRegistry fullPersonal;
+          host = {
+            habit.aggregation = {
+              base.enable = true;
+              terminal.enable = true;
+            };
+            nixpkgs.hostPlatform = "x86_64-linux";
+            boot.isContainer = true;
+            system.stateVersion = "26.11";
+          };
+        }).system;
+    in
+    "git=${lib.boolToString desk.config.habit.selected.git.enable} tmux=${lib.boolToString desk.config.habit.selected.tmux.enable}";
 
   fullHomes =
     let
@@ -2586,14 +2638,6 @@ selectionCases
     ];
 
   fullPersonal = import (full + "/modules/personal/default.nix");
-
-  fullDeskHost = full + "/hosts/desk/default.nix";
-
-  fullTmuxIsNeverImported = forcedDesk (fullRegistry (fullPersonal // { catalogue.tmux = ./dendrites/landmine; })) fullDeskHost [ ];
-
-  fullTmuxSwitchedBackOnIsImported = forcedDesk (fullRegistry (fullPersonal // { catalogue.tmux = ./dendrites/landmine; })) fullDeskHost [
-    { dendrites.tmux.enable = lib.mkForce true; }
-  ];
 
   fullClash =
     (catalogues.mergeRegistries [

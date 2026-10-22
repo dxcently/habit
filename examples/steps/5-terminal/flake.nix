@@ -1,6 +1,6 @@
 # examples/steps/5-terminal/flake.nix
 {
-  description = "habit, step 5: a second capability, a group, a second host";
+  description = "habit, step 5: a second capability, and a group that selects both";
 
   inputs = {
     habit.url = "github:dxcently/habit";
@@ -19,20 +19,15 @@
     }:
     let
       composition = habit.lib.composition { inherit (nixpkgs) lib; };
-      build =
-        host:
-        (composition.mkNixosHost {
-          inherit nixpkgs;
-          hostName = host;
-          registry = import ./modules/default.nix;
-          host = ./hosts + "/${host}/default.nix";
-          homeManagerModule = home-manager.nixosModules.home-manager;
-        }).system;
     in
     {
-      nixosConfigurations = {
-        desk = build "desk";
-        server = build "server";
-      };
+      nixosConfigurations.desk =
+        (composition.mkNixosHost {
+          inherit nixpkgs;
+          hostName = "desk";
+          registry = import ./modules/default.nix;
+          host = ./hosts/desk/default.nix;
+          homeManagerModule = home-manager.nixosModules.home-manager;
+        }).system;
     };
 }

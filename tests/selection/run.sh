@@ -31,6 +31,8 @@ disabledIsInert                     ok      "fixture"
 selectedModuleIsImported            throws  landmine/default.nix was imported
 unselectedProviderIsInert           ok      "dunst"
 unselectedAggregationIsInert        ok      "fixture"
+switchedOffMemberIsNeverImported    ok      "fixture"
+switchedOnMemberIsImported          throws  landmine/default.nix was imported
 missingProvider                     throws  chose no provider; available providers: dunst, herald, landmine, mako
 unknownProvider                     throws  has no provider 'nope'; available providers: dunst, herald, landmine, mako
 providerOnSingleImpl                throws  single implementation and takes no provider (got 'mako')
@@ -283,20 +285,19 @@ step3UnchosenValueIsNeverApplied    ok      "built"
 step3ChosenFileIsRead               throws  landmine/default.nix was imported
 step4Selected                       ok      "shell/zsh"
 step4Homes                          ok      "sys=true alice=true bob=false"
+step4Laptop                         ok      "sys= sysFish=true alice=shell/fish aliceFish=true"
 step4AliceChoosesFishIsRefused      throws  dendrite 'shell' is selected with different providers (host: zsh; user 'alice': fish)
 step5Desk                           ok      "shell/zsh,terminal/kitty"
 step5Kitty                          ok      "alice=zsh bob=none"
-step5Server                         ok      "shell/zsh terminal=false"
 step6Desk                           ok      "shell/zsh,terminal/kitty"
 step6Server                         ok      "shell/zsh"
 step6BareHost                       ok      "overrides=0"
 step7Desk                           ok      "1 alice=true"
-fullDesk                            ok      "shell/zsh,ssh,terminal/kitty tmux=false"
+fullDesk                            ok      "git,shell/zsh,ssh,terminal/kitty,tmux git=true tmux=true"
+fullWithoutDevHasNoGit              ok      "git=false tmux=false"
 fullHomes                           ok      "alice=zsh bob=none"
 fullServer                          ok      "shell/zsh,ssh"
 fullStandalone                      ok      "shell/fish,ssh fish=true"
-fullTmuxIsNeverImported             ok      "built"
-fullTmuxSwitchedBackOnIsImported    throws  landmine/default.nix was imported
 fullClash                           throws  catalogue names defined by more than one source: 'ssh' by core and upstream
 realSystemFailsTheAssertionForAnImportedSelection throws hosts/selectsSshInImport.nix but the host scan never saw it (scans do not follow `imports`)
 sharedBareHomeIsRefused             throws  is already declared

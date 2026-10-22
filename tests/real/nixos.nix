@@ -62,6 +62,40 @@ in
     };
   };
 
+  stepSevenKeepsTheOverride = {
+    got =
+      let
+        steps = (import "${habit}/examples/steps/7-shared/flake.nix").outputs { inherit habit nixpkgs home-manager; };
+      in
+      {
+        desk = steps.nixosConfigurations.desk.config.environment.variables.ZSH_DISABLE_COMPFIX;
+        server = steps.nixosConfigurations.server.config.environment.variables.ZSH_DISABLE_COMPFIX;
+      };
+    want = {
+      desk = "true";
+      server = "true";
+    };
+  };
+
+  # A host that selects no shell is untouched by step 6's override record.
+  stepSixBareHostHasNoCompfixVariable = {
+    got =
+      (composition.mkNixosHost {
+        inherit nixpkgs;
+        registry = import "${habit}/examples/steps/6-override/modules/default.nix";
+        hostName = "bare";
+        host = {
+          networking.hostName = "bare";
+          nixpkgs.hostPlatform = "x86_64-linux";
+          boot.isContainer = true;
+          system.stateVersion = "26.11";
+        };
+        homeManagerModule = home-manager.nixosModules.home-manager;
+      }).system.config.environment.variables
+      ? ZSH_DISABLE_COMPFIX;
+    want = false;
+  };
+
   nixosHostSelectionReachesEveryUser = {
     got = {
       system = config.programs.zsh.enable;
