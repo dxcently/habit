@@ -133,12 +133,13 @@ that opted out ([Opting out](host.md#opting-out)):
 | the host, and user `U` writes `enable = false`      | applied           | every user with `home.enable = true` except `U` |
 | a host-selected group, and user `U` writes `enable = false` for the member | applied, as the host's (whatever the users do) | every user with a home except `U` |
 
-A selection's `system` says whether it asks for the module's system half. A
-host's is `true` by default. A user's is unset, which asks, unless the host turned
-the half off with `system = false`: then an unset user is home only, and only an
-explicit `system = true` takes it. The system half is applied by the one provider
-that holds it: the host's, when the host asks, and otherwise the provider every
-asking user names ([Several providers](#several-providers)).
+A selection's `system` says whether it asks for the module's system half. It
+defaults to `true`, for the host and for a user. Where the host selected the
+dendrite, a user who names another provider than the host's is home only, unless
+she writes `system = true` and no other user holds the half. The system half is
+applied by the one provider that holds it: the host's, when the host asks, and
+otherwise the provider every asking user names
+([Several providers](#several-providers)).
 Where the home half goes does not depend on it. A user's selection applies the
 system half by default because some modules need both sides (a screen locker's
 PAM service). A module reached by several selections is wrapped once per

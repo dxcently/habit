@@ -93,7 +93,7 @@ autoHomeOnlyWithoutAHomeHalfIsRefused throws selects only the home half of 'choi
 userGroupPickWithGroupOffIsRefused  throws aggregation 'desk': `habit.users.alice.aggregation.desk.notifications` sets provider 'mako' and enable = false
 userEnabledWithoutProviderTakesTheHostsProvider ok "sys=dunst alice=dunst bob=dunst"
 userEnabledWithoutProviderAndNoHolderIsRefused throws dendrite 'notifications' is enabled but chose no provider
-hostSystemOffUserEnabledTakesHostProvider ok "sys= alice=dunst bob=dunst"
+hostSystemOffUserEnabledTakesHostProvider ok "sys=dunst alice=dunst bob=dunst"
 hostSystemOffUserPickIsHomeOnly     ok      "sys= alice=herald bob=dunst"
 hostSystemOffUserExplicitSystemTakesIt ok   "sys=herald alice=herald bob=dunst"
 hostUnselectedUserPickTakesTheSystemHalf ok "sys=herald alice=herald"

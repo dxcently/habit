@@ -11,10 +11,11 @@ Append-only. Newest first.
 - Naming a provider implies enable: `dendrites.<n>.provider = "fish";` alone
   selects it. Beside `enable = false` it is refused, naming the user, the dendrite
   and the line.
-- A user's `dendrites.<n>.system` is unset by default, not `true`. Unset asks for
-  the system half, and the provider that holds it keeps it: the host's when the
-  host asks, otherwise the one provider every asking user names. A user who names
-  another provider while the host holds the system half is home only.
+- A user's `dendrites.<n>.system` defaults to `true`, as in v0.5.1. The provider
+  that holds the system half keeps it: the host's when the host asks, otherwise the
+  one provider every asking user names. Where the host selected the dendrite, a user
+  who names another provider than the host's is home only, unless she writes
+  `system = true` and no other user holds the half.
 - Refused: two users naming different providers with the host holding no system
   half, naming each claimant and both fixes; and a user's `system = true` for a
   provider other than the holder's.
@@ -27,10 +28,8 @@ Append-only. Newest first.
 - A user who turns a dendrite on with no provider takes the host's provider for
   it, whether or not the host asks for the system half, the same as naming it. With
   no host provider to take, the error "is enabled but chose no provider" stands.
-- A host's `system = false` turns the system half off for the users too: a user's
-  unset `system` is home only, and only an explicit `system = true` takes the half.
-  Before, an unset user took it. Where the host does not select the dendrite, an
-  unset user still takes the half, as in v0.5.
+- A host's `system = false` holds the system half for nobody. A user who names the
+  host's provider still applies the half, as in v0.5.1.
 - A user's direct `dendrites.<n>.provider` beats the provider her group names for
   the same dendrite, for her home alone.
 - A user's provider under an aggregation she switched off (`aggregation.<g>.enable

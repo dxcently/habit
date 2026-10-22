@@ -128,11 +128,7 @@ let
                 optFlag "Select ${name} in this scope. `false` withholds the home half the host sent."
               else
                 flag inert false "Select ${name} in this scope.";
-            system =
-              if tristate then
-                optFlag "Apply the system half of ${name} for this user. Unset, the user takes it unless the host holds the system half with another provider, and then the user gets the home half alone. Off asks for the home half alone."
-              else
-                flag inert true "Apply the system half of ${name} for this selection. Off asks for its home half alone.";
+            system = flag inert true "Apply the system half of ${name} for this selection. Off asks for its home half alone.";
             provider = mkOption {
               type = types.nullOr types.str;
               default = null;
@@ -874,12 +870,12 @@ rec {
 
       hostModule = scan.scanModule { inherit host specialArgs; };
 
-      eval =
+      evaluate =
         {
           bodies,
           hostGroups,
         }:
-        (lib.evalModules {
+        lib.evalModules {
           modules = [
             (mkSchema {
               inherit
@@ -893,14 +889,17 @@ rec {
             })
             hostModule
           ];
-        }).config.habit;
+        };
+
+      eval = args: (evaluate args).config.habit;
 
       # The gate step reads no body, so a user's `enable` there is what the host
       # wrote, null where it wrote nothing.
-      gate = eval {
+      gateEvaluation = evaluate {
         bodies = null;
         hostGroups = [ ];
       };
+      gate = gateEvaluation.config.habit;
 
       chosen = agg: lib.attrNames (lib.filterAttrs (_: a: a.enable == true) agg);
 
@@ -959,29 +958,48 @@ rec {
         else
           null;
 
+      # Whether the host wrote a user's `system` in its own literal `habit.users`.
+      # The default `true` is no write, so an explicit value is told from it. The
+      # gate's definitions are the host's text, not platform configuration.
+      systemWritten =
+        name: n:
+        lib.any (
+          def: lib.isAttrs def.value && lib.hasAttrByPath [ "users" name "dendrites" n "system" ] def.value
+        ) gateEvaluation.options.habit.definitionsWithLocations;
+
       # What a user's own `enable` resolves to once the host's groups are in: a
       # bool for selection and `optOut` for an explicit `false`. Turned on with no
-      # provider, a user takes the host's provider for that dendrite. Where she
-      # wrote no `system` and the host turned the system half off, she gets the
-      # home half only (`hostOff`); otherwise her unset `system` asks.
+      # provider, a user takes the host's provider for that dendrite. `asks` says
+      # whether she asks for the system half, from her default `true` and the
+      # host's claim: with no host claim, or an explicit `true`, she asks; for a
+      # dendrite the host selected, only by naming the host's provider; for a
+      # host-sent member, by naming the group's provider while the host asks.
       normalizeUser =
-        u:
+        name: u:
         u
         // {
           dendrites = lib.mapAttrs (
             n: d:
             let
               hostClaim = hostClaimOf n;
-              hostOff = d.system == null && hostClaim != null && !hostClaim.asks;
+              provider =
+                if d.provider == null && userOn d && hostClaim != null then hostClaim.provider else d.provider;
+              sameAsHost = hostClaim != null && provider == hostClaim.provider;
+              asks =
+                if d.system == false then
+                  false
+                else if hostClaim == null || systemWritten name n then
+                  true
+                else if hostClaim.selected then
+                  sameAsHost
+                else
+                  sameAsHost && hostClaim.asks;
             in
             d
             // {
               enable = userOn d;
               optOut = d.enable == false;
-              provider =
-                if d.provider == null && userOn d && hostClaim != null then hostClaim.provider else d.provider;
-              inherit hostOff;
-              system = if hostOff then false else d.system;
+              inherit provider asks;
             }
           ) u.dendrites;
           aggregation = lib.mapAttrs (
@@ -994,14 +1012,12 @@ rec {
           ) u.aggregation;
         };
 
-      usersRaw = lib.mapAttrs (_: normalizeUser) resolved.users;
+      usersRaw = lib.mapAttrs normalizeUser resolved.users;
       homeUsers = lib.filter (u: usersRaw.${u}.home.enable) (lib.attrNames usersRaw);
 
       # Every claim on one dendrite, and the provider whose system half applies
       # (`holder`). The host's claim comes from `hostClaimOf`; a user's claim is
-      # each enabled user's selection. A claim asks for the system half unless it
-      # says `false`; an unwritten `system` asks, unless the host turned the system
-      # half off, which makes her home-only.
+      # each enabled user's selection, and `asks` is decided in `normalizeUser`.
       #   - The host holds the system half when it asks for it; then the holder is
       #     its provider, and a user's other provider is home only, automatically.
       #   - Otherwise the holder is the one provider every asking user names.
@@ -1037,9 +1053,9 @@ rec {
             kind = "user";
             userName = u;
             provider = (userDendrite u).provider;
-            asks = (userDendrite u).system;
+            asks = (userDendrite u).asks;
+            off = (userDendrite u).system == false;
             users = [ u ];
-            inherit (userDendrite u) hostOff;
           }) enabledUsers;
 
           asking = lib.filter (c: c.asks != false) userClaims;
@@ -1085,7 +1101,7 @@ rec {
           dendrites = lib.mapAttrs (
             n: d:
             if d.enable then
-              d // { system = systemFor claims.${n}.holder d.system d.provider; }
+              d // { system = systemFor claims.${n}.holder d.asks d.provider; }
             else
               d
           ) u.dendrites;
@@ -1311,9 +1327,9 @@ rec {
           claimsFor = p: lib.filter (c: c.provider == p) sel.claims;
           byOf =
             c:
-            if c.kind == "host" || c.hostOff then
+            if c.kind == "host" then
               "host '${hostName}' `habit.dendrites.${name}.system = false`"
-            else if c.asks == false then
+            else if c.off then
               "user '${c.userName}' of host '${hostName}' `habit.users.${c.userName}.dendrites.${name}.system = false`"
             else
               "user '${c.userName}' of host '${hostName}' `habit.users.${c.userName}.dendrites.${name}.provider = \"${c.provider}\"` (the system half is taken by '${sel.holder}')";

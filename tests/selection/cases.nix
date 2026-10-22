@@ -557,7 +557,7 @@ let
       dendrites.notifications = dunst // {
         system = false;
       };
-      users.alice = homeUser "alice" { dendrites.notifications = dunst // { system = true; }; };
+      users.alice = homeUser "alice" { dendrites.notifications = dunst; };
       users.bob = homeUser "bob" { };
     };
 
@@ -613,7 +613,7 @@ let
         enable = true;
         system = false;
       };
-      users.alice = homeUser "alice" { dendrites.splitLandmine = { enable = true; system = true; }; };
+      users.alice = homeUser "alice" { dendrites.splitLandmine.enable = true; };
     };
 
     # A member of an aggregation is switched to the home half alone by the host,
@@ -693,7 +693,7 @@ let
             dendrites.notifications = dunst // {
               system = false;
             };
-            users.alice = homeUser "alice" { dendrites.notifications = dunst // { system = true; }; };
+            users.alice = homeUser "alice" { dendrites.notifications = dunst; };
           };
         };
       in
@@ -794,9 +794,8 @@ let
       users.alice = homeUser "alice" { dendrites.notifications.enable = true; };
     };
 
-    # The host selects a provider for its home alone. A user turned on with no
-    # provider takes the host's, so her home gets it; nothing holds the system
-    # half, and her unset `system` is home only.
+    # A user turned on with no provider takes the host's, the same provider, so
+    # her unset `system` applies the system half, as in v0.5.1.
     hostSystemOffUserEnabledTakesHostProvider = assembled {
       dendrites.notifications = dunst // {
         system = false;
@@ -1274,7 +1273,7 @@ selectionCases
           };
         }
         {
-          users.alice = homeUser "alice" { dendrites.notifications = dunst // { system = true; }; };
+          users.alice = homeUser "alice" { dendrites.notifications = dunst; };
         };
 
   # A record with no `hosts` reaches every host that selected a target — and
