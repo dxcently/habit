@@ -54,6 +54,10 @@ Nothing is imported or applied at registry time.
 | `overrides`    | record name      | a file holding a capability-scoped fix ([Override records](overrides.md)); optional |
 | `rules`        | capability name | plain data the selection must satisfy: `needs`, `hosts`, `homes` ([Registry rules](rules.md)); optional |
 
+A registry from `mergeRegistries` also carries `ruleFrom`, which names the source
+each rule came from, for its error messages. The constructor accepts it, and a
+registry built by hand may leave it out.
+
 ```nix
 # examples/steps/5-terminal/modules/default.nix
 {

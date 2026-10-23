@@ -66,9 +66,6 @@ adds `tmux` and a group, `dev`, that names `git` from core and `tmux` from itsel
   overrides = {
     zsh-quiet-compaudit = ./overrides/zsh-quiet-compaudit.nix;
   };
-  rules = {
-    terminal.needs = [ "shell" ];
-  };
 }
 ```
 

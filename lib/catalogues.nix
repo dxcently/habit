@@ -14,10 +14,12 @@
 # Source names must be unique, or an error could not say which source clashed.
 # `mergeRegistries` returns a registry, ready to hand to the constructor. Each
 # of its fields is merged on its own and only when read, so a clash is reported
-# by the field it is in. `ruleFrom` names the source each rule came from, so a
-# rule's error can say which registry it is in; a fault of a whole source (not an attrset, no name, an
-# unknown field) is reported by whichever field is read first. Like
-# composition.nix this is a function of `{ lib }` and nothing else.
+# by the field it is in. A fault of a whole source (not an attrset, no name, an
+# unknown field) is reported by whichever field is read first.
+#
+# `ruleFrom` maps each rule's name to the source that defined it, so a rule's
+# error can say which registry it is in. The constructor reads it; nothing else
+# does. Like composition.nix this is a function of `{ lib }` and nothing else.
 { lib }:
 let
   sourceFields = [

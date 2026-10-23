@@ -392,9 +392,9 @@ unselectedGroupValueIsInert ok "sys=systemonly"
 selectedGroupValueIsRefused throws  aggregation 'valued' is a set, not a path
 overrideValueIsRefused throws  override record 'badRecord' is a set, not a path
 ruleNeedsMetOnTheSystem             ok      "sys=systemonly"
-ruleNeedsNotSelectedIsRefused       throws  host 'fixture' (system): dendrite 'systemonly' needs 'homeonly', which is not selected; select it with `habit.dendrites.homeonly.enable = true`
+ruleNeedsNotSelectedIsRefused       throws  host 'fixture' (system): dendrite 'systemonly' needs 'homeonly', which is not selected for the system
 ruleNeedsSwitchedOffNamesTheLine    throws  dendrite 'systemonly' needs 'homeonly', which is switched off (`habit.dendrites.homeonly.enable = false`)
-ruleReportsEveryUnmetNeed           throws  needs 'homeonly', which is not selected; select it with `habit.dendrites.homeonly.enable = true`; host 'fixture' (system): dendrite 'systemonly' needs 'notifications', which is not selected
+ruleReportsEveryUnmetNeed           throws  needs 'homeonly', which is not selected for the system; host 'fixture' (system): dendrite 'systemonly' needs 'notifications', which is not selected for the system
 ruleNeedsNotCheckedWhenNotSelected  ok      "sys="
 ruleNeedsMetByTheHostForAHome       ok      "sys= alice=mako+homeonly"
 ruleNeedsMetByTheHomeItself         ok      "sys= alice=mako+homeonly"
@@ -433,6 +433,12 @@ ruleAbsentFromAnUnruledEntry        ok      false
 ruleAppliesWhateverTheProvider      throws  dendrite 'notifications' is selected on host 'fixture' (directly), but its rule allows only host(s) beta
 ruleHostsNamesAStandaloneHome       throws  dendrite 'systemonly' is selected on host 'desk' (directly), but its rule allows only host(s) beta
 ruleClashAcrossRegistries           throws  rules names defined by more than one source: 'systemonly' by gamma and delta
+ruleHomeOnlyNeedDoesNotMeetASystemNeed throws host 'fixture' (system): dendrite 'systemonly' needs 'homeonly', which is not selected for the system
+ruleSystemSwitchUnderMkForceIsNotCited throws host 'fixture' (system): dendrite 'systemonly' needs 'homeonly', which is not selected for the system
+ruleUserSwitchUnderMkForceIsNotCited throws host 'fixture' (user 'alice'): dendrite 'notifications' needs 'homeonly', which is neither selected on the host nor reaches 'alice'
+ruleHostGroupHomeMemberIsViaTheGroup throws dendrite 'homeonly' is selected on host 'fixture' (via aggregation 'household'), but its rule allows only host(s) beta
+ruleHostGroupHomeMemberWithoutAUserIsRefused throws dendrite 'homeonly' is selected on host 'fixture' (via aggregation 'household'), but its rule allows only host(s) beta
+ruleUserGroupNamesItsGroup          throws  dendrite 'notifications' is selected on host 'fixture' (by user 'alice' via aggregation 'desk'), but its rule allows only host(s) beta
 EOF
 )
 

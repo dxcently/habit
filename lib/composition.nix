@@ -63,6 +63,35 @@ let
   lanes = import ./lanes.nix { inherit lib; };
   scan = import ./scan.nix { inherit lib; };
 
+  # Where `path` leads under a `habit` value, as written. `written` holds the
+  # value there, which a wrapper at the leaf (`mkForce false`) makes no literal
+  # of; `wrapped` is a wrapper above the leaf, which hides the leaf; `absent` is
+  # no write at all. Read without forcing the module system's merge.
+  walkAt =
+    path: v:
+    if path == [ ] then
+      {
+        state = "written";
+        value = v;
+      }
+    else if !lib.isAttrs v then
+      {
+        state = "absent";
+        value = null;
+      }
+    else if v ? _type then
+      {
+        state = "wrapped";
+        value = null;
+      }
+    else if v ? ${lib.head path} then
+      walkAt (lib.tail path) v.${lib.head path}
+    else
+      {
+        state = "absent";
+        value = null;
+      };
+
   # A flag the host writes. The scan reads it as a bool that is `default` until
   # written; the platform evaluation declares the same key inert, null until
   # written, so a value written in a file the scan never read is told from none.
@@ -959,40 +988,17 @@ rec {
         else
           null;
 
-      # The value written literally at `path` under a `habit` value: null where
-      # nothing is written, or where a wrapper (`mkIf`, `mkForce`) hides it.
-      literalAt =
-        path: v:
-        if path == [ ] then
-          v
-        else if lib.isAttrs v && !(v ? _type) && v ? ${lib.head path} then
-          literalAt (lib.tail path) v.${lib.head path}
-        else
-          null;
-
       # Whether the literal `habit` values that every file wrote, the host's and
       # the selection modules', set a user's `system`. The default `true` is no
       # write, so an explicit value is told from it. These are the text as
       # written, read before any module system merge, not platform configuration.
       # A wrapper (`mkIf`, `mkForce`, `mkMerge`) above the leaf hides what is
       # written beneath it: `wrapped`, which the caller refuses when it matters.
-      writtenAt =
-        path: v:
-        if path == [ ] then
-          "written"
-        else if !lib.isAttrs v then
-          "absent"
-        else if v ? _type then
-          "wrapped"
-        else if v ? ${lib.head path} then
-          writtenAt (lib.tail path) v.${lib.head path}
-        else
-          "absent";
       systemWritten =
         name: n:
         let
           states = map (
-            def: writtenAt [ "users" name "dendrites" n "system" ] def.value
+            def: (walkAt [ "users" name "dendrites" n "system" ] def.value).state
           ) gateEvaluation.options.habit.definitionsWithLocations;
         in
         if lib.elem "written" states then
@@ -1213,7 +1219,7 @@ rec {
           # say a switch was thrown and tell it from one never touched.
           writtenAs =
             path: value:
-            lib.any (def: literalAt path def.value == value) gateEvaluation.options.habit.definitionsWithLocations;
+            lib.any (def: (walkAt path def.value).value == value) gateEvaluation.options.habit.definitionsWithLocations;
         }
     );
 
@@ -1296,10 +1302,21 @@ rec {
       userNames = lib.attrNames users;
 
       onSystem = n: selection.dendrites.${n}.enable;
+      # The system half of `n` is on the system when a claim applies it: the
+      # host's, where the host selected `n` itself, or a user's that takes the
+      # system. A home member a host group sends is no system claim, and a
+      # selection made with `system = false` is not on the system either.
+      systemApplies =
+        n: lib.any (c: c.system && (c.kind == "user" || onSystem n)) selection.claims.${n}.claims;
       onUser = u: n: users.${u}.dendrites.${n}.enable;
       reaches = u: n: users.${u}.home.enable && (onUser u n || lib.elem u selection.claims.${n}.hostUsers);
       reachers = n: lib.filter (u: reaches u n) userNames;
-      selectedHere = n: onSystem n || lib.any (u: onUser u n) userNames;
+      # Groups the host selected whose system or home half names `n`. A home
+      # member a host group sends is the host's selection, whether or not any
+      # user's home reaches it.
+      hostGroupsNaming =
+        n: lib.unique (groupsNaming selection.aggregation "system" n ++ groupsNaming selection.aggregation "home" n);
+      selectedHere = n: onSystem n || hostGroupsNaming n != [ ] || lib.any (u: onUser u n) userNames;
 
       # The enabled groups of one selection whose half in `scope` names `n`.
       groupsNaming =
@@ -1312,38 +1329,50 @@ rec {
           lib.elem n (half.members or [ ]) || lib.elem n (lib.attrNames (half.providers or { }))
         ) (lib.attrNames (lib.filterAttrs (_: a: a.enable == true) aggregation));
 
-      # How `n` is selected on this host, from its first selection: the host's
-      # own, or else the first user's.
+      # How `n` is selected on this host, in three forms: `directly` (the host's
+      # own write), `via aggregation '<g>'` (a group the host selected, in either
+      # half, including a home member it sends), or `by user '<u>'`, with `via
+      # aggregation '<g>'` after it when that user's own group brought it.
       how =
         n:
         let
-          u = lib.head (lib.filter (u: onUser u n) userNames);
-          hostGroups = groupsNaming selection.aggregation "system" n;
-          userGroups = groupsNaming users.${u}.aggregation "home" n;
-          homeGroups = groupsNaming selection.aggregation "home" n;
+          viaHost = "via aggregation '${lib.head (hostGroupsNaming n)}'";
+          reachingUsers = lib.filter (u: onUser u n) userNames;
         in
         if onSystem n then
-          if selection.writtenAs [ "dendrites" n "enable" ] true then
+          if hostGroupsNaming n == [ ] || selection.writtenAs [ "dendrites" n "enable" ] true then
             "directly"
-          else if hostGroups != [ ] then
-            "via aggregation '${lib.head hostGroups}'"
           else
-            "by the host"
-        else if selection.writtenAs [ "users" u "dendrites" n "enable" ] true then
-          "by user '${u}'"
-        else if userGroups != [ ] then
-          "via aggregation '${lib.head userGroups}' of user '${u}'"
-        else if homeGroups != [ ] then
-          "via aggregation '${lib.head homeGroups}' on the host"
+            viaHost
+        else if reachingUsers == [ ] then
+          viaHost
         else
-          "by user '${u}'";
+          let
+            u = lib.head reachingUsers;
+            # A group the user wrote, not one the host's selection switched on
+            # for them: that one is the host's.
+            userGroups = lib.filter (
+              g: selection.writtenAs [ "users" u "aggregation" g "enable" ] true
+            ) (groupsNaming users.${u}.aggregation "home" n);
+          in
+          if selection.writtenAs [ "users" u "dendrites" n "enable" ] true then
+            "by user '${u}'"
+          else if userGroups != [ ] then
+            "by user '${u}' via aggregation '${lib.head userGroups}'"
+          else if hostGroupsNaming n != [ ] then
+            viaHost
+          else
+            "by user '${u}'";
 
+      # A switch is cited only where it is a literal write. Anything else, a
+      # `mkForce false` among it, is named by what it leaves, with no fix advised:
+      # the switch it hides is not a line the message can point at.
       systemCause =
         m:
         if selection.writtenAs [ "dendrites" m "enable" ] false then
           "is switched off (`habit.dendrites.${m}.enable = false`)"
         else
-          "is not selected; select it with `habit.dendrites.${m}.enable = true`";
+          "is not selected for the system";
 
       userCause =
         u: m:
@@ -1352,7 +1381,7 @@ rec {
         else if selection.writtenAs [ "dendrites" m "enable" ] false then
           "is switched off on the host (`habit.dendrites.${m}.enable = false`) and does not reach '${u}'; select it for '${u}' with `habit.users.${u}.dendrites.${m}.enable = true`"
         else
-          "is neither selected on the host nor reaches '${u}'; select it with `habit.dendrites.${m}.enable = true` or `habit.users.${u}.dendrites.${m}.enable = true`";
+          "is neither selected on the host nor reaches '${u}'";
 
       needRefusals = lib.concatLists (
         lib.mapAttrsToList (
@@ -1360,16 +1389,16 @@ rec {
           let
             needs = rule.needs or [ ];
           in
-          (lib.optionals (onSystem n) (
+          (lib.optionals (systemApplies n) (
             map (m: "host '${hostName}' (system): dendrite '${n}' needs '${m}', which ${systemCause m}") (
-              lib.filter (m: !onSystem m) needs
+              lib.filter (m: !systemApplies m) needs
             )
           ))
           ++ lib.concatMap (
             u:
             lib.optionals (reaches u n) (
               map (m: "host '${hostName}' (user '${u}'): dendrite '${n}' needs '${m}', which ${userCause u m}") (
-                lib.filter (m: !(reaches u m || onSystem m)) needs
+                lib.filter (m: !(reaches u m || systemApplies m)) needs
               )
             )
           ) userNames
@@ -1395,16 +1424,16 @@ rec {
         ) rules
       );
 
-      checked = lib.foldl' (
-        acc: name:
-        builtins.seq (checkRule {
+      checks = map (
+        name:
+        checkRule {
           inherit knownHosts ruleFrom name;
           inherit (registry) catalogue;
           rule = rules.${name};
-        }) acc
-      ) null (lib.attrNames rules);
+        }
+      ) (lib.attrNames rules);
     in
-    builtins.seq checked (needRefusals ++ hostRefusals ++ homesRefusals);
+    builtins.deepSeq checks (needRefusals ++ hostRefusals ++ homesRefusals);
 
   # A host's resolved shape: what it selected and from where, for the system and
   # for each user. Generated from the selection, never maintained by hand.

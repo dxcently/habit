@@ -4083,5 +4083,66 @@ in
       }
     ]
   ).rules;
+
+  # A need selected `system = false` is on the homes only: it meets no system need.
+  ruleHomeOnlyNeedDoesNotMeetASystemNeed = ruledOn {
+    reg = ruled { systemonly.needs = [ "homeonly" ]; };
+    mod = {
+      dendrites.systemonly.enable = true;
+      dendrites.homeonly = {
+        enable = true;
+        system = false;
+      };
+    };
+  };
+
+  # A switch under `mkForce` is no literal line: no line is cited, and the
+  # refusal says only what is left.
+  ruleSystemSwitchUnderMkForceIsNotCited = ruledOn {
+    reg = ruled { systemonly.needs = [ "homeonly" ]; };
+    mod = {
+      dendrites.systemonly.enable = true;
+      dendrites.homeonly.enable = lib.mkForce false;
+    };
+  };
+
+  ruleUserSwitchUnderMkForceIsNotCited = ruledOn {
+    reg = ruled { notifications.needs = [ "homeonly" ]; };
+    mod = {
+      aggregation.household.enable = true;
+      users.alice = homeUser "alice" {
+        dendrites.notifications = {
+          enable = true;
+          provider = "mako";
+          system = false;
+        };
+        dendrites.homeonly.enable = lib.mkForce false;
+      };
+    };
+  };
+
+  # A host group's home member is the host's selection, and names the group.
+  ruleHostGroupHomeMemberIsViaTheGroup = ruledOn {
+    reg = ruled { homeonly.hosts = [ "beta" ]; };
+    mod = {
+      aggregation.household.enable = true;
+      users.alice = homeUser "alice" { };
+      users.bob = homeUser "bob" { };
+    };
+  };
+
+  # The same member with no user's home to reach is still the host's selection.
+  ruleHostGroupHomeMemberWithoutAUserIsRefused = ruledOn {
+    reg = ruled { homeonly.hosts = [ "beta" ]; };
+    mod.aggregation.household.enable = true;
+  };
+
+  # A user's own group names the group it came through.
+  ruleUserGroupNamesItsGroup = ruledOn {
+    reg = ruled { notifications.hosts = [ "beta" ]; };
+    mod.users.alice = homeUser "alice" {
+      aggregation.desk.enable = true;
+    };
+  };
 }
 )
