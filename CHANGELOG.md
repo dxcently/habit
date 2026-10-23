@@ -2,7 +2,7 @@
 
 Append-only. Newest first.
 
-## Unreleased
+## 0.7.0
 
 - A registry's optional `rules` maps a catalogue name to a rule that refuses and
   never selects: `needs` (each named entry is selected wherever this one is; a home
