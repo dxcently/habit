@@ -77,6 +77,9 @@ The refusal names how the entry was selected, in one of three forms:
 - `by user '<u>'`: a user's own dendrite wrote it, with `by user '<u>' via
   aggregation '<g>'` when that user's own group brought it.
 
+When a user wrote the entry and a host group also sends it, the refusal names the
+user.
+
 A rule on an entry with several providers applies to the entry whatever provider
 answers it. There are no provider-level rules.
 
