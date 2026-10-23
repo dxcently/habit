@@ -6,15 +6,16 @@
 #
 # A source is a registry plus the name to blame it by:
 #
-#   { name = "personal"; catalogue = { … }; aggregations = { … }; overrides = { … }; }
+#   { name = "personal"; catalogue = { … }; aggregations = { … }; overrides = { … }; rules = { … }; }
 #
-# Any of the three fields may be absent; one that is present must be an attrset.
-# A source takes only those four fields: another one (a misspelt `aggregation`)
+# Any of the four fields may be absent; one that is present must be an attrset.
+# A source takes only those five fields: another one (a misspelt `aggregation`)
 # is an error naming it, since ignoring it would drop the group without a trace.
 # Source names must be unique, or an error could not say which source clashed.
 # `mergeRegistries` returns a registry, ready to hand to the constructor. Each
 # of its fields is merged on its own and only when read, so a clash is reported
-# by the field it is in; a fault of a whole source (not an attrset, no name, an
+# by the field it is in. `ruleFrom` names the source each rule came from, so a
+# rule's error can say which registry it is in; a fault of a whole source (not an attrset, no name, an
 # unknown field) is reported by whichever field is read first. Like
 # composition.nix this is a function of `{ lib }` and nothing else.
 { lib }:
@@ -24,6 +25,7 @@ let
     "catalogue"
     "aggregations"
     "overrides"
+    "rules"
   ];
 
   checkedName =
@@ -79,5 +81,9 @@ in
     catalogue = mergeField "catalogue" sources;
     aggregations = mergeField "aggregations" sources;
     overrides = mergeField "overrides" sources;
+    rules = mergeField "rules" sources;
+    ruleFrom = lib.foldl' (
+      owners: source: owners // lib.mapAttrs (_: _: source.name) (fieldOf "rules" source)
+    ) { } sources;
   };
 }

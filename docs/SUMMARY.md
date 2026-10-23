@@ -9,6 +9,7 @@
 - [Aggregations](aggregations.md)
 - [The host module](host.md)
 - [Override records](overrides.md)
+- [Registry rules](rules.md)
 - [The constructor](constructor.md)
 - [Merging registries](merging.md)
 - [Errors](errors.md)

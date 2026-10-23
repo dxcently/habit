@@ -103,6 +103,7 @@ vague error is a failing test. [Errors](errors.md)
 | [What a capability can be](forms.md) | each form a catalogue entry takes, and the step that shows it |
 | [The host module](host.md)          | the `habit.*` keys, the scan and its limits, users and Home Manager, darwin and standalone homes |
 | [Override records](overrides.md)    | capability-scoped fixes, matching, the weaker boundary           |
+| [Registry rules](rules.md)          | `needs`, `hosts` and `homes`: what a capability asks of the registry, refusals only |
 | [The constructor](constructor.md)   | the classes and their builders, every argument, the module list order, hooks, the inventory |
 | [Merging registries](merging.md)    | `mergeRegistries`, the source shape, its errors                  |
 | [Errors](errors.md)                 | each error habit throws, its cause, its fix                      |

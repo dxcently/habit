@@ -58,17 +58,19 @@ registry
 ├── aggregations   name ─► path      a directory whose default.nix is the body
 │     body = { description?; system? = { members?; providers?; module?; };
 │                            home?   = { members?; providers?; module?; }; }
-└── overrides      name ─► path      a record file, optional
-      record = { dendrites; hosts?; overlay?; system?; home?; }
+├── overrides      name ─► path      a record file, optional
+│     record = { dendrites; hosts?; overlay?; system?; home?; }
+└── rules          name ─► rule      plain data, optional
+      rule = { needs?; hosts?; homes?; }
 ```
 
 Every field marked `?` is optional. A record needs `dendrites` and at least one
-of `overlay`, `system` or `home`.
+of `overlay`, `system` or `home`. A rule refuses a selection and never makes one.
 
 [Dendrites](docs/dendrites.md), [Aggregations](docs/aggregations.md),
-[Override records](docs/overrides.md). `mergeRegistries` merges the three
-fields by name; a name two sources define is an error
-([Merging registries](docs/merging.md)).
+[Override records](docs/overrides.md), [Registry rules](docs/rules.md).
+`mergeRegistries` merges the four fields by name; a name two sources define is
+an error ([Merging registries](docs/merging.md)).
 
 ### The host's keys
 
@@ -303,6 +305,7 @@ The book: <https://dxcently.github.io/habit/> (the same pages are in
 | [Aggregations](docs/aggregations.md) | groups, membership by priority, provider choices |
 | [The host module](docs/host.md) | the `habit.*` keys, the scan and its limits, users and Home Manager, darwin and standalone homes |
 | [Override records](docs/overrides.md) | fixes that belong to a capability |
+| [Registry rules](docs/rules.md) | what a capability needs of the rest of the registry, and where it may be selected |
 | [The constructor](docs/constructor.md) | the classes and their builders, every argument, the module list, hooks, the inventory |
 | [Merging registries](docs/merging.md) | `mergeRegistries` and its errors |
 | [Errors](docs/errors.md) | each error, its cause, its fix |

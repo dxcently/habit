@@ -391,6 +391,48 @@ userOptOutInAnInlineImportIsCaught throws  `habit.users.alice.dendrites.notifica
 unselectedGroupValueIsInert ok "sys=systemonly"
 selectedGroupValueIsRefused throws  aggregation 'valued' is a set, not a path
 overrideValueIsRefused throws  override record 'badRecord' is a set, not a path
+ruleNeedsMetOnTheSystem             ok      "sys=systemonly"
+ruleNeedsNotSelectedIsRefused       throws  host 'fixture' (system): dendrite 'systemonly' needs 'homeonly', which is not selected; select it with `habit.dendrites.homeonly.enable = true`
+ruleNeedsSwitchedOffNamesTheLine    throws  dendrite 'systemonly' needs 'homeonly', which is switched off (`habit.dendrites.homeonly.enable = false`)
+ruleReportsEveryUnmetNeed           throws  needs 'homeonly', which is not selected; select it with `habit.dendrites.homeonly.enable = true`; host 'fixture' (system): dendrite 'systemonly' needs 'notifications', which is not selected
+ruleNeedsNotCheckedWhenNotSelected  ok      "sys="
+ruleNeedsMetByTheHostForAHome       ok      "sys= alice=mako+homeonly"
+ruleNeedsMetByTheHomeItself         ok      "sys= alice=mako+homeonly"
+ruleNeedsNotReachingAHomeIsRefused  throws  host 'fixture' (user 'alice'): dendrite 'notifications' needs 'homeonly', which is neither selected on the host nor reaches 'alice'
+ruleNeedsSwitchedOffForAUserLeansOnTheSystem ok "sys= alice=mako"
+ruleNeedsSwitchedOffForAUserIsRefused throws which is switched off for 'alice' (`habit.users.alice.dendrites.homeonly.enable = false`)
+ruleNeedsSwitchedOffOnTheHostIsRefusedForAHome throws which is switched off on the host (`habit.dendrites.homeonly.enable = false`) and does not reach 'alice'
+ruleNeedsAcrossMergedRegistriesMet  ok      "sys=systemonly"
+ruleNeedsAcrossMergedRegistriesRefused throws host 'fixture' (system): dendrite 'systemonly' needs 'homeonly', which is not selected
+ruleNamesTheRegistryItCameFrom      throws  rule 'nope' (from registry 'gamma') names no catalogue entry
+ruleHostsAllowsTheListedHost        ok      "sys=systemonly"
+ruleHostsRefusesAnotherHostDirectly throws  dendrite 'systemonly' is selected on host 'fixture' (directly), but its rule allows only host(s) beta
+ruleHostsRefusesAGroupSelection     throws  dendrite 'systemonly' is selected on host 'fixture' (via aggregation 'household'), but its rule allows only host(s) beta
+ruleHostsRefusesAUserSelection      throws  dendrite 'notifications' is selected on host 'fixture' (by user 'alice'), but its rule allows only host(s) beta
+ruleHostsNotSelectedHereIsNotRefused ok     "sys="
+ruleHostsNamesAnUnknownHost         throws  rule 'systemonly' is confined to unknown host(s): gamma
+ruleHomesRefusesTwoUsers            throws  host 'fixture': dendrite 'systemonly' reaches the homes of 2 users (alice, bob), but its rule allows 1; switch off all but 1 with `habit.users.<u>.dendrites.systemonly.enable = false` for each of bob
+ruleHomesCountsOnlyTheUsersReached  ok      "sys=systemonly alice= bob="
+ruleHomesStandaloneCountsAsOne      ok      "desk"
+ruleStandaloneHomeNeedsAreChecked   throws  host 'desk' (system): dendrite 'systemonly' needs 'homeonly', which is not selected
+ruleUnknownFieldIsNamed             throws  rule 'systemonly' has unknown field(s): need; a rule takes only needs, hosts, homes
+ruleForAnUnknownEntryIsNamed        throws  rule 'nope' names no catalogue entry; a rule is keyed by a catalogue name
+ruleNeedingAnUnknownEntryIsNamed    throws  rule 'systemonly' needs unknown dendrite(s): nope; every need must be a catalogue name
+ruleEmptyNeedsIsNamed               throws  rule 'systemonly': `needs` is empty; drop it or name a dendrite
+ruleEmptyHostsIsNamed               throws  rule 'systemonly': `hosts` is empty; drop it or name a host
+ruleHomesBelowOneIsNamed            throws  rule 'systemonly': `homes` must be a positive integer, got 0
+ruleHomesNotAnIntIsNamed            throws  rule 'systemonly': `homes` must be a positive integer, got a string
+ruleNeedsNotAListIsNamed            throws  rule 'systemonly': `needs` is a string, not a list of catalogue names
+ruleHostsNotAListIsNamed            throws  rule 'systemonly': `hosts` is a string, not a list of host names
+ruleNotAnAttrsetIsNamed             throws  rule 'systemonly' is a list, not an attrset; a rule takes only needs, hosts, homes
+ruleOnAnUnselectedEntryNeverImportsIt ok    "sys=systemonly"
+ruleOnASelectedEntryStillImportsIt  throws  landmine/default.nix was imported
+emptyRulesChangeNothing             ok      "sys=systemonly"
+ruleShowsInTheInventory             ok      ["homeonly"]
+ruleAbsentFromAnUnruledEntry        ok      false
+ruleAppliesWhateverTheProvider      throws  dendrite 'notifications' is selected on host 'fixture' (directly), but its rule allows only host(s) beta
+ruleHostsNamesAStandaloneHome       throws  dendrite 'systemonly' is selected on host 'desk' (directly), but its rule allows only host(s) beta
+ruleClashAcrossRegistries           throws  rules names defined by more than one source: 'systemonly' by gamma and delta
 EOF
 )
 

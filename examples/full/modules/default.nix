@@ -31,4 +31,7 @@
   overrides = {
     zsh-quiet-compaudit = ./overrides/zsh-quiet-compaudit.nix;
   };
+  rules = {
+    terminal.needs = [ "shell" ];
+  };
 }

@@ -52,6 +52,7 @@ Nothing is imported or applied at registry time.
 | `catalogue`    | capability name  | the file, directory or module value that answers it ([Dendrites](dendrites.md)) |
 | `aggregations` | group name       | a directory holding the group's `default.nix` body ([Aggregations](aggregations.md)) |
 | `overrides`    | record name      | a file holding a capability-scoped fix ([Override records](overrides.md)); optional |
+| `rules`        | capability name | plain data the selection must satisfy: `needs`, `hosts`, `homes` ([Registry rules](rules.md)); optional |
 
 ```nix
 # examples/steps/5-terminal/modules/default.nix
@@ -268,7 +269,7 @@ a host resolved, derived from its selection and never maintained by hand. For
 | ------------- | ----------------------------------------------------------------------- |
 | `host`        | `hostName`                                                              |
 | `aggregation` | the groups the host selected                                            |
-| `dendrites`   | each capability selected for the system: its `provider`, its `system` (whether the selection asks for the system half) and `source`, the catalogue path or value that answered (a value provider set names its chosen module value by its `_file`, else `<value '<name>.<provider>'>`, or a path target by the set; a file provider set is named by its file, whichever provider it chooses) |
+| `dendrites`   | each capability selected for the system: its `provider`, its `system` (whether the selection asks for the system half), `source`, the catalogue path or value that answered (a value provider set names its chosen module value by its `_file`, else `<value '<name>.<provider>'>`, or a path target by the set; a file provider set is named by its file, whichever provider it chooses), and `rules`, the rule the registry gives it as written, when it has one |
 | `users`       | per user: `definition`, `home` (whether Home Manager is on), its groups and its capabilities; `{ }` for a home |
 | `overrides`   | the override records that matched this host (`mkModules` and the builders only; `inventoryOf` alone has no records to match) |
 

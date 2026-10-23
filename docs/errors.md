@@ -112,15 +112,45 @@ Each begins `override record '<name>' (<path>)`.
 
 These are checked on every host, matched or not.
 
+## Registry rules
+
+[Registry rules](rules.md). The first group is checked on every host; each
+begins `rule '<name>'`, followed by ` (from registry '<source>')` when the
+registry is merged. The second group is raised on a host that earns the
+refusal, each prefixed `habit: `, and joined with `; ` when several apply.
+
+| message continues | cause | fix |
+| ----------------- | ----- | --- |
+| `has unknown field(s): <fields>; a rule takes only needs, hosts, homes` | a field outside the three | rename or remove it |
+| `names no catalogue entry; a rule is keyed by a catalogue name` | the rule's name is not in the catalogue | correct the name, or add the entry |
+| `is a <type>, not an attrset; a rule takes only needs, hosts, homes` | the rule is a list or other non-attrset | make it an attrset of the three fields |
+| ``: `needs` is a <type>, not a list of catalogue names`` | `needs` is a string or other non-list | make it a list |
+| ``: `needs` is empty; drop it or name a dendrite`` | `needs = [ ];` | drop the field, or name a dendrite |
+| `needs unknown dendrite(s): <names>; every need must be a catalogue name` | a need not in the catalogue | correct the name |
+| ``: `hosts` is a <type>, not a list of host names`` | `hosts` is a string or other non-list | make it a list |
+| ``: `hosts` is empty; drop it or name a host`` | `hosts = [ ];` | drop the field, or name a host |
+| `is confined to unknown host(s): <hosts>` | a host not in `knownHosts` | pass every host name as `knownHosts`, or correct the name |
+| ``: `homes` must be a positive integer, got <value>`` (or `got a <type>`) | `homes` is `0`, negative, or not an integer | give a whole number of at least 1 |
+
+| message | cause | fix |
+| ------- | ----- | --- |
+| ``habit: host '<h>' (system): dendrite '<n>' needs '<m>', which is switched off (`habit.dendrites.<m>.enable = false`)`` | the entry is selected for the system and a need the host switched off | select the need, or drop the entry |
+| ``habit: host '<h>' (system): dendrite '<n>' needs '<m>', which is not selected; select it with `habit.dendrites.<m>.enable = true` `` | the entry is selected for the system and a need is not selected at all | select the need |
+| ``habit: host '<h>' (user '<u>'): dendrite '<n>' needs '<m>', which is switched off for '<u>' (`habit.users.<u>.dendrites.<m>.enable = false`)`` | a user's home reaches the entry, and that user switched the need off, with the host not selecting it | drop the user's switch, or drop the entry from the user |
+| ``habit: host '<h>' (user '<u>'): dendrite '<n>' needs '<m>', which is switched off on the host (`habit.dendrites.<m>.enable = false`) and does not reach '<u>'; select it for '<u>' with `habit.users.<u>.dendrites.<m>.enable = true` `` | the host switched the need off, and the user's home does not reach it | select it for the user, or drop the entry from the user |
+| ``habit: host '<h>' (user '<u>'): dendrite '<n>' needs '<m>', which is neither selected on the host nor reaches '<u>'; select it with `habit.dendrites.<m>.enable = true` or `habit.users.<u>.dendrites.<m>.enable = true` `` | the need is nowhere on this host | select it, for the host or the user |
+| ``habit: dendrite '<n>' is selected on host '<h>' (<how>), but its rule allows only host(s) <hosts>`` | the entry is selected on a host the rule does not list; `<how>` is `directly`, `via aggregation '<g>'`, `by user '<u>'`, `via aggregation '<g>' of user '<u>'` or `via aggregation '<g>' on the host` | drop the selection here, or add the host to `hosts` |
+| ``habit: host '<h>': dendrite '<n>' reaches the homes of <k> users (<users>), but its rule allows <N>; switch off all but <N> with `habit.users.<u>.dendrites.<n>.enable = false` for each of <users>`` | more users' homes reached than `homes` allows | switch the named users off, leaving `homes` of them |
+
 ## Merging registries
 
 | message | cause | fix |
 | ------- | ----- | --- |
 | `registry source at position <n> is a <type>, not an attrset` | a source is not an attrset, often a path without `import` | `import` it |
-| `registry source '<name>' has unknown field(s): <fields>; a source takes only name, catalogue, aggregations, overrides` | a field outside the four (named by position when the source has no name) | rename or remove it |
+| `registry source '<name>' has unknown field(s): <fields>; a source takes only name, catalogue, aggregations, overrides, rules` | a field outside the five (named by position when the source has no name) | rename or remove it |
 | ``registry source at position <n> has no string `name`; every source is named so a clash can say who defined it`` | `name` missing or not a string | add `name = "…"` |
 | `registry sources share a name: <names>; each source needs its own` | two sources with one `name` | rename one |
-| ``registry source '<name>': `<field>` must be an attrset, got <type>`` | `catalogue`, `aggregations` or `overrides` present but not an attrset | make it an attrset, or leave it out |
+| ``registry source '<name>': `<field>` must be an attrset, got <type>`` | `catalogue`, `aggregations`, `overrides` or `rules` present but not an attrset | make it an attrset, or leave it out |
 | `<field> names defined by more than one source: '<n>' by <a> and <b>` | a name in more than one source's `<field>` | rename one side, or drop the duplicate |
 
 ## From the module system

@@ -24,7 +24,9 @@ suite evaluates. This file holds the invariants to keep while editing them.
    boundary is exact: every catalogue entry is read to weak head normal form to
    learn its kind (path, attrset or function), so an entry that is itself
    `throw` throws on read, selected or not. A value's attributes and a
-   function's body are never forced unless it is selected. A provider set's
+   function's body are never forced unless it is selected. A registry's `rules`
+   refuse and never select: they are plain data read beside the selection, and
+   they import nothing ([Registry rules](docs/rules.md)). A provider set's
    `providers` is read only when its capability is selected, and of its targets
    only the chosen one is imported or applied, so an unchosen target that throws
    is never read. The one weaker boundary is override records (read to be

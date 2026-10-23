@@ -123,6 +123,7 @@ the catalogue is `import`ed.
 | a user's definition     | for every user on the host                                      |
 | the host module         | its `habit.*` keys by the scan; the whole file by the platform evaluation; its `imports` by the platform evaluation alone |
 | an override record file | always, on every host (see [Override records](overrides.md#the-evaluation-boundary)) |
+| a registry rule        | always, on every host, as plain data; it is checked against the selection and imports nothing ([Registry rules](rules.md)) |
 
 Each "iff" is proved in `tests/selection` by a fixture that throws when it is
 imported: `dendrites/landmine`, `dendrites/notifications/landmine.nix`,

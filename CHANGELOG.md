@@ -2,6 +2,19 @@
 
 Append-only. Newest first.
 
+## Unreleased
+
+- A registry's optional `rules` maps a catalogue name to a rule that refuses and
+  never selects: `needs` (each named entry is selected wherever this one is; a home
+  may lean on the host's system for one), `hosts` (selected on these hosts only) and
+  `homes` (on one host, reaches at most that many users' homes). Every rule is
+  checked on every host. A registry without `rules` changes nothing. See
+  [Registry rules](docs/rules.md).
+- `mergeRegistries` merges `rules` by name like the other fields, and returns
+  `ruleFrom`, which names the source of each rule for its errors. The source takes
+  `rules` as a fifth field.
+- The inventory gives each selected entry its `rules`, as written, when it has one.
+
 ## 0.6.0
 
 - A user names a provider for their own home: `habit.users.<u>.dendrites.<n>.provider

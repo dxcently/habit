@@ -959,6 +959,17 @@ rec {
         else
           null;
 
+      # The value written literally at `path` under a `habit` value: null where
+      # nothing is written, or where a wrapper (`mkIf`, `mkForce`) hides it.
+      literalAt =
+        path: v:
+        if path == [ ] then
+          v
+        else if lib.isAttrs v && !(v ? _type) && v ? ${lib.head path} then
+          literalAt (lib.tail path) v.${lib.head path}
+        else
+          null;
+
       # Whether the literal `habit` values that every file wrote, the host's and
       # the selection modules', set a user's `system`. The default `true` is no
       # write, so an explicit value is told from it. These are the text as
@@ -1198,13 +1209,211 @@ rec {
           # The gate's answer to each user's `enable`, as written: the platform
           # pass checks the host's and imports' writes against it.
           scanned = gate;
+          # Whether the host's own files wrote `value` at `path`, so a refusal can
+          # say a switch was thrown and tell it from one never touched.
+          writtenAs =
+            path: value:
+            lib.any (def: literalAt path def.value == value) gateEvaluation.options.habit.definitionsWithLocations;
         }
     );
+
+  # ── Rules ──────────────────────────────────────────────────────────────────
+  # A rule refuses; it never selects. It is data keyed by a catalogue name, read
+  # beside the selection it constrains, and no catalogue entry is imported to
+  # read it. `needs` says what else must be selected, `hosts` where the entry may
+  # be selected, and `homes` how many users its home half may reach.
+  ruleFields = [
+    "needs"
+    "hosts"
+    "homes"
+  ];
+
+  ruleWhere =
+    ruleFrom: name:
+    "rule '${name}'" + lib.optionalString (ruleFrom ? ${name}) " (from registry '${ruleFrom.${name}}')";
+
+  # A fault in a rule's own shape, checked on every host, matched or not. It
+  # returns null when the rule is sound and throws naming the rule otherwise.
+  checkRule =
+    {
+      catalogue,
+      knownHosts,
+      ruleFrom,
+      name,
+      rule,
+    }:
+    let
+      where = ruleWhere ruleFrom name;
+      needs = rule.needs or null;
+      hosts = rule.hosts or null;
+      homes = rule.homes or null;
+      shown = v: if lib.isString v then v else builtins.toJSON v;
+      unknown = lib.subtractLists ruleFields (lib.attrNames rule);
+      unknownNeeds = lib.filter (m: !(lib.isString m && catalogue ? ${m})) (
+        if lib.isList needs then needs else [ ]
+      );
+      unknownHosts = lib.filter (h: !(lib.elem h knownHosts)) (if lib.isList hosts then hosts else [ ]);
+    in
+    if !(catalogue ? ${name}) then
+      throw "${where} names no catalogue entry; a rule is keyed by a catalogue name"
+    else if !lib.isAttrs rule then
+      throw "${where} is a ${builtins.typeOf rule}, not an attrset; a rule takes only ${lib.concatStringsSep ", " ruleFields}"
+    else if unknown != [ ] then
+      throw "${where} has unknown field(s): ${lib.concatStringsSep ", " unknown}; a rule takes only ${lib.concatStringsSep ", " ruleFields}"
+    else if needs != null && !lib.isList needs then
+      throw "${where}: `needs` is a ${builtins.typeOf needs}, not a list of catalogue names"
+    else if needs == [ ] then
+      throw "${where}: `needs` is empty; drop it or name a dendrite"
+    else if unknownNeeds != [ ] then
+      throw "${where} needs unknown dendrite(s): ${lib.concatMapStringsSep ", " shown unknownNeeds}; every need must be a catalogue name"
+    else if hosts != null && !lib.isList hosts then
+      throw "${where}: `hosts` is a ${builtins.typeOf hosts}, not a list of host names"
+    else if hosts == [ ] then
+      throw "${where}: `hosts` is empty; drop it or name a host"
+    else if unknownHosts != [ ] then
+      throw "${where} is confined to unknown host(s): ${lib.concatMapStringsSep ", " shown unknownHosts}"
+    else if homes != null && !(lib.isInt homes && homes >= 1) then
+      throw "${where}: `homes` must be a positive integer, got ${
+        if lib.isInt homes then toString homes else "a ${builtins.typeOf homes}"
+      }"
+    else
+      null;
+
+  # Every rule fault on this host, then every refusal the selection earns. A
+  # rule names entries of this registry, so it reads the selection's own answers
+  # (`selection.dendrites`, `users`, `claims`) and never a catalogue value.
+  ruleRefusals =
+    {
+      registry,
+      hostName,
+      knownHosts,
+      selection,
+    }:
+    let
+      rules = registry.rules or { };
+      ruleFrom = registry.ruleFrom or { };
+      users = selection.users;
+      userNames = lib.attrNames users;
+
+      onSystem = n: selection.dendrites.${n}.enable;
+      onUser = u: n: users.${u}.dendrites.${n}.enable;
+      reaches = u: n: users.${u}.home.enable && (onUser u n || lib.elem u selection.claims.${n}.hostUsers);
+      reachers = n: lib.filter (u: reaches u n) userNames;
+      selectedHere = n: onSystem n || lib.any (u: onUser u n) userNames;
+
+      # The enabled groups of one selection whose half in `scope` names `n`.
+      groupsNaming =
+        aggregation: scope: n:
+        lib.filter (
+          g:
+          let
+            half = halfOf (readBody g registry.aggregations.${g}) scope;
+          in
+          lib.elem n (half.members or [ ]) || lib.elem n (lib.attrNames (half.providers or { }))
+        ) (lib.attrNames (lib.filterAttrs (_: a: a.enable == true) aggregation));
+
+      # How `n` is selected on this host, from its first selection: the host's
+      # own, or else the first user's.
+      how =
+        n:
+        let
+          u = lib.head (lib.filter (u: onUser u n) userNames);
+          hostGroups = groupsNaming selection.aggregation "system" n;
+          userGroups = groupsNaming users.${u}.aggregation "home" n;
+          homeGroups = groupsNaming selection.aggregation "home" n;
+        in
+        if onSystem n then
+          if selection.writtenAs [ "dendrites" n "enable" ] true then
+            "directly"
+          else if hostGroups != [ ] then
+            "via aggregation '${lib.head hostGroups}'"
+          else
+            "by the host"
+        else if selection.writtenAs [ "users" u "dendrites" n "enable" ] true then
+          "by user '${u}'"
+        else if userGroups != [ ] then
+          "via aggregation '${lib.head userGroups}' of user '${u}'"
+        else if homeGroups != [ ] then
+          "via aggregation '${lib.head homeGroups}' on the host"
+        else
+          "by user '${u}'";
+
+      systemCause =
+        m:
+        if selection.writtenAs [ "dendrites" m "enable" ] false then
+          "is switched off (`habit.dendrites.${m}.enable = false`)"
+        else
+          "is not selected; select it with `habit.dendrites.${m}.enable = true`";
+
+      userCause =
+        u: m:
+        if selection.writtenAs [ "users" u "dendrites" m "enable" ] false then
+          "is switched off for '${u}' (`habit.users.${u}.dendrites.${m}.enable = false`)"
+        else if selection.writtenAs [ "dendrites" m "enable" ] false then
+          "is switched off on the host (`habit.dendrites.${m}.enable = false`) and does not reach '${u}'; select it for '${u}' with `habit.users.${u}.dendrites.${m}.enable = true`"
+        else
+          "is neither selected on the host nor reaches '${u}'; select it with `habit.dendrites.${m}.enable = true` or `habit.users.${u}.dendrites.${m}.enable = true`";
+
+      needRefusals = lib.concatLists (
+        lib.mapAttrsToList (
+          n: rule:
+          let
+            needs = rule.needs or [ ];
+          in
+          (lib.optionals (onSystem n) (
+            map (m: "host '${hostName}' (system): dendrite '${n}' needs '${m}', which ${systemCause m}") (
+              lib.filter (m: !onSystem m) needs
+            )
+          ))
+          ++ lib.concatMap (
+            u:
+            lib.optionals (reaches u n) (
+              map (m: "host '${hostName}' (user '${u}'): dendrite '${n}' needs '${m}', which ${userCause u m}") (
+                lib.filter (m: !(reaches u m || onSystem m)) needs
+              )
+            )
+          ) userNames
+        ) rules
+      );
+
+      hostRefusals = lib.concatLists (
+        lib.mapAttrsToList (
+          n: rule:
+          lib.optional (rule ? hosts && selectedHere n && !(lib.elem hostName rule.hosts))
+            "dendrite '${n}' is selected on host '${hostName}' (${how n}), but its rule allows only host(s) ${lib.concatStringsSep ", " rule.hosts}"
+        ) rules
+      );
+
+      homesRefusals = lib.concatLists (
+        lib.mapAttrsToList (
+          n: rule:
+          let
+            reached = reachers n;
+          in
+          lib.optional (rule ? homes && lib.length reached > rule.homes)
+            "host '${hostName}': dendrite '${n}' reaches the homes of ${toString (lib.length reached)} users (${lib.concatStringsSep ", " reached}), but its rule allows ${toString rule.homes}; switch off all but ${toString rule.homes} with `habit.users.<u>.dendrites.${n}.enable = false` for each of ${lib.concatStringsSep ", " (lib.drop rule.homes reached)}"
+        ) rules
+      );
+
+      checked = lib.foldl' (
+        acc: name:
+        builtins.seq (checkRule {
+          inherit knownHosts ruleFrom name;
+          inherit (registry) catalogue;
+          rule = rules.${name};
+        }) acc
+      ) null (lib.attrNames rules);
+    in
+    builtins.seq checked (needRefusals ++ hostRefusals ++ homesRefusals);
 
   # A host's resolved shape: what it selected and from where, for the system and
   # for each user. Generated from the selection, never maintained by hand.
   inventoryOf =
-    { hostName, selection }:
+    {
+      hostName,
+      selection,
+      rules ? { },
+    }:
     let
       inherit (selection) catalogue;
       # A file is named by its path and never read here, so the inventory imports
@@ -1218,10 +1427,14 @@ rec {
           sourceOf name catalogue.${name};
       describe =
         selected:
-        lib.mapAttrs (name: d: {
-          inherit (d) provider system;
-          source = sourceOfSelected name d.provider;
-        }) (lib.filterAttrs (_: d: d.enable) selected);
+        lib.mapAttrs (
+          name: d:
+          {
+            inherit (d) provider system;
+            source = sourceOfSelected name d.provider;
+          }
+          // lib.optionalAttrs (rules ? ${name}) { rules = rules.${name}; }
+        ) (lib.filterAttrs (_: d: d.enable) selected);
       chosen = agg: lib.attrNames (lib.filterAttrs (_: a: a.enable == true) agg);
     in
     {
@@ -1301,6 +1514,17 @@ rec {
       # `extraModules` and the gate-pass hook's answer, in that order: a module
       # from the hook merges and outranks exactly as one the caller passed in.
       extra = extraModules ++ extraModulesFor selection;
+
+      # Refusals a registry's rules earn on this host, and any fault in the rules
+      # themselves, which throws from here whether or not the rule applies.
+      rules = ruleRefusals {
+        inherit
+          registry
+          hostName
+          knownHosts
+          selection
+          ;
+      };
 
       # Capability-scoped fixes, resolved once selection is final and applied
       # before anything evaluates a package set.
@@ -1462,7 +1686,9 @@ rec {
       ++ aggregationModules scope selection.aggregation
       ++ [ host ];
     in
-    if strandedHome != [ ] then
+    if rules != [ ] then
+      throw "habit: ${lib.concatStringsSep "; " rules}"
+    else if strandedHome != [ ] then
       throw "host '${hostName}': ${lib.concatStringsSep "; " strandedHome}"
     else if homeWithoutUsers != [ ] then
       throw "host '${hostName}': ${lib.concatStringsSep "; " homeWithoutUsers}"
@@ -1480,7 +1706,10 @@ rec {
         specialArgs = args;
         # The review surface: what this host resolved, derived from selection
         # and never maintained by hand.
-        inventory = inventoryOf { inherit hostName selection; } // {
+        inventory = inventoryOf {
+          inherit hostName selection;
+          rules = registry.rules or { };
+        } // {
           overrides = overrides.matched;
         };
       };

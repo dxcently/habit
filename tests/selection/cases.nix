@@ -3656,3 +3656,432 @@ selectionCases
 
   overrideValueIsRefused = assembledIn registryWithBadOverride { };
 }
+// (
+  let
+  # ── Registry rules ─────────────────────────────────────────────────────────
+  # A rule refuses; it never selects. These cases drive a registry's `rules`
+  # through the whole platform list, so every refusal is the one a host sees.
+  catalogues = import ../../lib/catalogues.nix { inherit lib; };
+
+  ruled = rules: registry // { inherit rules; };
+
+  # The marks each scope applied, as `assembledIn` reports them, for the host
+  # `hostName` and the registry `reg`.
+  ruledOn =
+    {
+      reg,
+      mod,
+      hostName ? "fixture",
+      knownHosts ? [
+        "fixture"
+        "beta"
+      ],
+    }:
+    let
+      c = evalAssembled {
+        inherit mod;
+        args = {
+          registry = reg;
+          inherit hostName knownHosts;
+        };
+      };
+    in
+    builtins.concatStringsSep " " (
+      [ "sys=${marksOf c}" ]
+      ++ lib.mapAttrsToList (n: u: "${n}=${marksOf u}") (c.home-manager.users or { })
+    );
+
+  sourceNeeds = {
+    name = "alpha";
+    catalogue = {
+      homeonly = ./dendrites/homeonly;
+      notifications = ./dendrites/notifications;
+    };
+    aggregations = {
+      household = ./aggregations/household;
+    };
+  };
+
+  sourceSystem = {
+    name = "beta";
+    catalogue = {
+      landmine = ./dendrites/landmine;
+      systemonly = ./dendrites/systemonly;
+    };
+  };
+
+  # Rules in a third source, naming entries the first two define.
+  sourceRules = rules: {
+    name = "gamma";
+    inherit rules;
+  };
+
+  mergedNeeds = catalogues.mergeRegistries [
+    sourceNeeds
+    sourceSystem
+    (sourceRules {
+      systemonly.needs = [ "homeonly" ];
+    })
+  ];
+
+  mergedBadRule = catalogues.mergeRegistries [
+    sourceNeeds
+    sourceSystem
+    (sourceRules {
+      nope.needs = [ "homeonly" ];
+    })
+  ];
+
+  aliceAndBob = {
+    users.alice = homeUser "alice" { };
+    users.bob = homeUser "bob" { };
+  };
+in
+{
+  # ── needs: the system ──────────────────────────────────────────────────────
+  ruleNeedsMetOnTheSystem = ruledOn {
+    reg = ruled { systemonly.needs = [ "homeonly" ]; };
+    mod = {
+      dendrites.systemonly.enable = true;
+      dendrites.homeonly.enable = true;
+    };
+  };
+
+  ruleNeedsNotSelectedIsRefused = ruledOn {
+    reg = ruled { systemonly.needs = [ "homeonly" ]; };
+    mod.dendrites.systemonly.enable = true;
+  };
+
+  ruleNeedsSwitchedOffNamesTheLine = ruledOn {
+    reg = ruled { systemonly.needs = [ "homeonly" ]; };
+    mod = {
+      dendrites.systemonly.enable = true;
+      dendrites.homeonly.enable = false;
+    };
+  };
+
+  ruleReportsEveryUnmetNeed = ruledOn {
+    reg = ruled { systemonly.needs = [ "homeonly" "notifications" ]; };
+    mod.dendrites.systemonly.enable = true;
+  };
+
+  ruleNeedsNotCheckedWhenNotSelected = ruledOn {
+    reg = ruled { systemonly.needs = [ "homeonly" ]; };
+    mod = { };
+  };
+
+  # ── needs: a home ──────────────────────────────────────────────────────────
+  # A home may lean on the host's system selection of the need.
+  ruleNeedsMetByTheHostForAHome = ruledOn {
+    reg = ruled { notifications.needs = [ "homeonly" ]; };
+    mod = {
+      dendrites.homeonly.enable = true;
+      users.alice = homeUser "alice" {
+        dendrites.notifications = {
+          enable = true;
+          provider = "mako";
+          system = false;
+        };
+      };
+    };
+  };
+
+  ruleNeedsMetByTheHomeItself = ruledOn {
+    reg = ruled { notifications.needs = [ "homeonly" ]; };
+    mod.users.alice = homeUser "alice" {
+      dendrites.notifications = {
+        enable = true;
+        provider = "mako";
+        system = false;
+      };
+      dendrites.homeonly.enable = true;
+    };
+  };
+
+  ruleNeedsNotReachingAHomeIsRefused = ruledOn {
+    reg = ruled { notifications.needs = [ "homeonly" ]; };
+    mod.users.alice = homeUser "alice" {
+      dendrites.notifications = {
+        enable = true;
+        provider = "mako";
+        system = false;
+      };
+    };
+  };
+
+  # The host's system provides `homeonly` to every home, so alice's switch takes
+  # only her home half of it away, and her home leans on the system still.
+  ruleNeedsSwitchedOffForAUserLeansOnTheSystem = ruledOn {
+    reg = ruled { notifications.needs = [ "homeonly" ]; };
+    mod = {
+      dendrites.homeonly.enable = true;
+      users.alice = homeUser "alice" {
+        dendrites.notifications = {
+          enable = true;
+          provider = "mako";
+          system = false;
+        };
+        dendrites.homeonly.enable = false;
+      };
+    };
+  };
+
+  # Reached only as a group's home member, which the system does not select, a
+  # user's switch is the end of it.
+  ruleNeedsSwitchedOffForAUserIsRefused = ruledOn {
+    reg = ruled { notifications.needs = [ "homeonly" ]; };
+    mod = {
+      aggregation.household.enable = true;
+      users.alice = homeUser "alice" {
+        dendrites.notifications = {
+          enable = true;
+          provider = "mako";
+          system = false;
+        };
+        dendrites.homeonly.enable = false;
+      };
+    };
+  };
+
+  ruleNeedsSwitchedOffOnTheHostIsRefusedForAHome = ruledOn {
+    reg = ruled { notifications.needs = [ "homeonly" ]; };
+    mod = {
+      dendrites.homeonly.enable = false;
+      users.alice = homeUser "alice" {
+        dendrites.notifications = {
+          enable = true;
+          provider = "mako";
+          system = false;
+        };
+      };
+    };
+  };
+
+  # ── needs: across merged registries ────────────────────────────────────────
+  ruleNeedsAcrossMergedRegistriesMet = ruledOn {
+    reg = mergedNeeds;
+    mod.dendrites = {
+      systemonly.enable = true;
+      homeonly.enable = true;
+    };
+  };
+
+  ruleNeedsAcrossMergedRegistriesRefused = ruledOn {
+    reg = mergedNeeds;
+    mod.dendrites.systemonly.enable = true;
+  };
+
+  ruleNamesTheRegistryItCameFrom = ruledOn {
+    reg = mergedBadRule;
+    mod = { };
+  };
+
+  # ── hosts ──────────────────────────────────────────────────────────────────
+  ruleHostsAllowsTheListedHost = ruledOn {
+    reg = ruled { systemonly.hosts = [ "fixture" ]; };
+    mod.dendrites.systemonly.enable = true;
+  };
+
+  ruleHostsRefusesAnotherHostDirectly = ruledOn {
+    reg = ruled { systemonly.hosts = [ "beta" ]; };
+    mod.dendrites.systemonly.enable = true;
+  };
+
+  ruleHostsRefusesAGroupSelection = ruledOn {
+    reg = ruled { systemonly.hosts = [ "beta" ]; };
+    mod.aggregation.household.enable = true;
+  };
+
+  ruleHostsRefusesAUserSelection = ruledOn {
+    reg = ruled { notifications.hosts = [ "beta" ]; };
+    mod.users.alice = homeUser "alice" {
+      dendrites.notifications = {
+        enable = true;
+        provider = "mako";
+        system = false;
+      };
+    };
+  };
+
+  ruleHostsNotSelectedHereIsNotRefused = ruledOn {
+    reg = ruled { notifications.hosts = [ "beta" ]; };
+    mod = { };
+  };
+
+  ruleHostsNamesAnUnknownHost = ruledOn {
+    reg = ruled { systemonly.hosts = [ "gamma" ]; };
+    mod = { };
+  };
+
+  # ── homes ──────────────────────────────────────────────────────────────────
+  ruleHomesRefusesTwoUsers = ruledOn {
+    reg = ruled { systemonly.homes = 1; };
+    mod = aliceAndBob // {
+      dendrites.systemonly.enable = true;
+    };
+  };
+
+  ruleHomesCountsOnlyTheUsersReached = ruledOn {
+    reg = ruled { systemonly.homes = 1; };
+    mod = {
+      dendrites.systemonly.enable = true;
+      users.alice = homeUser "alice" {
+        dendrites.systemonly.enable = false;
+      };
+      users.bob = homeUser "bob" { };
+    };
+  };
+
+  ruleHomesStandaloneCountsAsOne =
+    (composition.mkModules {
+      class = "home";
+      hostName = "desk";
+      knownHosts = [ "desk" ];
+      registry = ruled { systemonly.homes = 1; };
+      host.habit.dendrites.systemonly.enable = true;
+    }).inventory.host;
+
+  ruleStandaloneHomeNeedsAreChecked = (composition.mkModules {
+    class = "home";
+    hostName = "desk";
+    knownHosts = [ "desk" ];
+    registry = ruled { systemonly.needs = [ "homeonly" ]; };
+    host.habit.dendrites.systemonly.enable = true;
+  }).inventory.host;
+
+  # ── rules are checked on every host ───────────────────────────────────────
+  ruleUnknownFieldIsNamed = ruledOn {
+    reg = ruled { systemonly.need = [ "homeonly" ]; };
+    mod = { };
+  };
+
+  ruleForAnUnknownEntryIsNamed = ruledOn {
+    reg = ruled { nope.needs = [ "homeonly" ]; };
+    mod = { };
+  };
+
+  ruleNeedingAnUnknownEntryIsNamed = ruledOn {
+    reg = ruled { systemonly.needs = [ "nope" ]; };
+    mod = { };
+  };
+
+  ruleEmptyNeedsIsNamed = ruledOn {
+    reg = ruled { systemonly.needs = [ ]; };
+    mod = { };
+  };
+
+  ruleEmptyHostsIsNamed = ruledOn {
+    reg = ruled { systemonly.hosts = [ ]; };
+    mod = { };
+  };
+
+  ruleHomesBelowOneIsNamed = ruledOn {
+    reg = ruled { systemonly.homes = 0; };
+    mod = { };
+  };
+
+  ruleHomesNotAnIntIsNamed = ruledOn {
+    reg = ruled { systemonly.homes = "2"; };
+    mod = { };
+  };
+
+  ruleNeedsNotAListIsNamed = ruledOn {
+    reg = ruled { systemonly.needs = "homeonly"; };
+    mod = { };
+  };
+
+  ruleHostsNotAListIsNamed = ruledOn {
+    reg = ruled { systemonly.hosts = "beta"; };
+    mod = { };
+  };
+
+  ruleNotAnAttrsetIsNamed = ruledOn {
+    reg = ruled { systemonly = [ "homeonly" ]; };
+    mod = { };
+  };
+
+  # ── invariant 2: a rule never imports ─────────────────────────────────────
+  # `landmine` throws on import. A rule naming it, with it unselected, imports
+  # nothing; selected, it is imported as it always is.
+  ruleOnAnUnselectedEntryNeverImportsIt = ruledOn {
+    reg = ruled {
+      landmine = {
+        hosts = [ "fixture" ];
+        needs = [ "homeonly" ];
+      };
+    };
+    mod.dendrites.systemonly.enable = true;
+  };
+
+  ruleOnASelectedEntryStillImportsIt = ruledOn {
+    reg = ruled {
+      landmine = {
+        hosts = [ "fixture" ];
+        needs = [ "homeonly" ];
+      };
+    };
+    mod.dendrites = {
+      landmine.enable = true;
+      homeonly.enable = true;
+    };
+  };
+
+  # ── an empty rules field changes nothing ──────────────────────────────────
+  emptyRulesChangeNothing = ruledOn {
+    reg = ruled { };
+    mod.dendrites.systemonly.enable = true;
+  };
+
+  # ── inventory ─────────────────────────────────────────────────────────────
+  ruleShowsInTheInventory =
+    (mkModules {
+      registry = ruled { systemonly.needs = [ "homeonly" ]; };
+      host = selecting {
+        dendrites.systemonly.enable = true;
+        dendrites.homeonly.enable = true;
+      };
+    }).inventory.dendrites.systemonly.rules.needs;
+
+  ruleAbsentFromAnUnruledEntry =
+    (mkModules {
+      registry = ruled { systemonly.needs = [ "homeonly" ]; };
+      host = selecting { dendrites.homeonly.enable = true; };
+    }).inventory.dendrites.homeonly ? rules;
+
+  # A rule is on the entry, whatever provider answers it.
+  ruleAppliesWhateverTheProvider = ruledOn {
+    reg = ruled { notifications.hosts = [ "beta" ]; };
+    mod.dendrites.notifications = {
+      enable = true;
+      provider = "dunst";
+    };
+  };
+
+  ruleHostsNamesAStandaloneHome =
+    (composition.mkModules {
+      class = "home";
+      hostName = "desk";
+      knownHosts = [
+        "desk"
+        "beta"
+      ];
+      registry = ruled { systemonly.hosts = [ "beta" ]; };
+      host.habit.dendrites.systemonly.enable = true;
+    }).inventory.host;
+
+  # Two registries giving rules for one name clash, naming both.
+  ruleClashAcrossRegistries = builtins.attrNames (
+    catalogues.mergeRegistries [
+      sourceNeeds
+      sourceSystem
+      (sourceRules {
+        systemonly.needs = [ "homeonly" ];
+      })
+      {
+        name = "delta";
+        rules.systemonly.hosts = [ "beta" ];
+      }
+    ]
+  ).rules;
+}
+)

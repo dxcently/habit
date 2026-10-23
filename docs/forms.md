@@ -20,6 +20,7 @@ whether it wants it. Each row is one form, with the place that shows it.
 | a member switched off | `habit.dendrites.<member>.enable = false;` under an enabled group | a group sends a member one host does not want | [Membership is mkDefault](aggregations.md#membership-is-mkdefault), and [`tests/selection/switchoff`](https://github.com/dxcently/habit/tree/main/tests/selection/switchoff) |
 | reacting to another's selection | `config.habit.selected.shell.provider` | a capability reads what else was chosen, without importing it | [step 5](growing-a-capability.md#5-terminal) |
 | fixed by an override record | `overrides = { name = ./overrides/name.nix; };` | a fix that belongs to a capability | [step 6](growing-a-capability.md#6-override) |
+| limited by a registry rule | `rules = { name.needs = [ "other" ]; };` | a capability that needs another, or belongs on some hosts only, or reaches at most N homes | [Registry rules](rules.md) |
 | a shared two-file piece | `imports = [ ./piece.nix ]; habit.home.imports = [ ./piece-home.nix ];` | two entries need one piece with both halves | [step 7](growing-a-capability.md#7-shared) |
 | from another registry | `catalogues.mergeRegistries [ core personal ]` | a second source names some of the capabilities | [`examples/full`](https://github.com/dxcently/habit/tree/main/examples/full), `modules/personal` |
 

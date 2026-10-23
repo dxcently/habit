@@ -6,9 +6,9 @@ gone. `lib.catalogues` (`lib/catalogues.nix`, a function of `{ lib }`) merges
 them and refuses a clash instead.
 
 ```
-mergeRegistries :: [ source ] -> { catalogue; aggregations; overrides; }
+mergeRegistries :: [ source ] -> { catalogue; aggregations; overrides; rules; ruleFrom; }
 
-source = { name :: string; catalogue ? {}; aggregations ? {}; overrides ? {}; }
+source = { name :: string; catalogue ? {}; aggregations ? {}; overrides ? {}; rules ? {}; }
 ```
 
 ## The source
@@ -21,8 +21,9 @@ A source is a registry plus the name to blame it by.
 | `catalogue`    | no       | attrset; absent means `{ }` |
 | `aggregations` | no       | attrset; absent means `{ }` |
 | `overrides`    | no       | attrset; absent means `{ }` |
+| `rules`        | no       | attrset; absent means `{ }` ([Registry rules](rules.md)) |
 
-Those four fields and no others: any other field (a misspelt `aggregation`)
+Those five fields and no others: any other field (a misspelt `aggregation`)
 would otherwise drop a group without a trace, so it is an error.
 
 ## The example
@@ -64,6 +65,9 @@ adds `tmux` and a group, `dev`, that names `git` from core and `tmux` from itsel
   };
   overrides = {
     zsh-quiet-compaudit = ./overrides/zsh-quiet-compaudit.nix;
+  };
+  rules = {
+    terminal.needs = [ "shell" ];
   };
 }
 ```
@@ -143,7 +147,7 @@ standalone home:
 
 ## The result
 
-The result is a registry, ready to hand to the constructor. All three fields
+The result is a registry, ready to hand to the constructor. All four fields
 follow the same rule: keyed by name exactly as it is, and a name in more than
 one source is an error naming the field, the name and every source defining
 it:
@@ -153,6 +157,9 @@ catalogue names defined by more than one source: 'ssh' by core and upstream
 ```
 
 Because a clash is an error, the result does not depend on source order.
+
+`ruleFrom` maps each rule name to the source that defined it, so a rule's
+error can name its registry. It is read by the constructor and by nothing else.
 
 Each field is merged on its own, when it is read. A clash is reported by the
 field it is in, and a registry whose `overrides` clash still has a readable
@@ -164,7 +171,7 @@ name) is reported by whichever field is read first.
 | fault                                               | message                                                            |
 | --------------------------------------------------- | ------------------------------------------------------------------ |
 | a source that is not an attrset (a forgotten `import`) | `registry source at position 2 is a null, not an attrset`       |
-| a field outside the four                            | `registry source 'typo' has unknown field(s): aggregation; a source takes only name, catalogue, aggregations, overrides` |
+| a field outside the five                            | `registry source 'typo' has unknown field(s): aggregation; a source takes only name, catalogue, aggregations, overrides, rules` |
 | no string `name`                                    | ``registry source at position 2 has no string `name`; every source is named so a clash can say who defined it`` |
 | two sources with one name                           | `registry sources share a name: alpha; each source needs its own`  |
 | a field present but not an attrset (`catalogue = null`) | ``registry source 'nulled': `catalogue` must be an attrset, got null`` |
