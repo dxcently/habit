@@ -2,7 +2,7 @@
 
 Append-only. Newest first.
 
-## Unreleased
+## 0.7.1
 
 - A `needs` refusal names its cause once. Where an entry's system half applies and a
   need's does not, the homes' refusals of that need are left out, since fixing the
