@@ -3765,6 +3765,52 @@ in
     mod.dendrites.systemonly.enable = true;
   };
 
+  # alice's home reaches systemonly through the host, so the switch is cited
+  # with the user's fix. Her home's refusal of the same need is not repeated.
+  ruleSystemRefusalSuppressesTheHomeRefusal = ruledOn {
+    reg = ruled { systemonly.needs = [ "homeonly" ]; };
+    mod = {
+      dendrites.systemonly.enable = true;
+      dendrites.homeonly.enable = false;
+      users.alice = homeUser "alice" { };
+    };
+  };
+
+  # The host's system is fine for `systemonly`, and alice's home lacks the
+  # need her group sent her, which she switched off: only the home refusal.
+  ruleHomeRefusalStandsWhereTheSystemIsNotApplied = ruledOn {
+    reg = ruled { notifications.needs = [ "homeonly" ]; };
+    mod = {
+      dendrites.systemonly.enable = true;
+      aggregation.household.enable = true;
+      users.alice = homeUser "alice" {
+        dendrites.notifications = {
+          enable = true;
+          provider = "mako";
+          system = false;
+        };
+        dendrites.homeonly.enable = false;
+      };
+    };
+  };
+
+  ruleReportsTwoEntriesUnmet = ruledOn {
+    reg = ruled {
+      systemonly.needs = [ "homeonly" ];
+      notifications.needs = [ "homeonly" ];
+    };
+    mod = {
+      dendrites.systemonly.enable = true;
+      users.alice = homeUser "alice" {
+        dendrites.notifications = {
+          enable = true;
+          provider = "mako";
+          system = false;
+        };
+      };
+    };
+  };
+
   ruleNeedsNotCheckedWhenNotSelected = ruledOn {
     reg = ruled { systemonly.needs = [ "homeonly" ]; };
     mod = { };

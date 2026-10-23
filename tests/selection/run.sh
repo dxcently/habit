@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Runs every selection case and checks it against its expectation. A negative
 # case must fail AND say something useful: the runner greps the real stderr, so
-# a vague error is a failing test, not a passing one.
+# a vague error is a failing test, not a passing one. A `throwsNot` row fails
+# if its substring IS in the error, so it asserts a refusal is absent.
 #
 #   ./tests/selection/run.sh            # all cases
 #   ./tests/selection/run.sh unknownProvider
@@ -393,7 +394,12 @@ selectedGroupValueIsRefused throws  aggregation 'valued' is a set, not a path
 overrideValueIsRefused throws  override record 'badRecord' is a set, not a path
 ruleNeedsMetOnTheSystem             ok      "sys=systemonly"
 ruleNeedsNotSelectedIsRefused       throws  host 'fixture' (system): dendrite 'systemonly' needs 'homeonly', which is not selected for the system
-ruleNeedsSwitchedOffNamesTheLine    throws  dendrite 'systemonly' needs 'homeonly', which is switched off (`habit.dendrites.homeonly.enable = false`)
+ruleNeedsSwitchedOffNamesTheLine    throws  dendrite 'systemonly' needs 'homeonly', which is switched off (`habit.dendrites.homeonly.enable = false`); set it to `true`
+ruleSystemRefusalSuppressesTheHomeRefusal throws host 'fixture' (system): dendrite 'systemonly' needs 'homeonly', which is switched off (`habit.dendrites.homeonly.enable = false`); set it to `true`, or select it for a user with `habit.users.<u>.dendrites.homeonly.enable = true`
+ruleHomeRefusalStandsWhereTheSystemIsNotApplied throws host 'fixture' (user 'alice'): dendrite 'notifications' needs 'homeonly', which is switched off for 'alice' (`habit.users.alice.dendrites.homeonly.enable = false`)
+ruleReportsTwoEntriesUnmet          throws  host 'fixture' (user 'alice'): dendrite 'notifications' needs 'homeonly', which is neither selected on the host nor reaches 'alice'; host 'fixture' (system): dendrite 'systemonly' needs 'homeonly', which is not selected for the system
+ruleSystemRefusalSuppressesTheHomeRefusal throwsNot (user 'alice')
+ruleReportsTwoEntriesUnmet          throwsNot (user 'alice'): dendrite 'systemonly'
 ruleReportsEveryUnmetNeed           throws  needs 'homeonly', which is not selected for the system; host 'fixture' (system): dendrite 'systemonly' needs 'notifications', which is not selected for the system
 ruleNeedsNotCheckedWhenNotSelected  ok      "sys="
 ruleNeedsMetByTheHostForAHome       ok      "sys= alice=mako+homeonly"
@@ -458,6 +464,14 @@ while read -r name expect want; do
     else
       printf '%-42s FAIL (want %s, rc=%s)\n' "$name" "$want" "$rc"
       printf '%s\n' "$out" | tail -6 | sed 's/^/    | /'
+      fail=$((fail+1))
+    fi
+  elif [ "$expect" = throwsNot ]; then
+    if [ $rc -ne 0 ] && ! printf '%s' "$out" | grep -qF -- "$want"; then
+      printf '%-42s PASS  (no %s)\n' "$name" "$want"; pass=$((pass+1))
+    else
+      printf '%-42s FAIL (error contains %s, rc=%s)\n' "$name" "$want" "$rc"
+      printf '%s\n' "$out" | grep -v '^ *$' | tail -8 | sed 's/^/    | /'
       fail=$((fail+1))
     fi
   else

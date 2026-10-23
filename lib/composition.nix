@@ -1366,11 +1366,15 @@ rec {
 
       # A switch is cited only where it is a literal write. Anything else, a
       # `mkForce false` among it, is named by what it leaves, with no fix advised:
-      # the switch it hides is not a line the message can point at.
+      # the switch it hides is not a line the message can point at. A user's pick
+      # takes the system, so the user fix is offered only where a home reaches `n`.
       systemCause =
-        m:
+        n: m:
         if selection.writtenAs [ "dendrites" m "enable" ] false then
-          "is switched off (`habit.dendrites.${m}.enable = false`)"
+          "is switched off (`habit.dendrites.${m}.enable = false`); set it to `true`"
+          + lib.optionalString (
+            reachers n != [ ]
+          ) ", or select it for a user with `habit.users.<u>.dendrites.${m}.enable = true`"
         else
           "is not selected for the system";
 
@@ -1390,18 +1394,22 @@ rec {
             needs = rule.needs or [ ];
           in
           (lib.optionals (systemApplies n) (
-            map (m: "host '${hostName}' (system): dendrite '${n}' needs '${m}', which ${systemCause m}") (
+            map (m: "host '${hostName}' (system): dendrite '${n}' needs '${m}', which ${systemCause n m}") (
               lib.filter (m: !systemApplies m) needs
             )
           ))
-          ++ lib.concatMap (
-            u:
-            lib.optionals (reaches u n) (
-              map (m: "host '${hostName}' (user '${u}'): dendrite '${n}' needs '${m}', which ${userCause u m}") (
-                lib.filter (m: !(reaches u m || systemApplies m)) needs
+          # A home leans on the system, so where the system half of `n` applies,
+          # the system's refusal of a need is the only one: fixing it clears the homes.
+          ++ lib.optionals (!systemApplies n) (
+            lib.concatMap (
+              u:
+              lib.optionals (reaches u n) (
+                map (m: "host '${hostName}' (user '${u}'): dendrite '${n}' needs '${m}', which ${userCause u m}") (
+                  lib.filter (m: !(reaches u m || systemApplies m)) needs
+                )
               )
-            )
-          ) userNames
+            ) userNames
+          )
         ) rules
       );
 

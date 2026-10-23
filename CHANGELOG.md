@@ -2,6 +2,13 @@
 
 Append-only. Newest first.
 
+## Unreleased
+
+- A `needs` refusal names its cause once. Where an entry's system half applies and a
+  need's does not, the homes' refusals of that need are left out, since fixing the
+  system clears them. A host's literal `enable = false` on the need is cited with the
+  fix: set the switch to `true`, or select the need for a user whose home reaches the entry.
+
 ## 0.7.0
 
 - A registry's optional `rules` maps a catalogue name to a rule that refuses and

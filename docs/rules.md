@@ -52,14 +52,18 @@ If that user switches it off, nothing provides it, and the build is refused.
 host applies tailscale's system half ── sops's system half applies?
                                           │ no
                                           ▼
-                                  refused, host scope
+                                  refused, host scope (alice's home is not checked)
 
-alice reaches tailscale's home
+host does not apply tailscale's system half, and alice reaches its home
   │
   ├── alice's home reaches sops ──────────────────────── ok
   ├── host applies sops's system half ────────────────── ok (leans on the system)
   └── otherwise (a host group's home member she switched off, say) ── refused, user scope
 ```
+
+A home's refusal is checked only where the system half of the entry does not
+apply. Where it does, a need the system refuses is named once, for the system,
+and fixing that clears every home.
 
 Every unmet need is reported in one error, so a host sees all of them at once.
 
